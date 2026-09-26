@@ -90,6 +90,17 @@ try {
   check(board.panel.status.sub.endsWith('streak 1 (best 1)'), 'streak on panel: ' + board.panel.status.sub)
   check(board.bar.buttons[0]?.label === 'Next puzzle', 'Next puzzle button')
 
+  // A piece selected before stop() cannot be moved afterwards
+  const late = new PuzzleSession({ board, onStatus: t => { status = t }, lichess: { puzzleNext: async () => fixtures[1] } })
+  await late.next()
+  board._select('d8')
+  check(board.selected === 'd8', 'selected before stop')
+  late.stop()
+  check(!board.selected, 'stop clears the selection')
+  const fenStopped = late.chess.fen()
+  board.onMove('d8', 'h4')
+  check(late.chess.fen() === fenStopped, 'stopped puzzle ignores the move')
+
   // Race: stop() while a fetch is in flight -> the late puzzle must not take the board
   let release
   const slow = new PuzzleSession({ lichess: { puzzleNext: () => new Promise(r => { release = r }) },

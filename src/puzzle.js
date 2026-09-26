@@ -35,7 +35,7 @@ export class PuzzleSession {
     try {
       data = await this.lichess.puzzleNext(difficulty, angle)
     } catch (e) {
-      if (run === this.run) this._status('Puzzle fetch failed: ' + e.message)
+      if (run === this.run) this._fetchFailed(e)
       return
     }
     if (run === this.run) this._setup(data)
@@ -49,6 +49,7 @@ export class PuzzleSession {
     this.running = false
     clearTimeout(this.timer)
     this.board.setMarks({})
+    this.board.deselect()
   }
 
   // Lights up the piece that has to move next (breaks the streak).
@@ -96,6 +97,8 @@ export class PuzzleSession {
     this.onStatus?.(text)
   }
 
+  _fetchFailed(e) { this._status('Puzzle fetch failed: ' + e.message) }
+
   _actions() {
     return [{ label: 'Next puzzle', run: () => this.next() },
       ...this._myTurn() ? [{ label: 'Hint', run: () => this.hint() }] : [],
@@ -121,6 +124,7 @@ export class PuzzleSession {
   }
 
   tryMove(from, to, promo) {
+    if (!this._myTurn()) return // a piece selected before stop()/end must not move
     const expected = this.solution[this.idx] || ''
     let mv
     try {

@@ -31,9 +31,15 @@ export class RushSession extends PuzzleSession {
 
   _miss() {} // rush has lives, not streaks
 
+  // The clock keeps running, so don't leave the board empty: retry shortly.
+  _fetchFailed(e) {
+    this._status('Network hiccup — retrying…')
+    this.timer = setTimeout(() => this.next(), 1500)
+  }
+
   _wrong() {
     this.running = false
-    if (--this.lives <= 0) return this._end()
+    if (--this.lives <= 0) return this._end('error')
     this._status(`Wrong — ${this.lives} ${this.lives === 1 ? 'life' : 'lives'} left`)
     this.timer = setTimeout(() => this.next(), 700)
   }
@@ -53,14 +59,15 @@ export class RushSession extends PuzzleSession {
     if (this._left() !== this.shownSec) this.render()
   }
 
-  _end() {
+  _end(cue = 'success') {
+    if (this.over) return
     this.stop()
     this.over = true
     try {
       this.best = Math.max(this.score, +localStorage.getItem('rushBest') || 0)
       localStorage.setItem('rushBest', this.best)
     } catch { this.best = this.score }
-    this.board.cue('success')
+    this.board.cue(cue)
     this._status(`Rush over — ${this.score} solved`)
   }
 

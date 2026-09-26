@@ -348,6 +348,9 @@ try {
   const wMat = board.pieceMat.w
   board.setPieceStyle('ghost')
   check(wMat.transparent && wMat.opacity === 0.25 && wMat.visible, 'ghost material')
+  let shadows = 0
+  board.piecesGroup.traverse(m => { if (m.isMesh && m.castShadow) shadows++ })
+  check(shadows === 0, 'ghost pieces cast no shadows')
   board.setPieceStyle('hidden')
   check(!wMat.visible, 'hidden material')
   board.scene.updateMatrixWorld(true)

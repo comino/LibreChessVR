@@ -31,7 +31,14 @@ try {
   await board.init()
   const diffs = []
   const mate1 = { game: { pgn: 'f3 e5 g4' }, puzzle: { id: 'm', rating: 600, solution: ['d8h4'] } }
-  const lichess = { puzzleNext: async d => { diffs.push(d); return mate1 } }
+  let failNext = 0
+  const lichess = { puzzleNext: async d => {
+    if (failNext-- > 0) throw new Error('offline')
+    diffs.push(d); return mate1
+  } }
+  const cues = []
+  const realCue = board.cue.bind(board)
+  board.cue = k => { cues.push(k); realCue(k) }
   const r = new RushSession({ lichess, board, menu: () => [{ label: 'Menu', run() {} }] })
   const labels = () => board.bar.buttons.map(b => b.label).join()
   const until = async (cond, what) => { for (let i = 0; i < 150 && !cond(); i++) await sleep(20); check(cond(), what) }
@@ -57,10 +64,17 @@ try {
   await until(() => r.running && diffs.length === fetched + 1, 'moved on to a new puzzle')
   check(board.panel.status.sub.includes('♥♥ •') && !board.panel.status.sub.includes('♥♥♥'), 'two hearts: ' + board.panel.status.sub)
 
-  // Two more mistakes end the rush
-  board.onMove('b8', 'c6'); await until(() => r.running, 'next after 2nd miss')
+  // A failed fetch retries instead of leaving the board empty
+  failNext = 1
+  board.onMove('b8', 'c6')
+  await until(() => board.panel.status.text === 'Network hiccup — retrying…', 'retry shown')
+  await until(() => r.running, 'recovered after retry')
+
+  // The last mistake ends the rush with the error cue only
+  cues.length = 0
   board.onMove('b8', 'c6')
   check(r.over && board.panel.status.text === 'Rush over — 5 solved', 'over after 3 lives: ' + board.panel.status.text)
+  check(cues.join() === 'error,error', 'error cues only (move + end): ' + cues)
   check(localStorage.getItem('rushBest') === '5' && board.panel.status.sub === 'Best 5', 'best saved')
   check(labels() === 'New rush,Flip board,Menu', 'end bar: ' + labels())
   check(JSON.parse(localStorage.getItem('puzzleStats')).streak === 7, 'rush does not touch the puzzle streak')
@@ -68,13 +82,16 @@ try {
   r.next(); await sleep(50)
   check(diffs.length === n, 'no fetch after the rush is over')
 
-  // Time runs out
+  // Time runs out; a piece selected before the end cannot score afterwards
   board.bar.buttons[0].run()
   await until(() => r.running, 'new rush loaded')
   check(r.score === 0 && r.lives === 3, 'reset for the new rush')
+  board._select('d8')
   r.endAt = performance.now() - 1
   await sleep(300)
   check(r.over && board.panel.status.text === 'Rush over — 0 solved', 'time up ends the rush')
+  board.onMove('d8', 'h4')
+  check(r.score === 0 && board.panel.status.text === 'Rush over — 0 solved', 'no scoring after the end')
   check(localStorage.getItem('rushBest') === '5', 'lower score keeps best')
 
   // stop() kills the clock: no redraws afterwards

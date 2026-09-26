@@ -202,7 +202,7 @@ export class Board3D {
       if (!m.isMesh) return
       m.visible = !anyPlastic || m.name.includes('Plastic')
       m.material = mat
-      m.castShadow = true
+      m.castShadow = this.pieceStyle === 'solid'
     })
     const box = new THREE.Box3().setFromObject(inner)
     const c = box.getCenter(new THREE.Vector3())
@@ -243,6 +243,13 @@ export class Board3D {
     this.pieceStyle = style
     clearTimeout(this.showTimer)
     this._styleMaterials(style)
+    // ghost pieces casting solid shadows would give their outlines away
+    for (const g of [this.piecesGroup, this.capturedGroup]) g.traverse(m => { if (m.isMesh) m.castShadow = style === 'solid' })
+  }
+
+  deselect() {
+    this.selected = null
+    this._applyTints()
   }
 
   // Momentary reveal while ghosted/hidden (training aid).
