@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>VR Chess - Reusable Architecture</title>
+  <meta name="description" content="WebXR VR Chess with clean separation of concerns">
+  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.0.0/dist/aframe-extras.min.js"></script>
+  <script src="https://unpkg.com/super-hands@3.0.3/dist/super-hands.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+    }
+    #info {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      color: white;
+      font-family: monospace;
+      font-size: 14px;
+      background: rgba(0,0,0,0.7);
+      padding: 10px;
+      border-radius: 5px;
+      z-index: 1000;
+      max-width: 300px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Info overlay -->
+  <div id="info">
+    <div><strong>VR Chess v2</strong></div>
+    <div id="turn">Turn: White</div>
+    <div id="status">Status: Active</div>
+    <div id="lastMove">Last move: -</div>
+  </div>
+
+  <a-scene background="color: #000000" shadow="type: basic">
+    <!-- Assets -->
+    <a-assets>
+      <a-asset-item id="chessPieces" src="chess.glb"></a-asset-item>
+    </a-assets>
+
+    <!-- Camera Rig -->
+    <a-entity id="cameraRig" position="0 0.9 1.5">
+      <a-camera id="mainCamera" look-controls wasd-controls="enabled: true"></a-camera>
+
+      <!-- Left Controller -->
+      <a-entity
+        id="leftHand"
+        hand-controls="hand: left; handModelStyle: lowPoly; color: #15ACCF"
+        laser-controls
+        super-hands="colliderEvent: raycaster-intersection;
+                     colliderEventProperty: els;
+                     colliderEndEvent: raycaster-intersection-cleared;
+                     colliderEndEventProperty: clearedEls;">
+      </a-entity>
+
+      <!-- Right Controller -->
+      <a-entity
+        id="rightHand"
+        hand-controls="hand: right; handModelStyle: lowPoly; color: #15ACCF"
+        laser-controls
+        super-hands="colliderEvent: raycaster-intersection;
+                     colliderEventProperty: els;
+                     colliderEndEvent: raycaster-intersection-cleared;
+                     colliderEndEventProperty: clearedEls;">
+      </a-entity>
+    </a-entity>
+
+    <!-- Lighting -->
+    <a-entity light="type: ambient; color: #888; intensity: 0.8"></a-entity>
+    <a-entity light="type: directional; color: #FFF; intensity: 0.5" position="2 4 2"></a-entity>
+    <a-entity light="type: directional; color: #FFF; intensity: 0.3" position="-2 4 -2"></a-entity>
+
+    <!-- Chess Board Container -->
+    <a-entity id="chessBoard" position="0 0.85 0">
+      <!-- Board Base -->
+      <a-box
+        id="boardBase"
+        position="0 -0.05 0"
+        width="2.4"
+        height="0.1"
+        depth="2.4"
+        color="#2d2d2d"
+        shadow="receive: true">
+      </a-box>
+
+      <!-- Chess Squares (8x8 grid) -->
+      <!-- Row 1 -->
+      <a-box position="-1.05 0 1.05" width="0.3" height="0.02" depth="0.3" color="#F0D9B5" shadow="receive: true"></a-box>
+      <a-box position="-0.75 0 1.05" width="0.3" height="0.02" depth="0.3" color="#B58863" shadow="receive: true"></a-box>
+      <a-box position="-0.45 0 1.05" width="0.3" height="0.02" depth="0.3" color="#F0D9B5" shadow="receive: true"></a-box>
+      <a-box position="-0.15 0 1.05" width="0.3" height="0.02" depth="0.3" color="#B58863" shadow="receive: true"></a-box>
+      <a-box position="0.15 0 1.05" width="0.3" height="0.02" depth="0.3" color="#F0D9B5" shadow="receive: true"></a-box>
+      <a-box position="0.45 0 1.05" width="0.3" height="0.02" depth="0.3" color="#B58863" shadow="receive: true"></a-box>
+      <a-box position="0.75 0 1.05" width="0.3" height="0.02" depth="0.3" color="#F0D9B5" shadow="receive: true"></a-box>
+      <a-box position="1.05 0 1.05" width="0.3" height="0.02" depth="0.3" color="#B58863" shadow="receive: true"></a-box>
+
+      <!-- Row 2 -->
+      <a-box position="-1.05 0 0.75" width="0.3" height="0.02" depth="0.3" color="#B58863" shadow="receive: true"></a-box>
+      <a-box position="-0.75 0 0.75" width="0.3" height="0.02" depth="0.3" color="#F0D9B5" shadow="receive: true"></a-box>
+      <a-box position="-0.45 0 0.75" width="0.3" height="0.02" depth="0.3" color="#B58863" shadow="receive: true"></a-box>
+      <a-box position="-0.15 0 0.75" width="0.3" height="0.02" depth="0.3" color="#F0D9B5" shadow="receive: true"></a-box>
+      <a-box position="0.15 0 0.75" width="0.3" height="0.02" depth="0.3" color="#B58863" shadow="receive: true"></a-box>
+      <a-box position="0.45 0 0.75" width="0.3" height="0.02" depth="0.3" color="#F0D9B5" shadow="receive: true"></a-box>
+      <a-box position="0.75 0 0.75" width="0.3" height="0.02" depth="0.3" color="#B58863" shadow="receive: true"></a-box>
+      <a-box position="1.05 0 0.75" width="0.3" height="0.02" depth="0.3" color="#F0D9B5" shadow="receive: true"></a-box>
+
+      <!-- Row 3 -->
+      <a-box position="-1.05 0 0.45" width="0.3" height="0.02" depth="0.3" color="#F0D9B5" shadow="receive: true"></a-box>
+      <a-box position="-0.75 0 0.45" width="0.3" height="0.02" depth="0.3" color="#B58863" shadow="receive: true"></a-box>
+      <a-box position="-0.45 0 0.45" width="0.3" height="0.02" depth="0.3" color="#F0D9B5" shadow="receive: true"></a-box>
+      <a-box position="-0.15 0 0.45" width="0.3" height="0.02" depth="0.3" color="#B58863" shadow="receive: true"></a-box>
+      <a-box position="0.15 0 0.45" width="0.3" height="0.02" depth="0.3" color="#F0D9B5" shadow="receive: true"></a-box>
+      <a-box position="0.45 0 0.45" width="0.3" height="0.02" depth="0.3" color="#B58863" shadow="receive: true"></a-box>
+      <a-box position="0.75 0 0.45" width="0.3" height="0.02" depth="0.3" color="#F0D9B5" shadow="receive: true"></a-box>
+      <a-box position="1.05 0 0.45" width="0.3" height="0.02" depth="0.3" color="#B58863" shadow="receive: true"></a-box>
+
+      <!-- Row 4 -->
+      <a-box position="-1.05 0 0.15" width="0.3" height="0.02" depth="0.3" color="#B58863" shadow="receive: true"></a-box>
+      <a-box position="-0.75 0 0.15" width="0.3" height="0.02" depth="0.3" color="#F0D9B5" shadow="receive: true"></a-box>
+      <a-box position="-0.45 0 0.15" width="0.3" height="0.02" depth="0.3" color="#B58863" shadow="receive: true"></a-box>
+      <a-box position="-0.15 0 0.15" width="0.3" height="0.02" depth="0.3" color="#F0D9B5" shadow="receive: true"></a-box>
+      <a-box position="0.15 0 0.15" width="0.3" height="0.02" depth="0.3" color="#B58863" shadow="receive: true"></a-box>
+      <a-box position="0.45 0 0.15" width="0.3" height="0.02" depth="0.3" color="#F0D9B5" shadow="receive: true"></a-box>
+      <a-box position="0.75 0 0.15" width="0.3" height="0.02" depth="0.3" color="#B58863" shadow="receive: true"></a-box>
+      <a-box position="1.05 0 0.15" width="0.3" height="0.02" depth="0.3" color="#F0D9B5" shadow="receive: true"></a-box>
+
+      <!-- Row 5 -->
+      <a-box position="-1.05 0 -0.15" width="0.3" height="0.02" depth="0.3" color="#F0D9B5" shadow="receive: true"></a-box>
+      <a-box position="-0.75 0 -0.15" width="0.3" height="0.02" depth="0.3" color="#B58863" shadow="receive: true"></a-box>
+      <a-box position="-0.45 0 -0.15" width="0.3" height="0.02" depth="0.3" color="#F0D9B5" shadow="receive: true"></a-box>
+      <a-box position="-0.15 0 -0.15" width="0.3" height="0.02" depth="0.3" color="#B58863" shadow="receive: true"></a-box>
+      <a-box position="0.15 0 -0.15" width="0.3" height="0.02" depth="0.3" color="#F0D9B5" shadow="receive: true"></a-box>
+      <a-box position="0.45 0 -0.15" width="0.3" height="0.02" depth="0.3" color="#B58863" shadow="receive: true"></a-box>
+      <a-box position="0.75 0 -0.15" width="0.3" height="0.02" depth="0.3" color="#F0D9B5" shadow="receive: true"></a-box>
+      <a-box position="1.05 0 -0.15" width="0.3" height="0.02" depth="0.3" color="#B58863" shadow="receive: true"></a-box>
+
+      <!-- Row 6 -->
+      <a-box position="-1.05 0 -0.45" width="0.3" height="0.02" depth="0.3" color="#B58863" shadow="receive: true"></a-box>
+      <a-box position="-0.75 0 -0.45" width="0.3" height="0.02" depth="0.3" color="#F0D9B5" shadow="receive: true"></a-box>
+      <a-box position="-0.45 0 -0.45" width="0.3" height="0.02" depth="0.3" color="#B58863" shadow="receive: true"></a-box>
+      <a-box position="-0.15 0 -0.45" width="0.3" height="0.02" depth="0.3" color="#F0D9B5" shadow="receive: true"></a-box>
+      <a-box position="0.15 0 -0.45" width="0.3" height="0.02" depth="0.3" color="#B58863" shadow="receive: true"></a-box>
+      <a-box position="0.45 0 -0.45" width="0.3" height="0.02" depth="0.3" color="#F0D9B5" shadow="receive: true"></a-box>
+      <a-box position="0.75 0 -0.45" width="0.3" height="0.02" depth="0.3" color="#B58863" shadow="receive: true"></a-box>
+      <a-box position="1.05 0 -0.45" width="0.3" height="0.02" depth="0.3" color="#F0D9B5" shadow="receive: true"></a-box>
+
+      <!-- Row 7 -->
+      <a-box position="-1.05 0 -0.75" width="0.3" height="0.02" depth="0.3" color="#F0D9B5" shadow="receive: true"></a-box>
+      <a-box position="-0.75 0 -0.75" width="0.3" height="0.02" depth="0.3" color="#B58863" shadow="receive: true"></a-box>
+      <a-box position="-0.45 0 -0.75" width="0.3" height="0.02" depth="0.3" color="#F0D9B5" shadow="receive: true"></a-box>
+      <a-box position="-0.15 0 -0.75" width="0.3" height="0.02" depth="0.3" color="#B58863" shadow="receive: true"></a-box>
+      <a-box position="0.15 0 -0.75" width="0.3" height="0.02" depth="0.3" color="#F0D9B5" shadow="receive: true"></a-box>
+      <a-box position="0.45 0 -0.75" width="0.3" height="0.02" depth="0.3" color="#B58863" shadow="receive: true"></a-box>
+      <a-box position="0.75 0 -0.75" width="0.3" height="0.02" depth="0.3" color="#F0D9B5" shadow="receive: true"></a-box>
+      <a-box position="1.05 0 -0.75" width="0.3" height="0.02" depth="0.3" color="#B58863" shadow="receive: true"></a-box>
+
+      <!-- Row 8 -->
+      <a-box position="-1.05 0 -1.05" width="0.3" height="0.02" depth="0.3" color="#B58863" shadow="receive: true"></a-box>
+      <a-box position="-0.75 0 -1.05" width="0.3" height="0.02" depth="0.3" color="#F0D9B5" shadow="receive: true"></a-box>
+      <a-box position="-0.45 0 -1.05" width="0.3" height="0.02" depth="0.3" color="#B58863" shadow="receive: true"></a-box>
+      <a-box position="-0.15 0 -1.05" width="0.3" height="0.02" depth="0.3" color="#F0D9B5" shadow="receive: true"></a-box>
+      <a-box position="0.15 0 -1.05" width="0.3" height="0.02" depth="0.3" color="#B58863" shadow="receive: true"></a-box>
+      <a-box position="0.45 0 -1.05" width="0.3" height="0.02" depth="0.3" color="#F0D9B5" shadow="receive: true"></a-box>
+      <a-box position="0.75 0 -1.05" width="0.3" height="0.02" depth="0.3" color="#B58863" shadow="receive: true"></a-box>
+      <a-box position="1.05 0 -1.05" width="0.3" height="0.02" depth="0.3" color="#F0D9B5" shadow="receive: true"></a-box>
+
+      <!-- Hidden template model -->
+      <a-entity
+        id="chessPiecesTemplate"
+        gltf-model="#chessPieces"
+        visible="false">
+      </a-entity>
+
+      <!-- Pieces will be dynamically created here -->
+    </a-entity>
+
+    <!-- Reset Button -->
+    <a-box
+      id="resetButton"
+      position="-1.8 1.2 0"
+      width="0.3"
+      height="0.15"
+      depth="0.1"
+      color="#FF3333"
+      shadow="cast: true"
+      class="clickable">
+      <a-text
+        value="RESET"
+        align="center"
+        position="0 0 0.055"
+        scale="0.4 0.4 0.4"
+        color="#FFFFFF">
+      </a-text>
+    </a-box>
+
+    <!-- Undo Button -->
+    <a-box
+      id="undoButton"
+      position="-1.8 1.0 0"
+      width="0.3"
+      height="0.15"
+      depth="0.1"
+      color="#3333FF"
+      shadow="cast: true"
+      class="clickable">
+      <a-text
+        value="UNDO"
+        align="center"
+        position="0 0 0.055"
+        scale="0.4 0.4 0.4"
+        color="#FFFFFF">
+      </a-text>
+    </a-box>
+  </a-scene>
+
+  <script type="module">
+    import { ChessGame } from './chess-game.js'
+    import { VRChessBoard } from './vr-board.js'
+
+    // Wait for scene to load
+    const sceneEl = document.querySelector('a-scene')
+
+    sceneEl.addEventListener('loaded', function() {
+      // Initialize game and board
+      const game = new ChessGame()
+      const vrBoard = new VRChessBoard(sceneEl)
+
+      // Wait for GLB model to load
+      const template = document.getElementById('chessPiecesTemplate')
+
+      template.addEventListener('model-loaded', function() {
+        const model = template.getObject3D('mesh')
+        if (!model) return
+
+        // Extract piece templates
+        const nodeMapping = {
+          'Pawn': 'p',
+          'Queen': 'q',
+          'King': 'k',
+          'Rook': 'r',
+          'Knight': 'n',
+          'Bishop': 'b'
+        }
+
+        const templates = {}
+        model.traverse(function(node) {
+          if (node.name && nodeMapping[node.name]) {
+            const pieceType = nodeMapping[node.name]
+            templates[pieceType] = node.clone()
+          }
+        })
+
+        vrBoard.setTemplates(templates)
+
+        // Set initial position
+        vrBoard.setPosition(game.getFEN())
+
+        console.log('VR Chess initialized')
+        console.log('Game FEN:', game.getFEN())
+      })
+
+      // Wire up event handlers
+      // When piece is moved in VR, validate with game logic
+      vrBoard.on('pieceMoved', ({ from, to, entity }) => {
+        console.log(`Attempting move: ${from} -> ${to}`)
+
+        const move = game.movePiece(from, to)
+
+        if (move) {
+          // Legal move - sync visual
+          vrBoard.movePieceVisual(from, to)
+          console.log(`Legal move: ${move.san}`)
+
+          // Update UI
+          updateUI(game)
+
+          if (game.isGameOver()) {
+            const status = game.getGameStatus()
+            if (status.isCheckmate) {
+              alert(`Checkmate! ${move.color === 'w' ? 'White' : 'Black'} wins!`)
+            } else if (status.isStalemate) {
+              alert('Stalemate!')
+            } else if (status.isDraw) {
+              alert('Draw!')
+            }
+          }
+        } else {
+          // Illegal move - reset visual position
+          console.log('Illegal move')
+          const originalPos = vrBoard.mapper.squareToPosition(from)
+          entity.setAttribute('position', {
+            x: originalPos.x,
+            y: 0,
+            z: originalPos.z
+          })
+        }
+      })
+
+      // When game position changes externally, update VR board
+      game.on('positionChanged', (fen) => {
+        console.log('Position changed:', fen)
+      })
+
+      // Reset button
+      const resetButton = document.getElementById('resetButton')
+      resetButton.addEventListener('click', () => {
+        game.reset()
+        vrBoard.setPosition(game.getFEN())
+        updateUI(game)
+        console.log('Game reset')
+      })
+
+      // Undo button
+      const undoButton = document.getElementById('undoButton')
+      undoButton.addEventListener('click', () => {
+        const undoneMove = game.undo()
+        if (undoneMove) {
+          vrBoard.setPosition(game.getFEN())
+          updateUI(game)
+          console.log('Move undone:', undoneMove)
+        }
+      })
+
+      // Update UI info panel
+      function updateUI(game) {
+        const turn = game.getTurn() === 'w' ? 'White' : 'Black'
+        document.getElementById('turn').textContent = `Turn: ${turn}`
+
+        let status = 'Active'
+        if (game.isCheckmate()) status = 'Checkmate'
+        else if (game.isStalemate()) status = 'Stalemate'
+        else if (game.isDraw()) status = 'Draw'
+        else if (game.isCheck()) status = 'Check'
+
+        document.getElementById('status').textContent = `Status: ${status}`
+
+        const history = game.getHistory()
+        const lastMove = history.length > 0 ? history[history.length - 1] : '-'
+        document.getElementById('lastMove').textContent = `Last move: ${lastMove}`
+      }
+
+      // Expose to window for debugging
+      window.game = game
+      window.vrBoard = vrBoard
+
+      console.log('Chess game and VR board available as window.game and window.vrBoard')
+      console.log('Example: window.game.movePiece("e2", "e4")')
+      console.log('Example: window.game.getFEN()')
+    })
+  </script>
+</body>
+</html>

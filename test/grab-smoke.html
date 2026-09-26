@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<base href="/">
+<title>ChessVR grab smoke test</title>
+<style>body { margin: 0 }</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="result" style="position:fixed;top:0;right:0;z-index:10;color:#0f0;font-family:monospace"></div>
+<script type="module">
+import * as THREE from 'three'
+import { Board3D } from './src/board3d.js'
+import { squareToXZ } from './src/coords.js'
+const out = document.getElementById('result')
+const check = (cond, what) => { if (!cond) throw new Error('check failed: ' + what) }
+const S = 0.06
+
+try {
+  const board = new Board3D()
+  await board.init()
+  board.setPosition('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1')
+  board.canPick = sq => sq[1] === '1' || sq[1] === '2'  // white to move
+  board.getTargets = sq => ({ e2: ['e3', 'e4'], a2: ['a3', 'a4'] }[sq] || [])
+  const moves = []
+  board.onMove = (f, t) => moves.push(f + t)
+  board.setHandMode('grab')
+
+  // Fake hand: real Object3Ds as joints so world-space math runs unchanged.
+  const j1 = new THREE.Object3D(), j2 = new THREE.Object3D()
+  const hand = { joints: { 'index-finger-tip': j1, 'thumb-tip': j2 } }
+  board.boardGroup.updateWorldMatrix(true, false)
+  const at = (sq, y = 0.05) => {
+    const { x, z } = squareToXZ(sq, S)
+    const p = board.boardGroup.localToWorld(new THREE.Vector3(x, y, z))
+    j1.position.copy(p)
+    j2.position.copy(p)
+  }
+
+  // Legal grab-and-drop: e2 pawn to e4
+  at('e2')
+  board._grabStart(hand)
+  check(board.grab?.from === 'e2', 'grabbed e2 pawn')
+  check(board.tiles.e2.material.emissive.getHex() === 0x8a7a1a, 'origin tinted')
+  check(board.tiles.e4.material.emissive.getHex() === 0x1a6a2a, 'target tinted')
+  const pawn = board.grab.piece
+  at('e4', 0.08)
+  board._tick()
+  check(Math.abs(pawn.position.x - squareToXZ('e4', S).x) < 0.001, 'piece follows hand')
+  board._grabEnd(hand)
+  check(moves.join() === 'e2e4', 'move emitted, got: ' + moves.join())
+  check(pawn.position.z === squareToXZ('e4', S).z && pawn.position.y === 0.005, 'snapped to e4')
+  check(!board.grab && board.tiles.e2.material.emissive.getHex() === 0, 'tints cleared')
+
+  // Illegal drop: a2 pawn released on d5 returns home, no move
+  board.setPosition('rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1')
+  at('a2')
+  board._grabStart(hand)
+  check(board.grab?.from === 'a2', 'grabbed a2 pawn')
+  const pawn2 = board.grab.piece
+  at('d5', 0.08)
+  board._tick()
+  board._grabEnd(hand)
+  check(moves.length === 1, 'no move for illegal drop')
+  check(pawn2.position.x === squareToXZ('a2', S).x && pawn2.position.z === squareToXZ('a2', S).z,
+    'piece returned home')
+
+  // Pinch in empty space: no grab
+  at('d5')
+  board._grabStart(hand)
+  check(!board.grab, 'empty-space pinch ignored')
+
+  // Tracking lost mid-grab: piece returns home
+  at('a2')
+  board._grabStart(hand)
+  j1.visible = false
+  board._tick()
+  check(!board.grab, 'grab cancelled on tracking loss')
+  check(pawn2.position.x === squareToXZ('a2', S).x, 'piece home after tracking loss')
+  check(moves.length === 1, 'no move on tracking loss')
+  j1.visible = true
+
+  // Ray mode ignores pinch-grab
+  board.setHandMode('ray')
+  at('a2')
+  board._grabStart(hand)
+  check(!board.grab, 'grab inactive in ray mode')
+
+  out.textContent = 'GRAB-OK'
+} catch (e) {
+  out.textContent = 'GRAB-FAIL ' + e.message
+}
+</script>
+</body>
+</html>

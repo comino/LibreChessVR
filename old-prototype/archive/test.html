@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Chess API Test</title>
+  <style>
+    body {
+      font-family: monospace;
+      padding: 20px;
+      background: #1a1a1a;
+      color: #00ff00;
+    }
+    h1 { color: #00ff00; }
+    .test { margin: 10px 0; padding: 10px; background: #2a2a2a; }
+    .pass { border-left: 4px solid #00ff00; }
+    .fail { border-left: 4px solid #ff0000; }
+    button {
+      background: #333;
+      color: #00ff00;
+      border: 1px solid #00ff00;
+      padding: 10px 20px;
+      margin: 5px;
+      cursor: pointer;
+      font-family: monospace;
+    }
+    button:hover { background: #444; }
+    #output { white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>Chess API Test Suite</h1>
+
+  <div>
+    <button onclick="runAllTests()">Run All Tests</button>
+    <button onclick="testChessGame()">Test ChessGame</button>
+    <button onclick="testBoardMapper()">Test BoardMapper</button>
+    <button onclick="testIntegration()">Test Integration</button>
+  </div>
+
+  <div id="output"></div>
+
+  <script type="module">
+    import { ChessGame } from './chess-game.js'
+    import { BoardMapper } from './board-mapper.js'
+
+    let output = document.getElementById('output')
+    let testCount = 0
+    let passCount = 0
+    let failCount = 0
+
+    function log(msg, isTest = false) {
+      const line = document.createElement('div')
+      if (isTest) {
+        line.className = 'test ' + (msg.includes('✓') ? 'pass' : 'fail')
+        testCount++
+        if (msg.includes('✓')) passCount++
+        else failCount++
+      }
+      line.textContent = msg
+      output.appendChild(line)
+    }
+
+    function assert(condition, testName) {
+      if (condition) {
+        log(`✓ ${testName}`, true)
+      } else {
+        log(`✗ ${testName}`, true)
+      }
+    }
+
+    function assertEquals(actual, expected, testName) {
+      if (JSON.stringify(actual) === JSON.stringify(expected)) {
+        log(`✓ ${testName}`, true)
+      } else {
+        log(`✗ ${testName} - Expected: ${JSON.stringify(expected)}, Got: ${JSON.stringify(actual)}`, true)
+      }
+    }
+
+    window.runAllTests = async function() {
+      output.innerHTML = ''
+      testCount = 0
+      passCount = 0
+      failCount = 0
+
+      log('=== Starting Test Suite ===\n')
+
+      await testChessGame()
+      await testBoardMapper()
+      await testIntegration()
+
+      log(`\n=== Test Results ===`)
+      log(`Total: ${testCount}, Passed: ${passCount}, Failed: ${failCount}`)
+      log(failCount === 0 ? '✓ ALL TESTS PASSED' : '✗ SOME TESTS FAILED')
+    }
+
+    window.testChessGame = async function() {
+      log('\n--- Testing ChessGame ---\n')
+
+      const game = new ChessGame()
+
+      // Test initial position
+      assert(game.getFEN().startsWith('rnbqkbnr/pppppppp'), 'Initial position is correct')
+      assertEquals(game.getTurn(), 'w', 'White starts')
+      assert(!game.isGameOver(), 'Game is not over at start')
+
+      // Test piece retrieval
+      const whiteKing = game.getPieceAt('e1')
+      assertEquals(whiteKing, { type: 'k', color: 'w' }, 'White king on e1')
+
+      const emptySquare = game.getPieceAt('e4')
+      assertEquals(emptySquare, null, 'e4 is empty initially')
+
+      // Test legal moves
+      const e2Moves = game.getLegalMoves('e2')
+      assert(e2Moves.length === 2, 'Pawn on e2 has 2 legal moves')
+
+      // Test making moves
+      const move1 = game.movePiece('e2', 'e4')
+      assert(move1 !== null, 'e2-e4 is legal')
+      assertEquals(move1.san, 'e4', 'Move SAN is correct')
+      assertEquals(game.getTurn(), 'b', 'Turn switches to black')
+
+      // Test illegal move
+      const illegalMove = game.movePiece('e7', 'e5')
+      // Make e5 legal first
+      game.undo()
+      const move2 = game.movePiece('e2', 'e4')
+      const move3 = game.movePiece('e7', 'e5')
+      assert(move3 !== null, 'e7-e5 is legal after e2-e4')
+
+      // Test undo
+      const undone = game.undo()
+      assert(undone !== null, 'Undo returns move')
+      assertEquals(game.getTurn(), 'b', 'Turn is black after undo')
+
+      // Test FEN loading
+      const scholarMate = 'r1bqkb1r/pppp1Qpp/2n2n2/4p3/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 0 4'
+      const loaded = game.setFEN(scholarMate)
+      assert(loaded, 'FEN loads successfully')
+      assert(game.isCheckmate(), 'Scholar\'s mate is checkmate')
+      assert(game.isGameOver(), 'Game is over after checkmate')
+
+      // Test reset
+      game.reset()
+      assert(game.getFEN().startsWith('rnbqkbnr/pppppppp'), 'Reset works')
+      assert(!game.isGameOver(), 'Game is not over after reset')
+
+      // Test board method
+      const board = game.getBoard()
+      assert(board.length === 8, 'Board has 8 ranks')
+      assert(board[0].length === 8, 'Each rank has 8 files')
+
+      log('ChessGame tests complete')
+    }
+
+    window.testBoardMapper = async function() {
+      log('\n--- Testing BoardMapper ---\n')
+
+      const mapper = new BoardMapper()
+
+      // Test square to position
+      const e1pos = mapper.squareToPosition('e1')
+      assert(e1pos !== null, 'e1 position exists')
+      assertEquals(e1pos.x, 0.15, 'e1 x coordinate correct')
+      assertEquals(e1pos.z, 1.05, 'e1 z coordinate correct')
+
+      // Test position to square
+      const square = mapper.positionToSquare(0.15, 1.05)
+      assertEquals(square, 'e1', 'Position maps to e1')
+
+      // Test square to indices
+      const indices = mapper.squareToIndices('e4')
+      assertEquals(indices, { rank: 3, file: 4 }, 'e4 indices correct')
+
+      // Test indices to square
+      const sq = mapper.indicesToSquare(3, 4)
+      assertEquals(sq, 'e4', 'Indices map to e4')
+
+      // Test validation
+      assert(mapper.isValidSquare('a1'), 'a1 is valid')
+      assert(mapper.isValidSquare('h8'), 'h8 is valid')
+      assert(!mapper.isValidSquare('i9'), 'i9 is invalid')
+      assert(!mapper.isValidSquare('a0'), 'a0 is invalid')
+
+      // Test distance
+      const dist = mapper.getSquareDistance('e2', 'e4')
+      assertEquals(dist, 2, 'Distance e2-e4 is 2')
+
+      // Test square color
+      assertEquals(mapper.getSquareColor('a1'), 'light', 'a1 is light')
+      assertEquals(mapper.getSquareColor('a8'), 'dark', 'a8 is dark')
+      assertEquals(mapper.getSquareColor('h1'), 'dark', 'h1 is dark')
+      assertEquals(mapper.getSquareColor('h8'), 'light', 'h8 is light')
+
+      // Test all squares
+      const allSquares = mapper.getAllSquares()
+      assertEquals(allSquares.length, 64, '64 squares total')
+      assertEquals(allSquares[0], 'a1', 'First square is a1')
+      assertEquals(allSquares[63], 'h8', 'Last square is h8')
+
+      log('BoardMapper tests complete')
+    }
+
+    window.testIntegration = async function() {
+      log('\n--- Testing Integration ---\n')
+
+      const game = new ChessGame()
+      const mapper = new BoardMapper()
+
+      // Test game + mapper integration
+      game.movePiece('e2', 'e4')
+      const piece = game.getPieceAt('e4')
+      assert(piece !== null, 'Piece exists at e4 after move')
+
+      const e4pos = mapper.squareToPosition('e4')
+      assert(e4pos !== null, 'Can get 3D position for e4')
+
+      const backToSquare = mapper.positionToSquare(e4pos.x, e4pos.z)
+      assertEquals(backToSquare, 'e4', 'Round trip position->square->position works')
+
+      // Test full game scenario
+      const moves = [
+        ['e2', 'e4'],
+        ['e7', 'e5'],
+        ['Nf3', null], // Use SAN style
+        ['Nc6', null]
+      ]
+
+      game.reset()
+
+      // Test event system
+      let positionChangeCount = 0
+      let moveCount = 0
+
+      game.on('positionChanged', () => positionChangeCount++)
+      game.on('move', () => moveCount++)
+
+      game.movePiece('e2', 'e4')
+      game.movePiece('e7', 'e5')
+
+      assert(positionChangeCount === 2, 'Position changed events fired')
+      assert(moveCount === 2, 'Move events fired')
+
+      // Test FEN round-trip
+      const fen1 = game.getFEN()
+      const fen2 = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2'
+      game.setFEN(fen2)
+      assertEquals(game.getFEN(), fen2, 'FEN round-trip works')
+
+      log('Integration tests complete')
+    }
+
+    // Run tests on load
+    window.addEventListener('load', () => {
+      log('Test suite loaded. Click "Run All Tests" to start.')
+    })
+  </script>
+</body>
+</html>

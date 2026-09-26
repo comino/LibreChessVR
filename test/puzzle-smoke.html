@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<base href="/">
+<title>ChessVR puzzle smoke test</title>
+<style>body { margin: 0 }</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+    "chess.js": "https://cdn.jsdelivr.net/npm/chess.js@1.0.0/+esm"
+  }
+}
+</script>
+</head>
+<body>
+<div id="result" style="position:fixed;top:0;right:0;z-index:10;color:#0f0;font-family:monospace"></div>
+<script type="module">
+import { Board3D } from './src/board3d.js'
+import { PuzzleSession } from './src/puzzle.js'
+const out = document.getElementById('result')
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+const check = (cond, what) => { if (!cond) throw new Error('check failed: ' + what) }
+
+// Fixture A: scholar's mate line, solver=white, replies auto-played.
+// Fixture B: fool's mate, solver=black, single mating move.
+const fixtures = [
+  { game: { pgn: 'e4 e5' },
+    puzzle: { id: 'testA', rating: 1200, solution: ['f1c4', 'b8c6', 'd1h5', 'g8f6', 'h5f7'] } },
+  { game: { pgn: 'f3 e5 g4' },
+    puzzle: { id: 'testB', rating: 600, solution: ['d8h4'] } }
+]
+let fetches = 0
+const lichess = { puzzleNext: async () => fixtures[fetches++ % 2] }
+
+try {
+  const board = new Board3D()
+  await board.init()
+  let status = ''
+  const puzzles = new PuzzleSession({ lichess, board, onStatus: t => { status = t } })
+
+  await puzzles.next('normal')
+  check(status === 'Find the best move for white', 'initial status, got: ' + status)
+  check(board.canPick('f1') && !board.canPick('e7'), 'canPick own pieces only')
+
+  const fen = puzzles.chess.fen()
+  board.onMove('g1', 'f3')                     // legal but wrong
+  check(status === 'Not it — try again', 'wrong move detected')
+  check(puzzles.chess.fen() === fen, 'wrong move rolled back')
+
+  board.onMove('f1', 'c4'); await sleep(700)   // reply b8c6 auto-plays
+  check(status === 'Your move (white)', 'opponent replied')
+  check(puzzles.chess.get('c6')?.type === 'n', 'reply applied on board state')
+  board.onMove('d1', 'h5'); await sleep(700)   // reply g8f6
+  board.onMove('h5', 'f7')                     // Qxf7#
+  check(status === 'Solved! Next puzzle…', 'puzzle A solved, got: ' + status)
+
+  await sleep(2500)                            // auto-advance to fixture B
+  check(status === 'Find the best move for black', 'puzzle B loaded, got: ' + status)
+  check(Math.abs(board.boardGroup.rotation.y - Math.PI) < 1e-6, 'board flipped for black')
+  board.onMove('d8', 'h4')                     // Qh4#
+  check(status === 'Solved! Next puzzle…', 'puzzle B solved')
+  check(fetches === 2, 'fetch count')
+
+  out.textContent = 'PUZZLE-OK'
+} catch (e) {
+  out.textContent = 'PUZZLE-FAIL ' + e.message
+}
+</script>
+</body>
+</html>

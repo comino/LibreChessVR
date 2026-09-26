@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<base href="/">
+<title>ChessVR smoke test</title>
+<style>body { margin: 0 }</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="result" style="position:fixed;top:0;right:0;z-index:10;color:#0f0;font-family:monospace"></div>
+<script type="module">
+import { Board3D } from './src/board3d.js'
+const out = document.getElementById('result')
+try {
+  const board = new Board3D()
+  await board.init()
+  board.setPosition('r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 4',
+    { from: 'g8', to: 'f6' })
+  board.setStatus({
+    names: { white: 'me', black: 'stockfish' }, myColor: 'white',
+    wtime: 600000, btime: 597000, turn: 'w', running: true, text: 'Your move'
+  })
+  if (location.hash === '#closeup') {
+    board.camera.position.set(0.18, 0.82, -0.14)
+    board.controls.target.set(0, 0.76, -0.45)
+  }
+  const n = board.piecesGroup.children.length
+  const king = board.templates.k
+  const names = []
+  king.traverse(m => { if (m.isMesh) names.push(m.name + (m.visible ? '' : '(hidden)')) })
+  const pawn = board.pieceAt.a2
+  const box = new (await import('three')).Box3().setFromObject(pawn)
+  const info = ` scale=${board.pieceScale.toFixed(5)} kingMeshes=[${names}] pawnBox=${JSON.stringify(box.min)}..${JSON.stringify(box.max)}`
+  out.textContent = (n === 32 ? 'SMOKE-OK 32 pieces' : 'SMOKE-FAIL pieces=' + n) + info
+} catch (e) {
+  out.textContent = 'SMOKE-FAIL ' + e.message
+}
+</script>
+</body>
+</html>
