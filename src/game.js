@@ -124,6 +124,7 @@ export class GameSession {
     if (this.claimAt) text = this._canClaim() ? 'Opponent left — claim the win'
       : `Opponent left — claim in ${Math.ceil((this.claimAt - performance.now()) / 1000)} s`
     if (this.error) text = this.error
+    else if (this.replayIdx != null) text = this._replayText()
     else if (this.finished) {
       text = STATUS_TEXT[s.status] || s.status
       if (s.winner) text += this._won() ? ' — you win' : ' — you lose'
@@ -143,7 +144,10 @@ export class GameSession {
 
   // Button bar: answer offers, offer a draw, abort (before both moved) or resign.
   _actions() {
-    if (this.finished) return [...this.clock && !this.error ? [{ label: 'Rematch', run: () => this._rematch() }] : [],
+    if (this.error) return this.menu?.() ?? [] // state untrustworthy: no rematch/replay
+    if (this.finished) return [
+      ...this.clock ? [{ label: 'Rematch', run: () => this._rematch() }] : [],
+      ...this.applied ? [{ label: 'Prev move', run: () => this._step(-1) }, { label: 'Next move', run: () => this._step(1) }] : [],
       ...this.menu?.() ?? []]
     const s = this.state, me = this.color[0], opp = me === 'w' ? 'b' : 'w'
     const { lichess: li, gameId: id } = this
@@ -160,6 +164,24 @@ export class GameSession {
       ? { label: 'Abort', run: call(() => li.abort(id)) }
       : { label: 'Resign', confirm: true, run: call(() => li.resign(id)) })
     return acts
+  }
+
+  // Post-game replay: step through the moves on the board; null index = final position.
+  _step(d) {
+    const hist = this.chess.history({ verbose: true }), n = hist.length
+    const i = Math.max(0, Math.min(n, (this.replayIdx ?? n) + d))
+    const c = new Chess(this.initialFen)
+    for (const m of hist.slice(0, i)) c.move({ from: m.from, to: m.to, promotion: m.promotion })
+    this.replayIdx = i === n ? null : i
+    this.shown = this.replayIdx == null ? null : c
+    const m = hist[i - 1]
+    this.board.setPosition(c.fen(), m && { from: m.from, to: m.to })
+    this._render()
+  }
+
+  _replayText() {
+    const i = this.replayIdx, n = this.chess.history().length
+    return i ? `Move ${i}/${n}: ${this.chess.history()[i - 1]}` : `Start · 0/${n}`
   }
 
   // Same clock, colors swapped: Stockfish starts at once, a human gets a challenge.

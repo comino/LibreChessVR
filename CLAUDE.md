@@ -57,6 +57,11 @@ player who normally plays 2D. Static web app, no build step, no backend, no npm.
 - Castling may arrive king-takes-rook (`e1h1`); `_applyUci` maps it to `e1g1`.
 - Finished games offer **Rematch** (needs `gameFull.clock`, hidden after `_fail`): AI → `challengeAi`
   with colors swapped; human → `POST /api/challenge/{user}`. `challengeDeclined` events → `view.say()`.
+- Post-game replay (`_step`): builds a chess.js instance for move i and sets `session.shown`;
+  bindBoard's `checkSquare` uses `shown ?? chess`. `replayIdx == null` = final position.
+  No rematch/replay buttons after `_fail` (state untrustworthy).
+- Puzzle **Hint** = `setMarks` on the from-square of the next solution move; any move,
+  `stop()` and `bindBoard` clear marks.
 - `opponentGone` → countdown text, then a "Claim win" button (`claim-victory`).
 - Sessions talk to the in-VR UI only via `board.setStatus({..., actions})`; actions are
   `{label, run, confirm?}` rendered by `ButtonBar` (3×3, max 9). `ts` in the status keeps

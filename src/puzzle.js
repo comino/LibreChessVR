@@ -4,6 +4,8 @@
 import { Chess } from 'chess.js'
 import { bindBoard } from './bind.js'
 
+const HINT = 0x8a6a1a
+
 export class PuzzleSession {
   // menu: () => extra actions for the button bar (start a game, seek, …)
   constructor({ lichess, board, onStatus, menu }) {
@@ -34,6 +36,13 @@ export class PuzzleSession {
     this.run++
     this.running = false
     clearTimeout(this.timer)
+    this.board.setMarks({})
+  }
+
+  // Lights up the piece that has to move next.
+  hint() {
+    const uci = this.running && this.solution[this.idx]
+    if (uci) this.board.setMarks({ [uci.slice(0, 2)]: HINT })
   }
 
   _setup({ game, puzzle }) {
@@ -53,7 +62,8 @@ export class PuzzleSession {
 
   _status(text) {
     this.text = text
-    const actions = [{ label: 'Next puzzle', run: () => this.next() }, ...this.menu?.() ?? []]
+    const actions = [{ label: 'Next puzzle', run: () => this.next() },
+      ...this.running ? [{ label: 'Hint', run: () => this.hint() }] : [], ...this.menu?.() ?? []]
     this.board.setStatus({ puzzle: true, text, sub: this.info, actions })
     this.onStatus?.(text)
   }
@@ -76,6 +86,7 @@ export class PuzzleSession {
       return
     }
     this.idx++
+    this.board.setMarks({})
     this.board.setPosition(this.chess.fen(), { from: mv.from, to: mv.to })
     if (this.idx >= this.solution.length || this.chess.isCheckmate()) {
       this.running = false

@@ -120,7 +120,7 @@ try {
   streams['/api/board/game/stream/g1'].push({ type: 'gameState', moves: 'f2f3 e7e5 g2g4 d8h4',
     wtime: 6e5, btime: 6e5, status: 'mate', winner: 'black' })
   await until(() => board.panel.status.text === 'Checkmate — you lose', 'game over text')
-  check(labels() === 'Rematch,Stockfish L2 10+0,Seek human 10+0,Puzzles,Coordinates,Settings', 'menu after game, got ' + labels())
+  check(labels() === 'Rematch,Prev move,Next move,Stockfish L2 10+0,Seek human 10+0,Puzzles,Coordinates,Settings', 'menu after game, got ' + labels())
   const aiBefore = requests.filter(r => r.path === '/api/challenge/ai').length
   const realPush = streams['/api/stream/event'].push
   press('Rematch')

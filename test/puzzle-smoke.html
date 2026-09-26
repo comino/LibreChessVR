@@ -45,12 +45,16 @@ try {
   check(status === 'Find the best move for white', 'initial status, got: ' + status)
   check(board.canPick('f1') && !board.canPick('e7'), 'canPick own pieces only')
 
+  check(board.bar.buttons.map(b => b.label).join() === 'Next puzzle,Hint', 'puzzle bar: ' + board.bar.buttons.map(b => b.label))
+  board.bar.buttons[1].run()                   // Hint: f1 bishop
+  check(board.tiles.f1.material.emissive.getHex() === 0x8a6a1a, 'hint marks f1')
   const fen = puzzles.chess.fen()
   board.onMove('g1', 'f3')                     // legal but wrong
   check(status === 'Not it — try again', 'wrong move detected')
   check(puzzles.chess.fen() === fen, 'wrong move rolled back')
 
   board.onMove('f1', 'c4'); await sleep(700)   // reply b8c6 auto-plays
+  check(board.tiles.f1.material.emissive.getHex() !== 0x8a6a1a && !board.marks.f1, 'hint cleared after the move')
   check(status === 'Your move (white)', 'opponent replied')
   check(puzzles.chess.get('c6')?.type === 'n', 'reply applied on board state')
   board.onMove('d1', 'h5'); await sleep(700)   // reply g8f6

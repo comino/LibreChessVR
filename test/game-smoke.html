@@ -140,7 +140,7 @@ try {
 
   push(state('e7e8n', { status: 'mate', winner: 'white' }))
   check(text === 'Checkmate — you win', 'result text, got ' + text)
-  check(labels() === 'Rematch' && !board.canPick('e8'), 'finished: only Rematch, no moves, got ' + labels())
+  check(labels() === 'Rematch,Prev move,Next move' && !board.canPick('e8'), 'finished: rematch + replay, got ' + labels())
   press('Rematch'); await sleep(0)
   check(calls.at(-1) === 'ai {"level":3,"time":10,"increment":5,"color":"black"}', 'AI rematch, colors swapped: ' + calls.at(-1))
   check(text === 'Starting rematch…', 'rematch feedback, got ' + text)
@@ -208,6 +208,24 @@ try {
   check(calls.at(-1) === 'challenge bob {"time":10,"increment":5,"color":"black","rated":true}', 'human rematch: ' + calls.at(-1))
   check(text === 'Rematch offered to Bob…', 'offer text, got ' + text)
   check(labels() === 'Rematch,Menu', 'menu kept after finish, got ' + labels())
+  g.stop(); await d
+
+  // Post-game replay: steps, clamps, check tint follows the shown position
+  ;[g, d] = await fresh()
+  push(full(''))
+  push(state('e2e4 e7e5 d1h5 b8c6 f1c4 g8f6 h5f7', { status: 'mate', winner: 'white' }))
+  const tintE8 = () => board.tiles.e8.material.emissive.getHex()
+  check(tintE8() === 0x9a1a1a, 'mated king red at the end')
+  press('Prev move')
+  check(text === 'Move 6/7: Nf6' && board.pieceAt.h5?.userData.type === 'q' && board.pieceAt.f7?.userData.color === 'b', 'one back: ' + text)
+  check(tintE8() === 0, 'no check tint before the mate')
+  for (let i = 0; i < 10; i++) press('Prev move')
+  check(text === 'Start · 0/7' && board.pieceAt.e2 && !board.pieceAt.e4, 'clamped at start: ' + text)
+  press('Next move')
+  check(text === 'Move 1/7: e4' && board.pieceAt.e4, 'forward one: ' + text)
+  for (let i = 0; i < 10; i++) press('Next move')
+  check(text === 'Checkmate — you win' && g.replayIdx == null && tintE8() === 0x9a1a1a, 'back at the end: ' + text)
+  check(!board.canPick('e2'), 'replay never enables moves')
   g.stop(); await d
 
   // A move request failing after stop() must not touch the board
