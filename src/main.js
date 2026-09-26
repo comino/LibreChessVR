@@ -86,6 +86,7 @@ function compactMenu() {
 function toMenu() {
   view?.stop()
   view = null
+  board.setOrientation(board.orientation ?? 'white') // drops an in-game peek
   refresh()
 }
 
@@ -178,6 +179,7 @@ async function seek() {
   if (!isRapid(time, increment))
     return msg('Seeks must be rapid: minutes + ⅔ × increment ≥ 8 (e.g. 10+0, 5+5). Blitz works vs Stockfish.')
   seekAbort?.abort()
+  note = null
   const ctl = seekAbort = new AbortController()
   msg('Seeking opponent…')
   refresh()

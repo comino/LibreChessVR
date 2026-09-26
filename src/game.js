@@ -33,6 +33,8 @@ export class GameSession {
 
   async start() {
     bindBoard(this.board, this)
+    // until gameFull arrives: no stale buttons from the previous view
+    this.board.setStatus({ puzzle: true, text: 'Connecting to game…', actions: [] })
     // During the opponent's turn own pieces stay pickable for premoves.
     this.board.canPick = sq => this.active() && this.chess.get(sq)?.color === this.color[0]
     this.board.getTargets = sq => this._premoveBoard().moves({ square: sq, verbose: true }).map(m => m.to)
@@ -52,7 +54,9 @@ export class GameSession {
   }
 
   stop() {
+    this.stopped = true
     this.abort.abort()
+    this.board.deselect()
     clearInterval(this.goneTimer)
   }
   active() { return !!this.state && !this.finished }
@@ -131,7 +135,10 @@ export class GameSession {
     this.state = state
     this.stateTs = performance.now()
     this.finished = !!state.status && state.status !== 'started'
-    if (this.finished) this._clearPremove()
+    if (this.finished) {
+      this._clearPremove()
+      this.board.deselect() // a piece picked up before the end must not linger
+    }
     if (this.finished && !wasFinished) this.board.cue(this._won() ? 'success' : this._won() === false ? 'error' : 'move')
     this._render()
     if (last && this.premove && !this.finished && this.chess.turn() === this.color[0]) this._playPremove()
@@ -239,6 +246,7 @@ export class GameSession {
 
   // Transient message on the VR panel and the 2D page; clocks keep running.
   say(text) {
+    if (this.stopped) return // left this view: late messages (e.g. a failed rematch) stay quiet
     if (this.view) this.board.setStatus({ ...this.view, text, actions: this._actions() })
     this.onStatus?.(text, false)
   }
@@ -291,7 +299,7 @@ export class GameSession {
     try {
       mv = this.chess.move({ from, to, promotion })
     } catch {
-      this.board.setPosition(this.chess.fen())
+      this.board.snapBack(from) // illegal (e.g. a premove the position no longer allows)
       return false
     }
     this.applied++ // optimistic; the stream echo then adds nothing

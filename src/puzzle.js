@@ -167,6 +167,7 @@ export class PuzzleSession {
       this._status('Good move…')
       this.timer = setTimeout(() => this._reply(), 500)
     }
+    return true
   }
 
   _reply() {

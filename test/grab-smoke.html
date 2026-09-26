@@ -74,6 +74,16 @@ try {
   check(pawn2.position.x === squareToXZ('a2', S).x && pawn2.position.z === squareToXZ('a2', S).z,
     'piece returned home')
 
+  // Legal drop the session refuses (e.g. the game just ended): the piece goes home
+  board.setPosition('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1')
+  const onMove = board.onMove
+  board.onMove = () => false
+  at('e2'); board._grabStart(hand)
+  const refused = board.grab.piece
+  at('e4', 0.08); board._tick(); board._grabEnd(hand)
+  check(refused.position.z === squareToXZ('e2', S).z, 'refused drop snaps back to e2')
+  board.onMove = onMove
+
   // Pinch in empty space: no grab
   at('d5')
   board._grabStart(hand)

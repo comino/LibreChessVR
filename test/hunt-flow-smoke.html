@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<base href="/">
+<title>Parallax cross-view flow bug hunt</title>
+<style>body { margin: 0 } iframe { width: 400px; height: 300px }</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+    "chess.js": "https://cdn.jsdelivr.net/npm/chess.js@1.0.0/+esm"
+  }
+}
+</script>
+</head>
+<body>
+<div id="result" style="position:fixed;top:0;right:0;z-index:10;color:#0f0;font-family:monospace"></div>
+<script type="module">
+// Switching between views/activities; each scenario runs main.js fresh in its own iframe.
+const out = document.getElementById('result')
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+const scenario = new URLSearchParams(location.search).get('s')
+const SCENARIOS = ['staleBar', 'rematch', 'selection', 'rushSeek', 'seekNote']
+
+if (!scenario) runAll()
+else runScenario(scenario)
+
+async function runAll() {
+  const fails = []
+  for (const name of SCENARIOS) {
+    localStorage.clear()
+    localStorage.setItem('lichessToken', 'tok')
+    const res = await new Promise(resolve => {
+      const t = setTimeout(() => resolve({ fails: [name + ': no result'] }), 20000)
+      addEventListener('message', function on(e) {
+        if (e.data?.scenario !== name) return
+        removeEventListener('message', on); clearTimeout(t); resolve(e.data)
+      })
+      const f = document.createElement('iframe')
+      f.src = '/test/hunt-flow-smoke.html?s=' + name
+      document.body.append(f)
+    })
+    fails.push(...res.fails)
+    document.querySelector('iframe').remove()
+  }
+  out.textContent = fails.length ? `HUNT-FLOW-FAIL ${fails.length}: ${fails.join(' | ')}` : 'HUNT-FLOW-OK'
+}
+
+async function runScenario(name) {
+  const fails = []
+  const check = (cond, what) => { if (!cond) fails.push(what) }
+  async function until(cond, ms = 3000) {
+    for (const t0 = performance.now(); performance.now() - t0 < ms; await sleep(20)) if (cond()) return true
+    return false
+  }
+
+  // Fake lichess. routes[path] overrides a response; fullDelay/opponent shape the gameFull.
+  const streams = {}, requests = [], routes = {}
+  let fullDelay = 10, opponent = { aiLevel: 2 }, puzzleDelay = 0
+  function openStream(path, signal) {
+    const enc = new TextEncoder()
+    let ctl
+    const body = new ReadableStream({ start: c => { ctl = c } })
+    const s = streams[path] = { closed: false, push: o => ctl.enqueue(enc.encode(JSON.stringify(o) + '\n')) }
+    signal?.addEventListener('abort', () => { s.closed = true; ctl.error(new DOMException('aborted', 'AbortError')) })
+    return new Response(body)
+  }
+  const json = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json' } })
+  const full = () => ({ type: 'gameFull', initialFen: 'startpos', white: { id: 'me' }, black: opponent,
+    clock: { initial: 600000, increment: 5000 },
+    state: { type: 'gameState', moves: '', wtime: 6e5, btime: 6e5, status: 'started' } })
+  const puzzle = { game: { pgn: 'e4 e5' }, puzzle: { id: 'p1', rating: 1000, solution: ['f1c4'] } }
+  const realFetch = window.fetch
+  window.fetch = async (url, opts = {}) => {
+    if (typeof url !== 'string' || !url.startsWith('https://lichess.org')) return realFetch(url, opts)
+    const path = url.replace('https://lichess.org', '')
+    requests.push({ path, method: opts.method || 'GET' })
+    if (routes[path]) return routes[path](opts)
+    if (path === '/api/account') return json({ username: 'me' })
+    if (path === '/api/account/playing') return json({ nowPlaying: [] })
+    if (path.startsWith('/api/puzzle/next')) { await sleep(puzzleDelay); return json(puzzle) }
+    if (path.startsWith('/api/board/game/stream/')) {
+      const r = openStream(path, opts.signal)
+      setTimeout(() => streams[path].push(full()), fullDelay)
+      return r
+    }
+    if (['/api/stream/event', '/api/board/seek'].includes(path)) return openStream(path, opts.signal)
+    return json({ ok: true })
+  }
+
+  const html = await (await realFetch('/index.html')).text()
+  document.body.append(new DOMParser().parseFromString(html, 'text/html').getElementById('ui'))
+  await import('/src/main.js')
+  const board = window.parallax.board, $ = id => document.getElementById(id)
+  const labels = () => board.bar.mesh.visible ? board.bar.buttons.map(b => b.label).join() : ''
+  const text = () => board.panel.status?.text
+  const press = label => {
+    const b = board.bar.buttons.find(b => b.label === label)
+    if (!b) throw new Error(`no button "${label}" in [${labels()}]`)
+    b.run()
+  }
+  const gameStart = id => streams['/api/stream/event'].push({ type: 'gameStart', game: { gameId: id, speed: 'rapid' } })
+  // Starts a Stockfish-like game and waits until it is live on the board.
+  async function startGame(id) {
+    gameStart(id)
+    await until(() => labels().includes('Abort') || labels().includes('Resign'))
+  }
+
+  try {
+    await until(() => labels().startsWith('Stockfish L3 10+5'))
+
+    if (name === 'staleBar') {
+      // A game starts while solving puzzles; its gameFull is slow. attach() stops the puzzle
+      // session but leaves its button bar live: "Next puzzle" restarts the stopped session,
+      // which rebinds the board over the running game.
+      press('Puzzles')
+      await until(() => labels().startsWith('Next puzzle'))
+      fullDelay = 400; puzzleDelay = 700
+      gameStart('g1')
+      await until(() => requests.some(r => r.path === '/api/board/game/stream/g1'))
+      const stale = labels().includes('Next puzzle')
+      if (stale) press('Next puzzle')
+      await sleep(1200)
+      check(!stale && !board.panel.status.puzzle && board.canPick('e2') && board.pieceAt.e2,
+        `stopped puzzle's bar stays live until gameFull; "Next puzzle" hijacks the game board (stale=${stale})`)
+    }
+
+    if (name === 'rematch') {
+      // Rematch offer to a human fails after the player already moved on to puzzles:
+      // the stopped game's say() repaints its own panel and bar over the puzzle view.
+      opponent = { id: 'bob', name: 'bob' }
+      routes['/api/challenge/bob'] = async () => { await sleep(400); return json({ error: 'bob does not accept challenges' }, 400) }
+      await startGame('g1')
+      streams['/api/board/game/stream/g1'].push({ type: 'gameState', moves: 'e2e4 e7e5', wtime: 6e5, btime: 6e5,
+        status: 'resign', winner: 'white' })
+      await until(() => labels().startsWith('Rematch'))
+      press('Rematch')
+      press('Menu'); press('Puzzles')
+      await until(() => labels().startsWith('Next puzzle'))
+      await until(() => $('msg').textContent.includes('Rematch failed'), 1500)
+      await sleep(50)
+      check(labels().startsWith('Next puzzle') && board.panel.status.puzzle && !text()?.includes('Rematch failed'),
+        `late rematch failure repaints the old game over the puzzle view (bar: ${labels()})`)
+    }
+
+    if (name === 'selection') {
+      // Piece selected when the opponent resigns (no new move → no setPosition): the
+      // selection and its target tints survive the game and leak into the idle menu.
+      await startGame('g1')
+      const g = streams['/api/board/game/stream/g1']
+      g.push({ type: 'gameState', moves: 'e2e4 e7e5', wtime: 6e5, btime: 6e5, status: 'started' })
+      await until(() => board.canPick('g1'))
+      board._select('g1')
+      const picked = board.selected === 'g1'
+      g.push({ type: 'gameState', moves: 'e2e4 e7e5', wtime: 6e5, btime: 6e5, status: 'resign', winner: 'white' })
+      await until(() => labels().includes('Menu'))
+      press('Menu')
+      check(picked && labels().startsWith('Stockfish') && board.selected == null,
+        `selection from the finished game leaks into the idle menu (selected=${board.selected})`)
+    }
+
+    if (name === 'rushSeek') {
+      // main.js compactMenu: "a running seek stays cancellable" in every activity. The running
+      // rush drops compactMenu, so a seek started before can't be cancelled from VR for 3 min.
+      press('Seek human 10+5')
+      await until(() => streams['/api/board/seek'])
+      press('Puzzle rush')
+      await until(() => labels().includes('End rush'))
+      check(labels().includes('Cancel seek'), `running seek not cancellable during puzzle rush (bar: ${labels()})`)
+    }
+
+    if (name === 'seekNote') {
+      // A failed seek leaves its note; a later seek that the user cancels falls back to the
+      // stale "Seek failed" text on the idle panel, as if the new seek had failed.
+      routes['/api/board/seek'] = () => json({ error: 'Too many seeks' }, 429)
+      press('Seek human 10+5')
+      await until(() => text()?.includes('Too many seeks'))
+      delete routes['/api/board/seek']
+      press('Seek human 10+5')
+      await until(() => labels().includes('Cancel seek'))
+      press('Cancel seek')
+      await until(() => labels().includes('Seek human'))
+      await sleep(50)
+      check(!text()?.includes('Seek failed'), `stale "${text()}" on idle panel after cancelling a new seek`)
+    }
+  } catch (e) {
+    fails.push(name + ' crashed: ' + e.message)
+  }
+  parent.postMessage({ scenario: name, fails }, '*')
+}
+</script>
+</body>
+</html>

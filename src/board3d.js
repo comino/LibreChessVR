@@ -38,6 +38,7 @@ export class Board3D {
   marks = {}                 // square -> tint hex, see setMarks
   handMode = 'ray'           // 'ray' = point & pinch, 'grab' = pinch-grab pieces
   boardScale = 1
+  shadowsDirty = true
   pieceStyle = 'solid'
   voice = 'off'              // 'off' | 'opponent' | 'all': spoken moves
   flipped = false
@@ -58,6 +59,7 @@ export class Board3D {
     this.renderer.setSize(innerWidth, innerHeight)
     this.renderer.setPixelRatio(devicePixelRatio)
     this.renderer.shadowMap.enabled = true
+    this.renderer.shadowMap.autoUpdate = false // re-rendered via shadowsDirty (see _tick)
     this.renderer.xr.enabled = true
     document.body.appendChild(this.renderer.domElement)
     document.body.appendChild(VRButton.createButton(this.renderer))
@@ -179,6 +181,16 @@ export class Board3D {
     if (missing.length) throw new Error('Model missing pieces: ' + missing)
     const kingH = new THREE.Box3().setFromObject(this.templates.k).getSize(new THREE.Vector3()).y
     this.pieceScale = (1.7 * SQUARE) / kingH
+    // Once per type: show only the Plastic shell, stand it centered on y=0, remember its height.
+    this.pieceH = {}
+    for (const [type, t] of Object.entries(this.templates)) {
+      let anyPlastic = false
+      t.traverse(m => { if (m.isMesh && m.name.includes('Plastic')) anyPlastic = true })
+      t.traverse(m => { if (m.isMesh) m.visible = !anyPlastic || m.name.includes('Plastic') })
+      const box = new THREE.Box3().setFromObject(t), c = box.getCenter(new THREE.Vector3())
+      t.position.sub(c.setY(box.min.y))
+      this.pieceH[type] = box.max.y - box.min.y
+    }
     // Shared across all pieces: pieces are rebuilt on every position change.
     const mat = color => new THREE.MeshStandardMaterial({
       color, roughness: 0.35, metalness: 0.05, envMap: this.envMap, envMapIntensity: 0.6,
@@ -190,23 +202,14 @@ export class Board3D {
   }
 
   _makePiece(type, color) {
-    const mat = this.pieceMat[color]
     const inner = this.templates[type].clone()
-    let anyPlastic = false
-    inner.traverse(m => { if (m.isMesh && m.name.includes('Plastic')) anyPlastic = true })
     inner.traverse(m => {
       if (!m.isMesh) return
-      m.visible = !anyPlastic || m.name.includes('Plastic')
-      m.material = mat
+      m.material = this.pieceMat[color]
       m.castShadow = this.pieceStyle === 'solid'
     })
-    const box = new THREE.Box3().setFromObject(inner)
-    const c = box.getCenter(new THREE.Vector3())
-    inner.position.x -= c.x
-    inner.position.y -= box.min.y
-    inner.position.z -= c.z
     // Invisible cylinder used for ray hits: cheap per-frame hover, easy to hit.
-    const h = box.max.y - box.min.y, r = 0.42 * SQUARE / this.pieceScale
+    const h = this.pieceH[type], r = 0.42 * SQUARE / this.pieceScale
     // thetaStart π/12: no cap triangle edge on the straight-ahead axis (edge-on rays can miss)
     this.proxyGeo[type] ??= new THREE.CylinderGeometry(r, r, h, 12, 1, false, Math.PI / 12)
     const proxy = new THREE.Mesh(this.proxyGeo[type], PROXY_MAT)
@@ -245,6 +248,7 @@ export class Board3D {
 
   // Puts a piece dropped elsewhere (grab mode) back on its own square.
   snapBack(square) {
+    this.shadowsDirty = true
     const p = this.pieceAt[square]
     if (!p) return
     const { x, z } = squareToXZ(square, SQUARE)
@@ -264,6 +268,7 @@ export class Board3D {
   }
 
   _styleMaterials(style) {
+    this.shadowsDirty = true
     for (const m of Object.values(this.pieceMat)) Object.assign(m, {
       visible: style !== 'hidden', transparent: style === 'ghost',
       opacity: style === 'ghost' ? 0.25 : 1, depthWrite: style !== 'ghost', needsUpdate: true
@@ -286,6 +291,7 @@ export class Board3D {
 
   // Scenery + lighting preset (see environments.js); the previous one is disposed.
   setEnvironment(name) {
+    this.shadowsDirty = true
     if (this.envGroup) {
       this.scene.remove(this.envGroup)
       disposeGroup(this.envGroup)
@@ -313,6 +319,7 @@ export class Board3D {
 
   // Table height offset from the default (m), clamped.
   setHeight(offset) {
+    this.shadowsDirty = true
     this.stage.position.y = THREE.MathUtils.clamp(offset, -HEIGHT_RANGE, HEIGHT_RANGE)
   }
 
@@ -338,6 +345,7 @@ export class Board3D {
   viewSide() { return this.boardGroup.rotation.y ? 'black' : 'white' }
 
   _orient() {
+    this.shadowsDirty = true
     const black = (this.orientation === 'black') !== !!this.flipped !== !!this.peek
     this.boardGroup.rotation.y = black ? Math.PI : 0
   }
@@ -345,6 +353,7 @@ export class Board3D {
   // Board + pieces scale (1 = 6 cm squares); the table grows with bigger boards and the
   // button bar moves out so it never overlaps the board or captured pieces.
   setScale(s) {
+    this.shadowsDirty = true
     this.boardScale = THREE.MathUtils.clamp(s, 0.5, 2)
     const grow = Math.max(1, this.boardScale)
     this.boardGroup.scale.setScalar(this.boardScale)
@@ -357,7 +366,7 @@ export class Board3D {
   }
 
   setPosition(fen, lastMove = null) {
-    const before = this.piecesGroup.children.length
+    this.shadowsDirty = true
     this._removePicker()
     this.piecesGroup.clear()
     this.pieceAt = {}
@@ -378,8 +387,7 @@ export class Board3D {
     this.lastMove = lastMove
     this.check = this.checkSquare()
     this._applyTints()
-    // lastMove may be a chess.js move: then `captured` is known, else guess from the piece count
-    if (lastMove) this.cue(('captured' in lastMove || lastMove.san ? lastMove.captured : this.piecesGroup.children.length < before) ? 'capture' : 'move')
+    if (lastMove) this.cue(lastMove.captured ? 'capture' : 'move') // sessions pass chess.js moves
     const handDropped = lastMove?.to === this.dropped
     this.dropped = null
     if (lastMove && this.pieceAt[lastMove.to] && !handDropped) { // a hand-placed piece doesn't re-slide
@@ -460,15 +468,18 @@ export class Board3D {
     if (move) this._emitMove(from, square)
   }
 
+  // Returns truthy if the move was made or is pending (promotion picker open).
   _emitMove(from, to) {
     const p = this.pieceAt[from]?.userData
-    if (p?.type === 'p' && (to[1] === '8' || to[1] === '1')) this._openPicker(from, to)
-    else this.onMove?.(from, to)
+    if (p?.type !== 'p' || (to[1] !== '8' && to[1] !== '1')) return this.onMove?.(from, to)
+    this._openPicker(from, to)
+    return true
   }
 
   // --- promotion picker: Q/R/B/N floating in a row over the promotion rank ---
 
   _openPicker(from, to) {
+    this.shadowsDirty = true
     const color = this.pieceAt[from].userData.color
     // 4 files around the target in the mover's frame (Q leftmost, target 2nd unless at an edge)
     const mirror = i => color === 'w' ? i : 7 - i
@@ -501,6 +512,7 @@ export class Board3D {
   }
 
   _removePicker() {
+    this.shadowsDirty = true
     if (this.picker) this.boardGroup.remove(this.picker.group)
     this.picker = null
   }
@@ -676,8 +688,9 @@ export class Board3D {
     const { x, z } = squareToXZ(legal ? sq : from, SQUARE)
     piece.position.set(x, 0.005, z)
     this._applyTints()
-    if (legal) this.dropped = sq
-    if (legal) this._emitMove(from, sq)
+    if (!legal) return
+    this.dropped = sq
+    if (!this._emitMove(from, sq)) this.snapBack(from) // refused (game over, not our turn…)
   }
 
   // Nearest interactive object on the current ray, using the cheap piece proxies:
@@ -760,6 +773,10 @@ export class Board3D {
     })
     this.panel.tick()
     this.bar.tick()
+    if (this.shadowsDirty || this.anim || this.grab) {
+      this.renderer.shadowMap.needsUpdate = true
+      this.shadowsDirty = false
+    }
     this.renderer.render(this.scene, this.camera)
   }
 }

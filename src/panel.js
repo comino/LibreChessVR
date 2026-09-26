@@ -15,6 +15,7 @@ function canvasPlane(w, h, px) {
   return { canvas, ctx: canvas.getContext('2d'), tex, mesh }
 }
 
+const _p = new THREE.Vector3()
 const LOW_TIME = 20000 // ms: clock turns ember
 
 const fmt = ms => {
@@ -66,13 +67,17 @@ export class StatusPanel {
     this.draw()
   }
 
+  // Redraws only when the running clock's shown second changes.
   tick() {
-    if (this.status?.running && performance.now() - this.drawn > 500) this.draw()
+    const s = this.status
+    if (!s?.running) return
+    const left = (s.turn === 'w' ? s.wtime : s.btime) - (performance.now() - s.ts)
+    if (Math.ceil(left / 1000) !== this.shownSec) this.draw()
   }
 
   draw() {
     const { ctx } = this, s = this.status
-    this.drawn = performance.now()
+    if (s?.running) this.shownSec = Math.ceil(((s.turn === 'w' ? s.wtime : s.btime) - (performance.now() - s.ts)) / 1000)
     ctx.clearRect(0, 0, 512, 256)
     roundRect(ctx, 2, 2, 508, 252, 28, 'rgba(26,31,40,0.94)', COLOR.steel)
     ctx.textAlign = 'center'
@@ -182,7 +187,7 @@ export class ButtonBar {
   // surface (only from the front: a hand pulling back out through the bar never presses).
   poke(worldPos, key) {
     if (!worldPos || !this.mesh.visible) return void (this.armedPoke[key] = false)
-    const p = this.mesh.worldToLocal(worldPos.clone())
+    const p = this.mesh.worldToLocal(_p.copy(worldPos))
     const inside = Math.abs(p.x) < BAR_W / 2 && Math.abs(p.y) < BAR_H / 2
     if (!inside || p.z > 0.025) this.armedPoke[key] = inside && p.z < 0.15
     else if (p.z <= -0.04) this.armedPoke[key] = false // went through: must come back out front

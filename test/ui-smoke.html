@@ -367,6 +367,17 @@ try {
   board.setPieceStyle('solid')
   check(wMat.visible && wMat.opacity === 1 && !wMat.transparent, 'solid again')
 
+  // --- shadow map re-renders only after changes ---
+  board._tick()
+  check(!board.shadowsDirty, 'clean after a frame')
+  board.renderer.shadowMap.needsUpdate = false
+  board._tick()
+  check(board.renderer.shadowMap.needsUpdate === false, 'idle frame skips the shadow pass')
+  board.setPosition('8/8/8/8/8/8/8/K6k w - - 0 1')
+  check(board.shadowsDirty, 'setPosition marks shadows dirty')
+  board._tick()
+  check(!board.shadowsDirty, 'shadow pass consumed')
+
   board.cue('capture'); board.cue('error')        // must not throw
   out.textContent = 'UI-OK'
 } catch (e) {
