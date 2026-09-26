@@ -30,7 +30,7 @@ export class GameSession {
         await this.lichess.streamGame(this.gameId, m => this._onMsg(m), this.abort.signal)
       } catch (e) {
         if (e.name === 'AbortError') return
-        this._say('Reconnecting: ' + e.message)
+        this.say('Reconnecting: ' + e.message)
       }
       if (!this.finished) await new Promise(r => setTimeout(r, 2000))
     }
@@ -69,6 +69,9 @@ export class GameSession {
       this.color = lower(msg.white.id) === lower(this.username) ? 'white' : 'black'
       const name = p => p.name || p.id || (p.aiLevel ? 'Stockfish ' + p.aiLevel : '?')
       this.names = { white: name(msg.white), black: name(msg.black) }
+      this.opponent = this.color === 'white' ? msg.black : msg.white
+      this.clock = msg.clock // {initial, increment} in ms; absent for correspondence
+      this.rated = !!msg.rated
       this.initialFen = msg.initialFen && msg.initialFen !== 'startpos' ? msg.initialFen : undefined
       this._reset()
       this.serverMoves = 0
@@ -140,10 +143,11 @@ export class GameSession {
 
   // Button bar: answer offers, offer a draw, abort (before both moved) or resign.
   _actions() {
-    if (this.finished) return this.menu?.() ?? []
+    if (this.finished) return [...this.clock && !this.error ? [{ label: 'Rematch', run: () => this._rematch() }] : [],
+      ...this.menu?.() ?? []]
     const s = this.state, me = this.color[0], opp = me === 'w' ? 'b' : 'w'
     const { lichess: li, gameId: id } = this
-    const call = fn => () => fn().catch(e => this._say(e.message))
+    const call = fn => () => fn().catch(e => this.say(e.message))
     const acts = this._canClaim() ? [{ label: 'Claim win', run: call(() => li.claimVictory(id)) }] : []
     if (s[opp + 'draw']) acts.push(
       { label: 'Accept draw', run: call(() => li.draw(id, true)) },
@@ -158,8 +162,22 @@ export class GameSession {
     return acts
   }
 
+  // Same clock, colors swapped: Stockfish starts at once, a human gets a challenge.
+  _rematch() {
+    const opp = this.opponent
+    const params = {
+      time: this.clock.initial / 60000, increment: this.clock.increment / 1000,
+      color: this.color === 'white' ? 'black' : 'white'
+    }
+    const req = opp.aiLevel
+      ? this.lichess.challengeAi({ level: opp.aiLevel, ...params })
+      : this.lichess.challenge(opp.id, { ...params, rated: this.rated })
+    this.say(opp.aiLevel ? 'Starting rematch…' : `Rematch offered to ${opp.name || opp.id}…`)
+    req.catch(e => this.say('Rematch failed: ' + e.message))
+  }
+
   // Transient message on the VR panel and the 2D page; clocks keep running.
-  _say(text) {
+  say(text) {
     if (this.view) this.board.setStatus({ ...this.view, text })
     this.onStatus?.(text, false)
   }
@@ -195,7 +213,7 @@ export class GameSession {
       this.applied--
       this.board.setPosition(this.chess.fen())
       this.board.cue('error')
-      this._say('Move rejected: ' + e.message)
+      this.say('Move rejected: ' + e.message)
     })
   }
 }

@@ -22,6 +22,7 @@ player who normally plays 2D. Static web app, no build step, no backend, no npm.
 | `src/game.js` | `GameSession`: one game stream ↔ chess.js ↔ board. Optimistic local moves, rollback on server reject, offers → button bar. |
 | `src/puzzle.js` | `PuzzleSession`: fetches `/api/puzzle/next`, replays game PGN, validates solution moves, auto-plays replies, auto-advances. |
 | `src/trainer.js` | `TrainerSession`: coordinate drill — big target square on the panel, point at it; 30 s rounds alternating white/black view; best in `localStorage.coordBest`. |
+| `src/settings.js` | In-VR settings page (cycle level/time/color/rated, table ↑/↓, Back); `cycle()` is unit-tested. main.js maps it onto the 2D form fields (single source of truth). |
 | `src/main.js` | 2D page + in-VR menu (`menu()`: Stockfish/seek/cancel/puzzles, from persisted `settings`), event stream, resumes ongoing game. `view` = what the panel shows; `refresh()` re-renders it. `window.chessvr.board` = debug handle. |
 | `assets/chess.glb` | Piece models (from old prototype). Node names `Pawn/Knight/...`; each piece has `*_Plastic_0` (shown, recolored) and `*_Velvet_0` (hidden) meshes. |
 
@@ -54,9 +55,11 @@ player who normally plays 2D. Static web app, no build step, no backend, no npm.
   aborted, error on the panel, menu shown. Never let it throw (reconnect replays the same
   messages → endless loop). Variants other than standard/fromPosition are refused.
 - Castling may arrive king-takes-rook (`e1h1`); `_applyUci` maps it to `e1g1`.
+- Finished games offer **Rematch** (needs `gameFull.clock`, hidden after `_fail`): AI → `challengeAi`
+  with colors swapped; human → `POST /api/challenge/{user}`. `challengeDeclined` events → `view.say()`.
 - `opponentGone` → countdown text, then a "Claim win" button (`claim-victory`).
 - Sessions talk to the in-VR UI only via `board.setStatus({..., actions})`; actions are
-  `{label, run, confirm?}` rendered by `ButtonBar` (max 6). `ts` in the status keeps
+  `{label, run, confirm?}` rendered by `ButtonBar` (3×3, max 9). `ts` in the status keeps
   clocks from jumping when a transient message (`_say`) is shown.
 - Promotion: board detects pawn→last rank from `userData.type` and opens the picker;
   sessions just receive the promo letter. `setPosition` always closes the picker.

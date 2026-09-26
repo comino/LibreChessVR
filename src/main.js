@@ -3,6 +3,7 @@ import { Lichess, isRapid } from './lichess.js'
 import { GameSession } from './game.js'
 import { PuzzleSession } from './puzzle.js'
 import { TrainerSession } from './trainer.js'
+import { settingsView } from './settings.js'
 
 const $ = id => document.getElementById(id)
 const msg = t => { $('msg').textContent = t }
@@ -35,6 +36,16 @@ function saveSettings() {
 const settings = () => ({
   time: +val('time'), increment: +val('inc'), color: val('color'), rated: val('rated'), level: +val('ailevel')
 })
+const FIELD_OF = { time: 'time', increment: 'inc', color: 'color', rated: 'rated', level: 'ailevel' }
+function setSettings(patch) {
+  for (const [k, v] of Object.entries(patch)) $(FIELD_OF[k])[typeof v === 'boolean' ? 'checked' : 'value'] = v
+  saveSettings()
+}
+function nudgeHeight(d) {
+  board.setHeight(board.stage.position.y + d)
+  board.onHeightChange(board.stage.position.y)
+  refresh()
+}
 
 // --- in-VR menu ---
 
@@ -47,7 +58,8 @@ function menu({ except } = {}) {
     acts.push({ label: `Stockfish L${level} ${tc}`, run: playAi })
     acts.push(seeking() ? { label: 'Cancel seek', run: cancelSeek } : { label: `Seek human ${tc}`, run: seek })
   }
-  acts.push({ label: 'Puzzles', run: startPuzzles }, { label: 'Coordinates', run: startTrainer })
+  acts.push({ label: 'Puzzles', run: startPuzzles }, { label: 'Coordinates', run: startTrainer },
+    { label: 'Settings', run: openSettings })
   return acts.filter(a => a.label !== except)
 }
 
@@ -100,6 +112,7 @@ const playable = g => g.speed !== 'correspondence' && g.compat?.board !== false
 
 // lichess re-sends gameStart for every ongoing game when the stream (re)opens.
 function onEvent(ev) {
+  if (ev.type === 'challengeDeclined') return view?.say?.('Challenge declined')
   if (ev.type !== 'gameStart' || !playable(ev.game)) return
   const id = ev.game.gameId || ev.game.id
   if (id === session?.gameId || gameRunning()) return
@@ -165,6 +178,15 @@ function startPuzzles() {
     p.next(val('pdiff'))
     return p
   })
+}
+
+function openSettings() {
+  startActivity(() => settingsView({
+    board, get: settings, set: setSettings,
+    height: { get: () => board.stage.position.y, nudge: nudgeHeight },
+    onBack: () => { view = null; refresh() }
+  }))
+  refresh()
 }
 
 function startTrainer() {

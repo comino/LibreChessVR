@@ -112,6 +112,13 @@ export class Lichess {
     })
   }
 
+  // Direct challenge (used for rematches against humans).
+  challenge(username, { time, increment, rated, color = 'random' }) {
+    return this._post(`/api/challenge/${username}`, {
+      rated, color, 'clock.limit': time * 60, 'clock.increment': increment
+    })
+  }
+
   puzzleNext(difficulty = 'normal') { return this._get('/api/puzzle/next?difficulty=' + difficulty) }
 
   move(gameId, uci) { return this._post(`/api/board/game/${gameId}/move/${uci}`) }

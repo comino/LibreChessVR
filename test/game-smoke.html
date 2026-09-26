@@ -38,10 +38,13 @@ const lichess = {
   takeback: async (id, yes) => calls.push('takeback ' + yes),
   abort: async () => calls.push('abort'),
   resign: async () => calls.push('resign'),
+  challengeAi: async p => calls.push('ai ' + JSON.stringify(p)),
+  challenge: async (user, p) => calls.push('challenge ' + user + ' ' + JSON.stringify(p)),
   claimVictory: async () => calls.push('claim')
 }
-const full = (moves, initialFen = 'startpos') => ({
-  type: 'gameFull', initialFen, white: { id: 'Me', name: 'Me' }, black: { aiLevel: 3 },
+const full = (moves, initialFen = 'startpos', black = { aiLevel: 3 }) => ({
+  type: 'gameFull', initialFen, white: { id: 'Me', name: 'Me' }, black, rated: true,
+  clock: { initial: 600000, increment: 5000 },
   state: { type: 'gameState', moves, wtime: 600000, btime: 600000, status: 'started' }
 })
 const state = (moves, extra = {}) => ({ type: 'gameState', moves, wtime: 590000, btime: 590000, status: 'started', ...extra })
@@ -57,7 +60,7 @@ try {
   const press = label => {
     const i = board.bar.buttons.findIndex(b => b.label === label)
     check(i >= 0, 'button present: ' + label + ' in ' + labels())
-    board.bar.press((i % 3 + 0.5) / 3, 1 - (Math.floor(i / 3) + 0.5) / 2)
+    board.bar.press((i % 3 + 0.5) / 3, 1 - (Math.floor(i / 3) + 0.5) / 3)
   }
 
   check(!board.canPick('e2'), 'nothing pickable before gameFull')
@@ -137,7 +140,10 @@ try {
 
   push(state('e7e8n', { status: 'mate', winner: 'white' }))
   check(text === 'Checkmate — you win', 'result text, got ' + text)
-  check(!board.bar.mesh.visible && !board.canPick('e8'), 'finished: no buttons, no moves')
+  check(labels() === 'Rematch' && !board.canPick('e8'), 'finished: only Rematch, no moves, got ' + labels())
+  press('Rematch'); await sleep(0)
+  check(calls.at(-1) === 'ai {"level":3,"time":10,"increment":5,"color":"black"}', 'AI rematch, colors swapped: ' + calls.at(-1))
+  check(text === 'Starting rematch…', 'rematch feedback, got ' + text)
   push(state('e7e8n', { status: 'resign', winner: 'black' }))
   check(text === 'Resignation — you lose', 'loss text, got ' + text)
 
@@ -193,6 +199,16 @@ try {
   check(text === 'Kd8 · Your move' && !labels().includes('Claim win'), 'opponent back, got ' + text)
   g.stop()
   await d
+
+  // Rematch against a human: direct challenge, same clock and rated flag, colors swapped
+  ;[g, d] = await fresh()
+  push(full('', 'startpos', { id: 'bob', name: 'Bob' }))
+  push(state('', { status: 'aborted' }))
+  press('Rematch'); await sleep(0)
+  check(calls.at(-1) === 'challenge bob {"time":10,"increment":5,"color":"black","rated":true}', 'human rematch: ' + calls.at(-1))
+  check(text === 'Rematch offered to Bob…', 'offer text, got ' + text)
+  check(labels() === 'Rematch,Menu', 'menu kept after finish, got ' + labels())
+  g.stop(); await d
 
   // A move request failing after stop() must not touch the board
   ;[g, d] = await fresh()

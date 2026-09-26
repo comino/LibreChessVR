@@ -40,6 +40,7 @@ function openStream(path, signal) {
 const json = o => new Response(JSON.stringify(o), { headers: { 'content-type': 'application/json' } })
 const puzzle = { game: { pgn: 'e4 e5' }, puzzle: { id: 'p1', rating: 1000, solution: ['f1c4'] } }
 const full = id => ({ type: 'gameFull', initialFen: 'startpos', white: { id: 'me' }, black: { aiLevel: 2 },
+  clock: { initial: 600000, increment: 0 },
   state: { type: 'gameState', moves: '', wtime: 6e5, btime: 6e5, status: 'started' } })
 const realFetch = window.fetch
 window.fetch = async (url, opts = {}) => {
@@ -81,7 +82,7 @@ try {
     b.run()
   }
 
-  await until(() => labels() === 'Stockfish L2 5+0,Seek human 5+0,Puzzles,Coordinates', 'idle menu, got ' + labels())
+  await until(() => labels() === 'Stockfish L2 5+0,Seek human 5+0,Puzzles,Coordinates,Settings', 'idle menu, got ' + labels())
   check($('time').value === '5' && $('ailevel').value === '2', 'settings restored into the form')
   check(board.stage.position.y === 0.2, 'table height restored')
   board.onHeightChange(-0.1)
@@ -92,7 +93,7 @@ try {
   check($('msg').textContent.startsWith('Seeks must be rapid'), 'blitz seek explained')
 
   $('time').value = '10'; $('time').dispatchEvent(new Event('change'))
-  check(labels() === 'Stockfish L2 10+0,Seek human 10+0,Puzzles,Coordinates', 'menu follows settings, got ' + labels())
+  check(labels() === 'Stockfish L2 10+0,Seek human 10+0,Puzzles,Coordinates,Settings', 'menu follows settings, got ' + labels())
   check(JSON.parse(localStorage.getItem('settings')).time === '10', 'settings persisted')
 
   press('Seek human 10+0')
@@ -119,7 +120,36 @@ try {
   streams['/api/board/game/stream/g1'].push({ type: 'gameState', moves: 'f2f3 e7e5 g2g4 d8h4',
     wtime: 6e5, btime: 6e5, status: 'mate', winner: 'black' })
   await until(() => board.panel.status.text === 'Checkmate — you lose', 'game over text')
-  check(labels() === 'Stockfish L2 10+0,Seek human 10+0,Puzzles,Coordinates', 'menu after game, got ' + labels())
+  check(labels() === 'Rematch,Stockfish L2 10+0,Seek human 10+0,Puzzles,Coordinates,Settings', 'menu after game, got ' + labels())
+  const aiBefore = requests.filter(r => r.path === '/api/challenge/ai').length
+  const realPush = streams['/api/stream/event'].push
+  press('Rematch')
+  await until(() => requests.filter(r => r.path === '/api/challenge/ai').length > aiBefore, 'rematch request')
+  const re = requests.filter(r => r.path === '/api/challenge/ai').at(-1)
+  check(/level=2/.test(re.body) && /color=black/.test(re.body) && /clock.limit=600/.test(re.body), 'rematch params: ' + re.body)
+  streams['/api/stream/event'].push({ type: 'challengeDeclined', challenge: { id: 'x' } })
+  await until(() => board.panel.status.text === 'Challenge declined', 'declined shown, got ' + board.panel.status.text)
+  // (the stub also announced g1 again; a finished game with the same id is not re-attached)
+  await sleep(50)
+
+  // Settings page: cycle values, persisted, reflected in the menu; table buttons; Back
+  press('Settings')
+  check(board.panel.status.text === 'Settings', 'settings shown')
+  check(labels() === 'Stockfish L2,Time 10+0,Color random,Casual,Table up,Table down,Back', 'settings bar: ' + labels())
+  press('Stockfish L2'); press('Time 10+0'); press('Color random'); press('Casual')
+  check(labels().startsWith('Stockfish L3,Time 10+5,Color white,Rated'), 'cycled: ' + labels())
+  check($('ailevel').value === '3' && $('inc').value === '5' && $('color').value === 'white' && $('rated').checked, '2D form updated')
+  const saved = JSON.parse(localStorage.getItem('settings'))
+  check(saved.ailevel === '3' && saved.time === '10' && saved.inc === '5' && saved.rated === true, 'persisted: ' + JSON.stringify(saved))
+  for (let i = 0; i < 8; i++) press(labels().split(',')[0])        // level wraps 3 -> ... -> 3
+  check(labels().startsWith('Stockfish L3'), 'level wraps at 8')
+  const h0 = board.stage.position.y
+  press('Table up'); press('Table up')
+  check(Math.abs(board.stage.position.y - h0 - 0.1) < 1e-9 && localStorage.getItem('tableHeight') === (h0 + 0.1).toFixed(3), 'table up saved')
+  check(board.panel.status.sub === `Table +${Math.round((h0 + 0.1) * 100)} cm`, 'height shown: ' + board.panel.status.sub)
+  press('Back')
+  check(labels() === 'Stockfish L3 10+5,Seek human 10+5,Puzzles,Coordinates,Settings', 'idle menu with new settings: ' + labels())
+  $('time').value = '10'; $('inc').value = '0'; $('time').dispatchEvent(new Event('change'))
 
   // Idle: a correspondence game announced by the stream is not attached
   streams['/api/stream/event'].push({ type: 'gameStart', game: { gameId: 'c1', speed: 'correspondence' } })
@@ -127,12 +157,12 @@ try {
   check(!streams['/api/board/game/stream/c1'], 'correspondence game ignored')
 
   press('Puzzles')
-  await until(() => labels() === 'Next puzzle,Stockfish L2 10+0,Seek human 10+0,Coordinates', 'puzzle bar, got ' + labels())
+  await until(() => labels() === 'Next puzzle,Stockfish L3 10+0,Seek human 10+0,Coordinates,Settings', 'puzzle bar, got ' + labels())
   check(requests.filter(r => r.path.startsWith('/api/puzzle/next')).every(r => !r.auth), 'puzzles fetched anonymously')
 
   press('Coordinates')                               // trainer replaces puzzles
   await until(() => board.panel.status.big, 'trainer target shown')
-  check(labels() === 'New round,Stockfish L2 10+0,Seek human 10+0,Puzzles', 'trainer bar, got ' + labels())
+  check(labels() === 'New round,Stockfish L3 10+0,Seek human 10+0,Puzzles,Settings', 'trainer bar, got ' + labels())
   board._select(board.panel.status.big)
   check(board.panel.status.sub.startsWith('Score 1'), 'trainer scored, got ' + board.panel.status.sub)
   press('Puzzles')

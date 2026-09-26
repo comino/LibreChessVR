@@ -81,7 +81,7 @@ export class StatusPanel {
   }
 }
 
-const BAR_W = 0.3, BAR_H = 0.12, COLS = 3, ROWS = 2, CONFIRM_MS = 3000
+const BAR_W = 0.3, BAR_H = 0.18, COLS = 3, ROWS = 3, CONFIRM_MS = 3000
 
 export class ButtonBar {
   constructor() {

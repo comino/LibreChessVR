@@ -50,7 +50,7 @@ try {
   board.setStatus({ puzzle: true, text: 't', actions: [
     { label: 'A', run: () => runs.push('A') }, { label: 'B', confirm: true, run: () => runs.push('B') }] })
   check(bar.mesh.visible, 'bar visible with actions')
-  const btnWorld = i => bar.mesh.localToWorld(new THREE.Vector3((i - 1) * 0.1, 0.03, 0))
+  const btnWorld = i => bar.mesh.localToWorld(new THREE.Vector3((i - 1) * 0.1, 0.06, 0))
   const rayAt = world => {
     const n = new THREE.Vector3(0, 0, 1).applyQuaternion(bar.mesh.getWorldQuaternion(new THREE.Quaternion()))
     board.raycaster.set(world.clone().addScaledVector(n, 0.3), n.negate())
@@ -81,7 +81,7 @@ try {
   const tip = new THREE.Object3D()
   board.hands = [{ joints: { 'index-finger-tip': tip } }]
   board.scene.add(tip)
-  const tipAt = z => { tip.position.copy(bar.mesh.localToWorld(new THREE.Vector3(-0.1, 0.03, z))); tip.updateMatrixWorld() }
+  const tipAt = z => { tip.position.copy(bar.mesh.localToWorld(new THREE.Vector3(-0.1, 0.06, z))); tip.updateMatrixWorld() }
   const pokes = () => runs.filter(r => r === 'P').length
   tipAt(0.05); board._tick()
   check(pokes() === 0, 'hover does not press')

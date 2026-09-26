@@ -575,7 +575,7 @@ export class Board3D {
     this.panel.mesh.rotation.x = -0.15
     // Button bar right of the board, within arm's reach, turned toward the player.
     this.bar = new ButtonBar()
-    this.bar.mesh.position.set(0.4, 0.86, -0.34)
+    this.bar.mesh.position.set(0.4, 0.88, -0.34)
     this.bar.mesh.rotation.set(-0.5, -0.9, 0, 'YXZ')
     this.stage.add(this.panel.mesh, this.bar.mesh)
   }

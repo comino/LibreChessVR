@@ -2,6 +2,7 @@
 import { strict as assert } from 'assert'
 import { squareToXZ, xzToSquare, parseFen, captured } from '../src/coords.js'
 import { makeLineSplitter, isRapid, Lichess } from '../src/lichess.js'
+import { cycle, TIME_PRESETS } from '../src/settings.js'
 
 // --- coords ---
 assert.deepEqual(squareToXZ('a1'), { x: -3.5, z: 3.5 })
@@ -65,6 +66,12 @@ assert.equal(isRapid(7, 2), true)     // 420 + 80
 assert.equal(isRapid(5, 3), false)    // 300 + 120 = 420: blitz
 assert.equal(isRapid(5, 5), true)     // 300 + 200
 assert.equal(isRapid(3, 2), false)
+
+// --- settings cycle ---
+assert.equal(cycle(TIME_PRESETS, '10+0'), '10+5')
+assert.equal(cycle(TIME_PRESETS, '30+0'), '3+2')     // wraps
+assert.equal(cycle(TIME_PRESETS, '7+7'), '3+2')      // unknown -> first
+assert.equal(cycle(['random', 'white', 'black'], 'black'), 'random')
 
 // --- stream watchdog: silent stream -> 'Stream stalled'; data keeps it alive; abort stays AbortError ---
 const enc = new TextEncoder()

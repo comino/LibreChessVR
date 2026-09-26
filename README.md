@@ -26,6 +26,8 @@ WebXR needs a secure context. Two options:
 - The ray stops where it hits; the square or button under it lights up. A king in check glows red.
 - Point at a piece, **trigger** to select — legal targets light up green.
 - Point at a target square, **trigger** to move. Select the piece again to cancel.
+- **Settings** (menu): Stockfish level, time control, color, rated/casual, table up/down — no
+  need to take the headset off. After a game, **Rematch** swaps colors (humans get a challenge).
 - **Coordinates** (menu): a square name appears — point at that square. 30 s rounds,
   alternating white/black view; best score is kept. Trains 3D board vision directly.
 - Hands: "point & pinch" works like the trigger; "grab pieces" lets you pick up and drop pieces.
