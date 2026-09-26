@@ -106,6 +106,11 @@ try {
   check(s2.stats.streak === 0 && s2.stats.best === 3, 'hint resets streak, best kept')
   board.onMove('d8', 'h4'); s2.stop()
   check(s2.stats.streak === 0 && s2.stats.solved === 5, 'hinted solve does not count for streak')
+  await s2.next(); board.onMove('d8', 'h4'); s2.stop()
+  check(s2.stats.streak === 1, 'clean again')
+  await s2.next(); await s2.next()                 // skip an unsolved puzzle
+  check(s2.stats.streak === 0, 'skipping breaks the streak')
+  s2.stop()
 
   // Underpromotion: queen is wrong, knight solves
   const promo = new PuzzleSession({ board, onStatus: t => { status = t }, lichess: { puzzleNext: async () => ({
@@ -124,6 +129,7 @@ try {
   await bad.next()
   board.onMove('f1', 'c4'); await sleep(700)
   check(status === 'Puzzle data error — skipping', 'bad reply handled, got ' + status)
+  check(bad.stats.streak === JSON.parse(localStorage.getItem('puzzleStats')).streak && !bad.running, 'data error skip is not a miss')
   bad.stop()
 
   out.textContent = 'PUZZLE-OK'

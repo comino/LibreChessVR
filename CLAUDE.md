@@ -43,8 +43,9 @@ player who normally plays 2D. Static web app, no build step, no backend, no npm.
 - Hover state lives in `board.hover[key]` (`mouse`, `c0`, `c1`, `grab`); tints are
   recomputed in `_applyTints` (last move < check < selection < hover brighten).
 - XR controller groups have `matrixAutoUpdate = false` — tests must `updateMatrix()`.
-- Orientation = `setOrientation(color)` (session's side) XOR `setFlipped(bool)` (sticky practice
-  view, also a "Flip board" button in games/puzzles). Never remap coordinates for either.
+- Orientation = `setOrientation(color)` (session's side) XOR `setFlipped(bool)` (sticky setting)
+  XOR `peek` (in-game "Flip board", cleared by the next `setOrientation`). `viewSide()` = side
+  shown at the player's end. Never remap coordinates for any of them.
 - `setScale(s)` scales `boardGroup` (all logic is in board-local units, so input needs no
   changes), grows the table for s>1 and moves the bar out (`BAR_X`).
 - Proxy cylinders use `thetaStart = π/12`: a ray exactly along a cap-triangle edge (e.g. aiming
@@ -55,6 +56,8 @@ player who normally plays 2D. Static web app, no build step, no backend, no npm.
   `renderer.info.memory`), sets background/fog/exposure and re-tunes the persistent `hemi` +
   `sun` lights (sun targets the board so its shadow frustum stays on it). ACES tone mapping
   is global; panel/bar/label materials are `toneMapped: false` to keep text colors exact.
+  Light count is fixed (hemi, sun in `stage`, `lamp` at intensity 0 when unused) so switching
+  never recompiles shaders; the sun's shadow box scales with the board.
   The env list lives in settings.js (pure, Node-testable); names must match `BUILDERS`.
 - `board.stage` holds table + board + panel + bar; `setHeight(offset)` (±0.45 m) moves it.
   Thumbstick Y on either controller adjusts it; `onHeightChange` fires once on release and

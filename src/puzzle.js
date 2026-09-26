@@ -26,6 +26,7 @@ export class PuzzleSession {
   render() { this._status(this.text) }
 
   async next() {
+    if (this.running) this._miss() // skipping an unsolved puzzle breaks the streak
     this.stop()
     const run = this.run
     const { difficulty, angle } = this.options?.() ?? {}
@@ -89,7 +90,7 @@ export class PuzzleSession {
     this.text = text
     const actions = [{ label: 'Next puzzle', run: () => this.next() },
       ...this._myTurn() ? [{ label: 'Hint', run: () => this.hint() }] : [],
-      { label: 'Flip board', run: () => this.board.setFlipped(!this.board.flipped) }, ...this.menu?.() ?? []]
+      { label: 'Flip board', run: () => this.board.togglePeek() }, ...this.menu?.() ?? []]
     const { streak, best } = this.stats
     const sub = this.info && `${this.info} • streak ${streak} (best ${best})`
     this.board.setStatus({ puzzle: true, text, sub, actions })
@@ -135,6 +136,7 @@ export class PuzzleSession {
     try {
       mv = this.chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] })
     } catch {
+      this.running = false // not the player's fault: skip without breaking the streak
       this._status('Puzzle data error — skipping')
       this.timer = setTimeout(() => this.next(), 1500)
       return

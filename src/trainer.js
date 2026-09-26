@@ -25,7 +25,7 @@ export class TrainerSession {
     this.board.setPosition(START)
     this._next()
     this.timer = setInterval(() => this._tick(), 250)
-    this.onStatus?.(`Coordinates: find the squares (${this.color}'s view)`)
+    this.onStatus?.(`Coordinates: find the squares (${this.board.viewSide()}'s view)`)
   }
 
   stop() {
@@ -79,7 +79,7 @@ export class TrainerSession {
     const again = { label: 'New round', run: () => this.start() }
     const status = this.running
       ? { big: this.target, text: `${Math.ceil((this.endAt - performance.now()) / 1000)} s`,
-          sub: `Score ${this.score} • ${this.color}'s view` }
+          sub: `Score ${this.score} • ${this.board.viewSide()}'s view` }
       : { text: 'Time!', sub: this.result }
     this.board.setStatus({ puzzle: true, ...status, actions: [again, ...this.menu?.() ?? []] })
   }

@@ -79,8 +79,10 @@ export class Board3D {
     this.sun.shadow.camera.right = this.sun.shadow.camera.top = 0.7
     this.sun.shadow.mapSize.set(1024, 1024)
     this.sun.shadow.bias = -0.0005
+    this.sun.shadow.normalBias = 0.01 // low sunset sun: avoid acne on the tiles
     this.sun.target.position.copy(BOARD_POS) // shadow frustum centered on the board
-    this.scene.add(this.hemi, this.sun, this.sun.target)
+    this.lamp = new THREE.PointLight(0xffffff, 0, 6) // intensity 0 in scenes without a lamp
+    this.scene.add(this.hemi, this.lamp)
 
     // Stage = table + board + panel + bar, raised/lowered together (setHeight).
     // The table reaches below the floor so it never floats when raised.
@@ -93,6 +95,7 @@ export class Board3D {
     table.receiveShadow = true
     this.stage.add(table)
     this.table = table
+    this.stage.add(this.sun, this.sun.target) // shadows follow the table height
 
     addEventListener('resize', () => {
       this.camera.aspect = innerWidth / innerHeight
@@ -237,7 +240,7 @@ export class Board3D {
       disposeGroup(this.envGroup)
     }
     const env = buildEnvironment(name)
-    this.environment = name
+    this.environment = env.name
     this.envGroup = env.group
     this.scene.add(env.group)
     this.scene.background = new THREE.Color(env.background)
@@ -251,6 +254,10 @@ export class Board3D {
     this.sun.color.set(color)
     this.sun.intensity = si
     this.sun.position.copy(BOARD_POS).add(new THREE.Vector3(...offset))
+    const [lc, li, lp] = env.lamp ?? [0xffffff, 0, [0, 0, 0]]
+    this.lamp.color.set(lc)
+    this.lamp.intensity = li
+    this.lamp.position.set(...lp)
   }
 
   // Table height offset from the default (m), clamped.
@@ -258,9 +265,16 @@ export class Board3D {
     this.stage.position.y = THREE.MathUtils.clamp(offset, -HEIGHT_RANGE, HEIGHT_RANGE)
   }
 
-  // color = the side the session plays; flipped (sticky, practice) views it from the other side.
+  // color = the side the session plays; flipped (sticky setting) views it from the other side;
+  // peek = a temporary flip toggled in-game, cleared when the next session orients the board.
   setOrientation(color) {
     this.orientation = color
+    this.peek = false
+    this._orient()
+  }
+
+  togglePeek() {
+    this.peek = !this.peek
     this._orient()
   }
 
@@ -269,8 +283,11 @@ export class Board3D {
     this._orient()
   }
 
+  // Side at the player's end of the table after flips.
+  viewSide() { return this.boardGroup.rotation.y ? 'black' : 'white' }
+
   _orient() {
-    const black = (this.orientation === 'black') !== !!this.flipped
+    const black = (this.orientation === 'black') !== !!this.flipped !== !!this.peek
     this.boardGroup.rotation.y = black ? Math.PI : 0
   }
 
@@ -281,6 +298,10 @@ export class Board3D {
     const grow = Math.max(1, this.boardScale)
     this.boardGroup.scale.setScalar(this.boardScale)
     this.table.scale.set(grow, 1, grow)
+    const cam = this.sun.shadow.camera // shadow box covers table + captured pieces
+    cam.left = cam.bottom = -0.7 * grow
+    cam.right = cam.top = 0.7 * grow
+    cam.updateProjectionMatrix()
     this.bar.mesh.position.x = BAR_X + (grow - 1) * 0.35
   }
 

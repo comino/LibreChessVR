@@ -1,6 +1,7 @@
 // Scenery around the table, built procedurally (no downloads). Each builder returns
-// {group, background, fog?, exposure, hemi: [sky, ground, intensity], sun: [color, intensity, offset]}
-// where offset is the sun position relative to the board. Board3D owns the lights.
+// {name, group, background, fog?, exposure, hemi: [sky, ground, intensity], sun: [color, intensity, offset],
+//  lamp?: [color, intensity, position]} — sun offset is relative to the board. Board3D owns the
+// lights (fixed count: adding/removing lights would recompile every shader on a scene switch).
 
 import * as THREE from 'three'
 import { Sky } from 'three/addons/objects/Sky.js'
@@ -36,6 +37,7 @@ export function woodTexture(base = '#6b4a30', grain = 'rgba(40,24,12,0.35)', rep
   const tex = new THREE.CanvasTexture(c)
   tex.colorSpace = THREE.SRGBColorSpace
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping
+  tex.anisotropy = 8 // three clamps to the GPU max; avoids grain moiré at grazing angles
   tex.repeat.set(repeat, repeat)
   return tex
 }
@@ -64,13 +66,21 @@ function study() {
   // bookshelf with random books on the left wall
   const shelf = new THREE.Group()
   shelf.add(mesh(new THREE.BoxGeometry(0.35, 2.2, 1.8), std(0x3b2616), [0, 1.1, 0]))
-  const bookColors = [0x7a2e2e, 0x2e4a7a, 0x2e6a3e, 0x8a6a2a, 0x4a2e6a, 0xd8cbb0]
+  // books: one instanced draw call instead of ~100 meshes
+  const bookColors = [0x7a2e2e, 0x2e4a7a, 0x2e6a3e, 0x8a6a2a, 0x4a2e6a, 0xd8cbb0].map(c => new THREE.Color(c))
+  const books = []
   for (let row = 0; row < 4; row++) for (let z = -0.8; z < 0.8;) {
     const w = 0.04 + Math.random() * 0.04, h = 0.3 + Math.random() * 0.12
-    shelf.add(mesh(new THREE.BoxGeometry(0.25, h, w), std(bookColors[Math.floor(Math.random() * 6)]),
-      [0.06, 0.2 + row * 0.52 + h / 2, z + w / 2]))
+    books.push({ h, w, y: 0.2 + row * 0.52 + h / 2, z: z + w / 2 })
     z += w + 0.005
   }
+  const inst = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), std(0xffffff), books.length)
+  const m4 = new THREE.Matrix4()
+  books.forEach((b, i) => {
+    inst.setMatrixAt(i, m4.compose(new THREE.Vector3(0.06, b.y, b.z), new THREE.Quaternion(), new THREE.Vector3(0.25, b.h, b.w)))
+    inst.setColorAt(i, bookColors[i % 6])
+  })
+  shelf.add(inst)
   shelf.position.set(-3.8, 0, -1.2)
   group.add(shelf)
   // floor lamp with a warm light
@@ -78,12 +88,10 @@ function study() {
   lamp.add(mesh(new THREE.CylinderGeometry(0.015, 0.015, 1.5), std(0x222222, { metalness: 0.6 }), [0, 0.75, 0]))
   lamp.add(mesh(new THREE.CylinderGeometry(0.12, 0.2, 0.22, 24, 1, true),
     std(0xf0dcb0, { emissive: 0x806030, side: THREE.DoubleSide }), [0, 1.55, 0], false))
-  const bulb = new THREE.PointLight(0xffc98a, 2.5, 6)
-  bulb.position.y = 1.5
-  lamp.add(bulb)
   lamp.position.set(1.3, 0, -1.4)
   group.add(lamp)
-  return { group, background: 0x2a2018, exposure: 1.1, hemi: [0xffe8cc, 0x5a4030, 1.1], sun: [0xfff1dc, 1.8, [-1.2, 2.2, -2.0]] }
+  return { group, background: 0x2a2018, exposure: 1.1, hemi: [0xffe8cc, 0x5a4030, 1.1], sun: [0xfff1dc, 1.8, [-1.2, 2.2, -2.0]],
+    lamp: [0xffc98a, 2.5, [1.3, 1.5, -1.4]] }
 }
 
 function sunset() {
@@ -133,7 +141,11 @@ function night() {
 }
 
 const BUILDERS = { minimal, study, sunset, night }
-export const buildEnvironment = name => (BUILDERS[name] ?? minimal)()
+// Unknown names fall back to minimal; the result's name says which one was built.
+export function buildEnvironment(name) {
+  const key = name in BUILDERS ? name : 'minimal'
+  return { name: key, ...BUILDERS[key]() }
+}
 
 // Frees GPU resources of a built environment group.
 export function disposeGroup(group) {

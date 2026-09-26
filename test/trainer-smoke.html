@@ -83,6 +83,12 @@ try {
   t.endAt = performance.now() - 1; t._tick()
   check(localStorage.getItem('coordBest') === '2', 'lower score keeps best')
 
+  // Flipped view setting: the label names the side actually shown
+  t.stop(); board.setFlipped(true); t.start()
+  check(t.color === 'white' ? board.panel.status.sub.endsWith("black's view") : board.panel.status.sub.endsWith("white's view"),
+    'flipped label: ' + board.panel.status.sub + ' color ' + t.color)
+  board.setFlipped(false)
+
   // Timer text counts down
   t.start()
   check(/^(30|29) s$/.test(board.panel.status.text), 'countdown: ' + board.panel.status.text)

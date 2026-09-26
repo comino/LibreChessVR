@@ -309,21 +309,39 @@ try {
   const backgrounds = new Set()
   const childCount = board.scene.children.length
   const snapshot = () => ({ ...board.renderer.info.memory })
-  let mem1
+  let mem1, programs1
+  const lights = () => { let n = 0; board.scene.traverse(o => { if (o.isLight) n++ }); return n }
+  const lightCount = lights()
   for (let round = 0; round < 3; round++) {
     for (const name of ENVIRONMENTS) {
       board.setEnvironment(name)
       board._tick()                                   // render: uploads geometries/textures
       check(board.environment === name && board.scene.children.length === childCount, 'env swap keeps scene size: ' + name)
       backgrounds.add(board.scene.background.getHex())
+      check(lights() === lightCount, 'constant light count (no shader recompiles): ' + name)
     }
-    if (round === 0) mem1 = snapshot()
+    if (round === 0) { mem1 = snapshot(); programs1 = board.renderer.info.programs.length }
   }
   const mem3 = snapshot()
   check(backgrounds.size === ENVIRONMENTS.length, 'each scene has its own background')
   check(mem3.geometries <= mem1.geometries && mem3.textures <= mem1.textures,
     `no leak: ${JSON.stringify(mem1)} -> ${JSON.stringify(mem3)}`)
+  check(board.renderer.info.programs.length === programs1, 'no new shader programs after the first cycle')
+  board.setEnvironment('foo')
+  check(board.environment === 'minimal', 'unknown scene falls back to minimal')
+  board.setEnvironment('study')
+  let instanced = 0, meshes = 0
+  board.envGroup.traverse(o => { if (o.isInstancedMesh) instanced++; else if (o.isMesh) meshes++ })
+  check(instanced === 1 && meshes < 30, `study draw calls bounded: ${meshes} meshes + ${instanced} instanced`)
+  check(board.lamp.intensity > 0, 'study lamp on')
   board.setEnvironment('minimal')
+  check(board.lamp.intensity === 0, 'lamp off in minimal')
+
+  // shadows follow the stage and cover a scaled board
+  check(board.sun.parent === board.stage, 'sun moves with the table')
+  board.setScale(1.5)
+  check(Math.abs(board.sun.shadow.camera.right - 1.05) < 1e-9, 'shadow box scaled: ' + board.sun.shadow.camera.right)
+  board.setScale(1)
 
   board.cue('capture'); board.cue('error')        // must not throw
   out.textContent = 'UI-OK'
