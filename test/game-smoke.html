@@ -37,7 +37,8 @@ const lichess = {
   draw: async (id, yes) => calls.push('draw ' + yes),
   takeback: async (id, yes) => calls.push('takeback ' + yes),
   abort: async () => calls.push('abort'),
-  resign: async () => calls.push('resign')
+  resign: async () => calls.push('resign'),
+  claimVictory: async () => calls.push('claim')
 }
 const full = (moves, initialFen = 'startpos') => ({
   type: 'gameFull', initialFen, white: { id: 'Me', name: 'Me' }, black: { aiLevel: 3 },
@@ -123,6 +124,55 @@ try {
 
   game.stop()
   await done
+
+  // --- robustness: one fresh session per scenario ---
+  const menu = () => [{ label: 'Menu', run() {} }]
+  const fresh = async () => {
+    const g = new GameSession({ lichess, board, username: 'me', gameId: 'g2', onStatus: t => { text = t }, menu })
+    const d = g.start()
+    await sleep(0)
+    return [g, d]
+  }
+  const ends = (d, what) => Promise.race([d, sleep(3000).then(() => { throw new Error('stream loop still running: ' + what) })])
+
+  // Castling sent king-takes-rook (e1h1) is understood; the game continues after it
+  let [g, d] = await fresh()
+  push(full('e2e4 e7e5 g1f3 b8c6 f1c4 g8f6 e1h1'))
+  check(g.chess.get('g1')?.type === 'k' && g.chess.get('f1')?.type === 'r', 'e1h1 castled short')
+  push(state('e2e4 e7e5 g1f3 b8c6 f1c4 g8f6 e1h1 f8c5'))
+  check(g.applied === 8 && g.chess.get('c5')?.type === 'b', 'moves after castling applied')
+
+  // A move we can't apply stops the session with a visible error (no reconnect loop)
+  push(state('e2e4 e7e5 g1f3 b8c6 f1c4 g8f6 e1h1 f8c5 a1a8'))
+  await ends(d, 'sync error')
+  check(text.startsWith('Sync error') && board.panel.status.text === text, 'sync error shown, got ' + text)
+  check(labels() === 'Menu' && !board.canPick('d2'), 'menu offered, board locked')
+
+  // Unsupported variant: refused up front
+  ;[g, d] = await fresh()
+  push({ ...full(''), variant: { key: 'crazyhouse' } })
+  await ends(d, 'variant')
+  check(text === "Variant crazyhouse isn't supported — play it on lichess", 'variant refused, got ' + text)
+  check(labels() === 'Menu', 'menu after variant refusal')
+
+  // Chess960-free "fromPosition" is fine
+  ;[g, d] = await fresh()
+  push({ ...full('', '4k3/8/8/8/8/8/8/4K2R w K - 0 1'), variant: { key: 'fromPosition' } })
+  check(!g.finished && board.canPick('h1'), 'fromPosition playable')
+
+  // Opponent leaves: countdown, then a Claim win button; coming back clears it
+  push(state('e1g1 e8d8'))
+  push({ type: 'opponentGone', gone: true, claimWinInSeconds: 1 })
+  check(text === 'Opponent left — claim in 1 s' && !labels().includes('Claim win'), 'countdown, got ' + text)
+  await sleep(1200)
+  check(text === 'Opponent left — claim the win' && labels().startsWith('Claim win'), 'claimable: ' + labels())
+  press('Claim win'); await sleep(0)
+  check(calls.at(-1) === 'claim', 'claim sent')
+  push({ type: 'opponentGone', gone: false })
+  check(text === 'Your move' && !labels().includes('Claim win'), 'opponent back, got ' + text)
+  g.stop()
+  await d
+
   out.textContent = 'GAME-OK'
 } catch (e) {
   out.textContent = 'GAME-FAIL ' + e.message

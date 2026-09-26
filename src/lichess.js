@@ -96,6 +96,7 @@ export class Lichess {
 
   move(gameId, uci) { return this._post(`/api/board/game/${gameId}/move/${uci}`) }
   resign(gameId) { return this._post(`/api/board/game/${gameId}/resign`) }
+  claimVictory(gameId) { return this._post(`/api/board/game/${gameId}/claim-victory`) }
   abort(gameId) { return this._post(`/api/board/game/${gameId}/abort`) }
   // yes = offer/accept, no = decline
   draw(gameId, yes) { return this._post(`/api/board/game/${gameId}/draw/${yes ? 'yes' : 'no'}`) }

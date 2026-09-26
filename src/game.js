@@ -8,6 +8,7 @@ const STATUS_TEXT = {
   draw: 'Draw', stalemate: 'Stalemate', aborted: 'Aborted'
 }
 const lower = s => (s || '').toLowerCase()
+const VARIANTS = ['standard', 'fromPosition'] // what chess.js can follow
 
 export class GameSession {
   // menu: () => actions shown once the game is over (new game, puzzles)
@@ -35,12 +36,36 @@ export class GameSession {
     }
   }
 
-  stop() { this.abort.abort() }
+  stop() {
+    this.abort.abort()
+    clearTimeout(this.goneTimer)
+  }
   active() { return !this.finished }
   render() { if (this.state) this._render() }
 
+  // A message we can't apply means our state is wrong: stop instead of reconnecting
+  // into the same failure forever.
   _onMsg(msg) {
+    try {
+      this._handle(msg)
+    } catch (e) {
+      this._fail('Sync error: ' + e.message)
+    }
+  }
+
+  _fail(text) {
+    this.error = text
+    this.finished = true
+    this.abort.abort()
+    if (this.state) this._render()
+    else this.board.setStatus({ puzzle: true, text, actions: this.menu?.() })
+    this.onStatus?.(text, true)
+  }
+
+  _handle(msg) {
     if (msg.type === 'gameFull') {
+      const variant = msg.variant?.key ?? 'standard'
+      if (!VARIANTS.includes(variant)) return this._fail(`Variant ${variant} isn't supported — play it on lichess`)
       this.color = lower(msg.white.id) === lower(this.username) ? 'white' : 'black'
       const name = p => p.name || p.id || (p.aiLevel ? 'Stockfish ' + p.aiLevel : '?')
       this.names = { white: name(msg.white), black: name(msg.black) }
@@ -51,6 +76,12 @@ export class GameSession {
       this._applyState(msg.state)
     } else if (msg.type === 'gameState') {
       this._applyState(msg)
+    } else if (msg.type === 'opponentGone') {
+      const wait = (msg.claimWinInSeconds ?? 0) * 1000
+      clearTimeout(this.goneTimer)
+      this.claimAt = msg.gone ? performance.now() + wait : null
+      if (msg.gone) this.goneTimer = setTimeout(() => this.render(), wait + 50)
+      this.render()
     }
   }
 
@@ -79,7 +110,10 @@ export class GameSession {
     if (s[opp + 'draw']) text = 'Draw offered to you'
     else if (s[opp + 'takeback']) text = 'Takeback requested'
     else if (s[me + 'draw']) text = 'You offered a draw'
-    if (this.finished) {
+    if (this.claimAt) text = this._canClaim() ? 'Opponent left — claim the win'
+      : `Opponent left — claim in ${Math.ceil((this.claimAt - performance.now()) / 1000)} s`
+    if (this.error) text = this.error
+    else if (this.finished) {
       text = STATUS_TEXT[s.status] || s.status
       if (s.winner) text += this._won() ? ' — you win' : ' — you lose'
     }
@@ -92,6 +126,8 @@ export class GameSession {
     this.onStatus?.(text, this.finished)
   }
 
+  _canClaim() { return this.claimAt && performance.now() >= this.claimAt }
+
   _won() { return this.state.winner ? this.state.winner === this.color : null }
 
   // Button bar: answer offers, offer a draw, abort (before both moved) or resign.
@@ -100,7 +136,7 @@ export class GameSession {
     const s = this.state, me = this.color[0], opp = me === 'w' ? 'b' : 'w'
     const { lichess: li, gameId: id } = this
     const call = fn => () => fn().catch(e => this._say(e.message))
-    const acts = []
+    const acts = this._canClaim() ? [{ label: 'Claim win', run: call(() => li.claimVictory(id)) }] : []
     if (s[opp + 'draw']) acts.push(
       { label: 'Accept draw', run: call(() => li.draw(id, true)) },
       { label: 'Decline draw', run: call(() => li.draw(id, false)) })
@@ -121,7 +157,15 @@ export class GameSession {
   }
 
   _applyUci(uci) {
-    return this.chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] })
+    const from = uci.slice(0, 2), to = uci.slice(2, 4)
+    try {
+      return this.chess.move({ from, to, promotion: uci[4] })
+    } catch (e) {
+      // lichess may send castling as king-takes-own-rook (e1h1): map to e1g1
+      const k = this.chess.get(from), r = this.chess.get(to)
+      if (k?.type !== 'k' || r?.type !== 'r' || r.color !== k.color) throw e
+      return this.chess.move({ from, to: (to[0] > from[0] ? 'g' : 'c') + to[1] })
+    }
   }
 
   tryMove(from, to, promotion = 'q') {

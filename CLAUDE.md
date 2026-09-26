@@ -46,6 +46,11 @@ player who normally plays 2D. Static web app, no build step, no backend, no npm.
 - Board API: no bullet; **seeks** must be rapid+ (`isRapid`: limit + 40×inc ≥ 480 s),
   blitz only for direct/AI challenges.
 - Takebacks shrink the `moves` list → `_applyState` rebuilds chess.js from `initialFen`.
+- Any exception while handling a stream message → `_fail()`: session finished, stream
+  aborted, error on the panel, menu shown. Never let it throw (reconnect replays the same
+  messages → endless loop). Variants other than standard/fromPosition are refused.
+- Castling may arrive king-takes-rook (`e1h1`); `_applyUci` maps it to `e1g1`.
+- `opponentGone` → countdown text, then a "Claim win" button (`claim-victory`).
 - Sessions talk to the in-VR UI only via `board.setStatus({..., actions})`; actions are
   `{label, run, confirm?}` rendered by `ButtonBar` (max 6). `ts` in the status keeps
   clocks from jumping when a transient message (`_say`) is shown.
@@ -104,5 +109,5 @@ Desktop pre-check for controller input: Meta's Immersive Web Emulator extension.
 
 ## Ideas / not yet done
 
-- Premoves, chat, requesting takebacks, claim victory when the opponent leaves
+- Premoves, chat, requesting takebacks, claim draw when the opponent leaves
 - Move list / PGN view
