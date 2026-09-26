@@ -106,7 +106,8 @@ export class GameSession {
 
   _render() {
     const s = this.state, me = this.color[0], opp = me === 'w' ? 'b' : 'w'
-    let text = this.chess.turn() === me ? 'Your move' : 'Waiting…'
+    const last = this.chess.history().at(-1)
+    let text = (last ? last + ' · ' : '') + (this.chess.turn() === me ? 'Your move' : 'Waiting…')
     if (s[opp + 'draw']) text = 'Draw offered to you'
     else if (s[opp + 'takeback']) text = 'Takeback requested'
     else if (s[me + 'draw']) text = 'You offered a draw'

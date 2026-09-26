@@ -7,7 +7,8 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { VRButton } from 'three/addons/webxr/VRButton.js'
 import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
-import { squareToXZ, xzToSquare, parseFen } from './coords.js'
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
+import { squareToXZ, xzToSquare, parseFen, captured } from './coords.js'
 import { StatusPanel, ButtonBar } from './panel.js'
 import { playCue, buzz } from './feedback.js'
 
@@ -61,7 +62,9 @@ export class Board3D {
     this.controls.target.copy(BOARD_POS)
     this.controls.enableDamping = true
 
-    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x445566, 1.2))
+    // Soft room reflections, used by the piece materials only (tiles stay matte).
+    this.envMap = new THREE.PMREMGenerator(this.renderer).fromScene(new RoomEnvironment(), 0.04).texture
+    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x445566, 1.0))
     const sun = new THREE.DirectionalLight(0xffffff, 2.0)
     sun.position.set(0.8, 2.5, 0.5)
     sun.castShadow = true
@@ -133,7 +136,8 @@ export class Board3D {
     }
 
     this.piecesGroup = new THREE.Group()
-    this.boardGroup.add(this.piecesGroup)
+    this.capturedGroup = new THREE.Group() // not pickable: outside piecesGroup
+    this.boardGroup.add(this.piecesGroup, this.capturedGroup)
     this.pieceAt = {}
     this.selected = null
     this.lastMove = null
@@ -170,13 +174,17 @@ export class Board3D {
     if (missing.length) throw new Error('Model missing pieces: ' + missing)
     const kingH = new THREE.Box3().setFromObject(this.templates.k).getSize(new THREE.Vector3()).y
     this.pieceScale = (1.7 * SQUARE) / kingH
+    // Shared across all pieces: pieces are rebuilt on every position change.
+    const mat = color => new THREE.MeshStandardMaterial({
+      color, roughness: 0.35, metalness: 0.05, envMap: this.envMap, envMapIntensity: 0.6,
+      side: THREE.DoubleSide // piece shells are open at the base (felt mesh is hidden)
+    })
+    this.pieceMat = { w: mat(0xf2ead8), b: mat(0x3b3630) }
+    this.proxyGeo = {}
   }
 
   _makePiece(type, color) {
-    const mat = new THREE.MeshStandardMaterial({
-      color: color === 'w' ? 0xf2ead8 : 0x3b3630, roughness: 0.35, metalness: 0.05,
-      side: THREE.DoubleSide // piece shells are open at the base (felt mesh is hidden)
-    })
+    const mat = this.pieceMat[color]
     const inner = this.templates[type].clone()
     let anyPlastic = false
     inner.traverse(m => { if (m.isMesh && m.name.includes('Plastic')) anyPlastic = true })
@@ -193,7 +201,8 @@ export class Board3D {
     inner.position.z -= c.z
     // Invisible cylinder used for ray hits: cheap per-frame hover, easy to hit.
     const h = box.max.y - box.min.y, r = 0.42 * SQUARE / this.pieceScale
-    const proxy = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 12), PROXY_MAT)
+    this.proxyGeo[type] ??= new THREE.CylinderGeometry(r, r, h, 12)
+    const proxy = new THREE.Mesh(this.proxyGeo[type], PROXY_MAT)
     proxy.position.y = h / 2
     const group = new THREE.Group()
     group.add(inner, proxy)
@@ -203,6 +212,19 @@ export class Board3D {
   }
 
   // --- public API ---
+
+  // Captured pieces stand beside the board at the capturer's right hand, 8 per column.
+  _showCaptured(fen) {
+    this.capturedGroup.clear()
+    const lost = captured(fen)
+    for (const [color, side] of [['b', 1], ['w', -1]]) lost[color].forEach((type, i) => {
+      const piece = this._makePiece(type, color)
+      piece.scale.multiplyScalar(0.6)
+      const col = Math.floor(i / 8), row = i % 8
+      piece.position.set(side * (4.8 + col * 0.7) * SQUARE, 0.005, side * (3.5 - row * 0.7) * SQUARE)
+      this.capturedGroup.add(piece)
+    })
+  }
 
   // Table height offset from the default (m), clamped.
   setHeight(offset) {
@@ -229,6 +251,7 @@ export class Board3D {
       this.pieceAt[p.square] = piece
       this.piecesGroup.add(piece)
     }
+    this._showCaptured(fen)
     this.selected = null
     this.lastMove = lastMove
     this.check = this.checkSquare()

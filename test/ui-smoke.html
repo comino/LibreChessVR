@@ -257,6 +257,26 @@ try {
   check(colorOf('1:30') === '#e8d44a', 'opponent running clock yellow, got ' + colorOf('1:30'))
   board.panel._text = realText
 
+  // --- captured pieces beside the board; shared materials/geometry ---
+  board.setOrientation('white')
+  board.setPosition('rnb1kbnr/ppppppp1/8/8/8/8/PPP1PPPP/R1BQKBNR w KQkq - 0 1')
+  const cap = board.capturedGroup.children
+  check(cap.length === 4, 'four captured pieces shown, got ' + cap.length)
+  const blackLost = cap.filter(c => c.position.x > 0), whiteLost = cap.filter(c => c.position.x < 0)
+  check(blackLost.length === 2 && whiteLost.length === 2, 'split by side')
+  check(blackLost.every(c => c.position.x > 4 * S) && whiteLost.every(c => c.position.x < -4 * S), 'off the board')
+  check(blackLost[0].position.z > 0 && whiteLost[0].position.z < 0, "near each capturer's side")
+  board.raycaster.set(board.capturedGroup.localToWorld(blackLost[0].position.clone().setY(0.3)), new THREE.Vector3(0, -1, 0))
+  board.scene.updateMatrixWorld(true)
+  check(!board._cast()?.square, 'captured pieces are not pickable')
+  const mats = new Set(), geos = new Set()
+  for (let i = 0; i < 3; i++) board.setPosition('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1')
+  board.piecesGroup.traverse(m => { if (m.isMesh && m.material.visible) mats.add(m.material) })
+  board.piecesGroup.children.forEach(p => geos.add(p.userData.proxy.geometry))
+  check(mats.size === 2, 'two shared piece materials, got ' + mats.size)
+  check(geos.size === 6, 'one proxy geometry per piece type, got ' + geos.size)
+  check(board.capturedGroup.children.length === 0, 'no captures at start')
+
   board.cue('capture'); board.cue('error')        // must not throw
   out.textContent = 'UI-OK'
 } catch (e) {

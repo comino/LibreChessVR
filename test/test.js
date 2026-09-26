@@ -1,6 +1,6 @@
 // Node unit tests for the pure logic. Run: node test/test.js
 import { strict as assert } from 'assert'
-import { squareToXZ, xzToSquare, parseFen } from '../src/coords.js'
+import { squareToXZ, xzToSquare, parseFen, captured } from '../src/coords.js'
 import { makeLineSplitter, isRapid } from '../src/lichess.js'
 
 // --- coords ---
@@ -35,6 +35,13 @@ assert.deepEqual(at(sparse, 'd5'), { square: 'd5', type: 'r', color: 'b' })
 assert.deepEqual(at(sparse, 'e4'), { square: 'e4', type: 'k', color: 'w' })
 
 assert.throws(() => parseFen('8/8/8 w - - 0 1'))
+
+// --- captured ---
+assert.deepEqual(captured('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'), { w: [], b: [] })
+// white lost the d-pawn and queen's knight; black lost queen and h-pawn
+assert.deepEqual(captured('rnb1kbnr/ppppppp1/8/8/8/8/PPP1PPPP/R1BQKBNR w KQkq - 0 1'), { w: ['n', 'p'], b: ['q', 'p'] })
+// promoted second queen: pawn shows as missing, queens never negative
+assert.deepEqual(captured('4k3/8/8/8/8/8/8/QQ2K3 w - - 0 1').w, ['r', 'r', 'b', 'b', 'n', 'n', 'p', 'p', 'p', 'p', 'p', 'p', 'p', 'p'])
 
 // --- NDJSON splitter: chunks cutting lines anywhere, keepalive newlines ---
 const got = []

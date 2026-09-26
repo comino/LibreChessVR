@@ -101,7 +101,7 @@ try {
   push(state('e2e4 e7e5 g1f3'))
   check(game.chess.history().join() === 'e4,e5,Nf3' && game.applied === 3, 'rebuilt after takeback: ' + game.chess.history())
   check(board.pieceAt.f3?.userData.type === 'n' && !board.pieceAt.c6 && board.pieceAt.b8, 'board rebuilt after takeback')
-  check(game.chess.turn() === 'b' && text === 'Waiting…', 'black to move after takeback')
+  check(game.chess.turn() === 'b' && text === 'Nf3 · Waiting…', 'black to move after takeback, got ' + text)
 
   // Promotion through the board picker (reconnect into a new position)
   push(full('', '8/4P3/8/8/8/8/k7/4K3 w - - 0 1'))
@@ -169,7 +169,7 @@ try {
   press('Claim win'); await sleep(0)
   check(calls.at(-1) === 'claim', 'claim sent')
   push({ type: 'opponentGone', gone: false })
-  check(text === 'Your move' && !labels().includes('Claim win'), 'opponent back, got ' + text)
+  check(text === 'Kd8 · Your move' && !labels().includes('Claim win'), 'opponent back, got ' + text)
   g.stop()
   await d
 

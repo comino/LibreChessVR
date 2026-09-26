@@ -13,7 +13,7 @@ player who normally plays 2D. Static web app, no build step, no backend, no npm.
 
 | File | Role |
 |------|------|
-| `src/coords.js` | Pure: square↔XZ mapping, FEN parsing. Unit-tested. |
+| `src/coords.js` | Pure: square↔XZ mapping, FEN parsing, `captured(fen)`. Unit-tested. |
 | `src/board3d.js` | Dumb 3D view. Takes FEN via `setPosition`, emits `onMove(from,to,promo?)`. Selection, promotion picker, controller/mouse/hand input, `cue(kind)` sounds. |
 | `src/panel.js` | `StatusPanel` (names, clocks, text) and `ButtonBar` (ray/click/fingertip-poke buttons, confirm-twice). |
 | `src/feedback.js` | Synthesized WebAudio cues + controller haptics. No audio files. |
@@ -32,6 +32,9 @@ player who normally plays 2D. Static web app, no build step, no backend, no npm.
 - GLB piece nodes carry ancestor transforms → templates bake `matrixWorld` via
   decompose at load; recentering must SUBTRACT the bbox offset, not set it.
 - Piece scale is derived from the king's bbox (king = 1.7 × square size), not hardcoded.
+- Pieces are rebuilt on every `setPosition`: materials (`pieceMat.w/b`, with the RoomEnvironment
+  envMap — pieces only, it washes out the tiles) and proxy geometries are shared, never per piece.
+- Captured pieces live in `capturedGroup` (not pickable), at each capturer's right hand.
 - Ray picking/hover never touches the GLB meshes: each piece has an invisible cylinder
   `userData.proxy` (too many triangles for per-frame raycasts on the Quest). `_cast()` is
   the single ray resolver for click, trigger and hover, so hover and pick always agree.
