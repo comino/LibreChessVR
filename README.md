@@ -30,9 +30,11 @@ WebXR needs a secure context. Two options:
 - **Settings** (menu): Play page (Stockfish level, Maia level, time control, color, rated) and
   View page (scene: minimal / study / sunset / night, board size 80–150%, table up/down, flipped view) — no need to take the headset off.
 - **Flip board** (in games and puzzles): see the position from your opponent's side. After a game, **Rematch** swaps colors (humans get a challenge), and
-  **Prev/Next move** replay the game on the board. Puzzles have a **Hint** button,
+  **Review game** steps through it on the board. Puzzles have a **Hint** button,
   themes (mate in 1/2/3, forks, pins, skewers, endgames, openings), difficulty, and a streak
   counter (solved in a row without mistakes or hints; best is kept).
+- **Puzzle rush** (menu): 3 minutes, 3 lives — solve as many as you can; a wrong move costs a
+  life, difficulty rises every 5 solved, best score kept.
 - **Coordinates** (menu): a square name appears — point at that square. 30 s rounds,
   alternating white/black view; best score is kept. Trains 3D board vision directly.
 - Hands: "point & pinch" works like the trigger; "grab pieces" lets you pick up and drop pieces.

@@ -21,6 +21,7 @@ player who normally plays 2D. Static web app, no build step, no backend, no npm.
 | `src/lichess.js` | Board API client: NDJSON streams, seek (connection must stay open!), moves, draw/takeback/abort/resign. |
 | `src/game.js` | `GameSession`: one game stream ↔ chess.js ↔ board. Optimistic local moves, rollback on server reject, offers → button bar. |
 | `src/puzzle.js` | `PuzzleSession`: fetches `/api/puzzle/next`, replays game PGN, validates solution moves, auto-plays replies, auto-advances. |
+| `src/rush.js` | `RushSession extends PuzzleSession`: 3 min, 3 lives, wrong move = life lost + next puzzle, difficulty rises every 5 solved; best in `localStorage.rushBest`. Overrides the puzzle hooks only. |
 | `src/trainer.js` | `TrainerSession`: coordinate drill — big target square on the panel, point at it; 30 s rounds alternating white/black view; best in `localStorage.coordBest`. |
 | `src/environments.js` | Procedural scenes (minimal, study, sunset, night): builders return a group + background/fog/exposure/light params; `woodTexture()` canvas grain; `disposeGroup()`. |
 | `src/settings.js` | In-VR settings, three pages: Play (Stockfish level, Maia 1/5/9, time, color, rated) View (scene, board scale, table ↑/↓, flipped view) and Puzzles (difficulty, theme). `cycle()` unit-tested. main.js maps Play values onto the 2D form fields; View values live on the board (`VIEW_SETTERS`, own localStorage keys). |
@@ -80,6 +81,11 @@ player who normally plays 2D. Static web app, no build step, no backend, no npm.
 - Puzzles: `options()` (difficulty + lichess `angle` theme) is read on every fetch, so settings
   apply to the next puzzle. Streak/best/solved in `localStorage.puzzleStats`; any wrong move or
   hint sets `clean = false` and resets the streak immediately.
+- PuzzleSession hooks for subclasses: `_wrong()`, `_solved()`, `_actions()`, `_sub()`, `_miss()`;
+  `next()` uses `_halt()` (ends the puzzle) so a subclass's own timers survive; `stop()` is the
+  public full stop. Rush keeps its clock in `stop()`-cleared `this.clock`.
+- ButtonBar holds 9; it `console.warn`s when a screen passes more. Finished games show
+  Rematch + "Review game" (sub-view: Prev/Next/Flip/Done) + menu = 9 max.
 - Puzzle **Hint** = `setMarks` on the from-square of the next solution move; any move,
   `stop()` and `bindBoard` clear marks.
 - `opponentGone` → countdown text, then a "Claim win" button (`claim-victory`).

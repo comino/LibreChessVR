@@ -27,7 +27,7 @@ export class PuzzleSession {
 
   async next() {
     if (this.running) this._miss() // skipping an unsolved puzzle breaks the streak
-    this.stop()
+    this._halt()
     const run = this.run
     const { difficulty, angle } = this.options?.() ?? {}
     this._status('Fetching puzzle…')
@@ -41,7 +41,10 @@ export class PuzzleSession {
     if (run === this.run) this._setup(data)
   }
 
-  stop() {
+  stop() { this._halt() }
+
+  // Ends the current puzzle (subclasses keep their own timers running across puzzles).
+  _halt() {
     this.run++
     this.running = false
     clearTimeout(this.timer)
@@ -88,13 +91,32 @@ export class PuzzleSession {
 
   _status(text) {
     this.text = text
-    const actions = [{ label: 'Next puzzle', run: () => this.next() },
+    this.board.setStatus({ puzzle: true, text, sub: this._sub(), actions: this._actions() })
+    this.onStatus?.(text)
+  }
+
+  _actions() {
+    return [{ label: 'Next puzzle', run: () => this.next() },
       ...this._myTurn() ? [{ label: 'Hint', run: () => this.hint() }] : [],
       { label: 'Flip board', run: () => this.board.togglePeek() }, ...this.menu?.() ?? []]
+  }
+
+  _sub() {
     const { streak, best } = this.stats
-    const sub = this.info && `${this.info} • streak ${streak} (best ${best})`
-    this.board.setStatus({ puzzle: true, text, sub, actions })
-    this.onStatus?.(text)
+    return this.info && `${this.info} • streak ${streak} (best ${best})`
+  }
+
+  // Hooks for wrong / solved; the wrong move is already undone on the board.
+  _wrong() {
+    this._miss()
+    this._status('Not it — try again')
+  }
+
+  _solved() {
+    this._saveStats({ streak: this.clean ? this.stats.streak + 1 : 0, solved: this.stats.solved + 1 })
+    this.board.cue('success')
+    this._status('Solved! Next puzzle…')
+    this.timer = setTimeout(() => this.next(), 2000)
   }
 
   tryMove(from, to, promo) {
@@ -111,8 +133,7 @@ export class PuzzleSession {
       this.chess.undo()
       this.board.setPosition(this.chess.fen())
       this.board.cue('error')
-      this._miss()
-      this._status('Not it — try again')
+      this._wrong()
       return
     }
     this.idx++
@@ -120,10 +141,7 @@ export class PuzzleSession {
     this.board.setPosition(this.chess.fen(), { from: mv.from, to: mv.to })
     if (this.idx >= this.solution.length || this.chess.isCheckmate()) {
       this.running = false
-      this._saveStats({ streak: this.clean ? this.stats.streak + 1 : 0, solved: this.stats.solved + 1 })
-      this.board.cue('success')
-      this._status('Solved! Next puzzle…')
-      this.timer = setTimeout(() => this.next(), 2000)
+      this._solved()
     } else {
       this._status('Good move…')
       this.timer = setTimeout(() => this._reply(), 500)

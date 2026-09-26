@@ -82,7 +82,7 @@ try {
     b.run()
   }
 
-  await until(() => labels() === 'Stockfish L2 5+0,Maia 5 5+0,Puzzles,Coordinates,Settings', 'idle menu (no blitz seek), got ' + labels())
+  await until(() => labels() === 'Stockfish L2 5+0,Maia 5 5+0,Puzzles,Puzzle rush,Coordinates,Settings', 'idle menu (no blitz seek), got ' + labels())
   check($('time').value === '5' && $('ailevel').value === '2', 'settings restored into the form')
   check(board.stage.position.y === 0.2, 'table height restored')
   board.onHeightChange(-0.1)
@@ -93,7 +93,7 @@ try {
   check($('msg').textContent.startsWith('Seeks must be rapid'), 'blitz seek explained')
 
   $('time').value = '10'; $('time').dispatchEvent(new Event('change'))
-  check(labels() === 'Stockfish L2 10+0,Maia 5 10+0,Seek human 10+0,Puzzles,Coordinates,Settings', 'menu follows settings, got ' + labels())
+  check(labels() === 'Stockfish L2 10+0,Maia 5 10+0,Seek human 10+0,Puzzles,Puzzle rush,Coordinates,Settings', 'menu follows settings, got ' + labels())
   check(JSON.parse(localStorage.getItem('settings')).time === '10', 'settings persisted')
 
   press('Maia 5 10+0')
@@ -126,7 +126,7 @@ try {
   streams['/api/board/game/stream/g1'].push({ type: 'gameState', moves: 'f2f3 e7e5 g2g4 d8h4',
     wtime: 6e5, btime: 6e5, status: 'mate', winner: 'black' })
   await until(() => board.panel.status.text === 'Checkmate — you lose', 'game over text')
-  check(labels() === 'Rematch,Prev move,Next move,Stockfish L2 10+0,Maia 5 10+0,Seek human 10+0,Puzzles,Coordinates,Settings', 'menu after game, got ' + labels())
+  check(labels() === 'Rematch,Review game,Stockfish L2 10+0,Maia 5 10+0,Seek human 10+0,Puzzles,Puzzle rush,Coordinates,Settings', 'menu after game, got ' + labels())
   const aiBefore = requests.filter(r => r.path === '/api/challenge/ai').length
   const realPush = streams['/api/stream/event'].push
   press('Rematch')
@@ -175,7 +175,7 @@ try {
   check(labels().startsWith('Level harder,Mate in 2') && $('pdiff').value === 'harder' && $('ptheme').value === 'mateIn2', 'puzzle settings cycled: ' + labels())
   press('Play settings')
   press('Back')
-  check(labels() === 'Stockfish L3 10+5,Maia 5 10+5,Seek human 10+5,Puzzles,Coordinates,Settings', 'idle menu with new settings: ' + labels())
+  check(labels() === 'Stockfish L3 10+5,Maia 5 10+5,Seek human 10+5,Puzzles,Puzzle rush,Coordinates,Settings', 'idle menu with new settings: ' + labels())
   streams['/api/stream/event'].push({ type: 'challengeDeclined', challenge: { id: 'y' } })
   await until(() => board.panel.status.text === 'Challenge declined', 'declined shown on idle panel')
   $('time').value = '10'; $('inc').value = '0'; $('time').dispatchEvent(new Event('change'))
@@ -186,13 +186,13 @@ try {
   check(!streams['/api/board/game/stream/c1'], 'correspondence game ignored')
 
   press('Puzzles')
-  await until(() => labels() === 'Next puzzle,Flip board,Stockfish L3 10+0,Maia 5 10+0,Seek human 10+0,Coordinates,Settings', 'puzzle bar, got ' + labels())
+  await until(() => labels() === 'Next puzzle,Flip board,Stockfish L3 10+0,Maia 5 10+0,Seek human 10+0,Puzzle rush,Coordinates,Settings', 'puzzle bar, got ' + labels())
   check(requests.filter(r => r.path.startsWith('/api/puzzle/next')).every(r => !r.auth), 'puzzles fetched anonymously')
   check(requests.some(r => r.path === '/api/puzzle/next?difficulty=harder&angle=mateIn2'), 'puzzle settings used in the fetch')
 
   press('Coordinates')                               // trainer replaces puzzles
   await until(() => board.panel.status.big, 'trainer target shown')
-  check(labels() === 'New round,Stockfish L3 10+0,Maia 5 10+0,Seek human 10+0,Puzzles,Settings', 'trainer bar, got ' + labels())
+  check(labels() === 'New round,Stockfish L3 10+0,Maia 5 10+0,Seek human 10+0,Puzzles,Puzzle rush,Settings', 'trainer bar, got ' + labels())
   board._select(board.panel.status.big)
   check(board.panel.status.sub.startsWith('Score 1'), 'trainer scored, got ' + board.panel.status.sub)
   press('Puzzles')

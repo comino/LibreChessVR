@@ -148,7 +148,7 @@ try {
 
   push(state('e7e8n', { status: 'mate', winner: 'white' }))
   check(text === 'Checkmate — you win', 'result text, got ' + text)
-  check(labels() === 'Rematch,Prev move,Next move' && !board.canPick('e8'), 'finished: rematch + replay, got ' + labels())
+  check(labels() === 'Rematch,Review game' && !board.canPick('e8'), 'finished: rematch + review, got ' + labels())
   press('Rematch'); await sleep(0)
   check(calls.at(-1) === 'ai {"level":3,"time":10,"increment":5,"color":"black"}', 'AI rematch, colors swapped: ' + calls.at(-1))
   check(text === 'Starting rematch…', 'rematch feedback, got ' + text)
@@ -235,6 +235,8 @@ try {
   push(state('e2e4 e7e5 d1h5 b8c6 f1c4 g8f6 h5f7', { status: 'mate', winner: 'white' }))
   const tintE8 = () => board.tiles.e8.material.emissive.getHex()
   check(tintE8() === 0x9a1a1a, 'mated king red at the end')
+  press('Review game')
+  check(labels() === 'Prev move,Next move,Flip board,Done', 'review bar: ' + labels())
   press('Prev move')
   check(text === 'Move 6/7: Nf6' && board.pieceAt.h5?.userData.type === 'q' && board.pieceAt.f7?.userData.color === 'b', 'one back: ' + text)
   check(tintE8() === 0, 'no check tint before the mate')
@@ -245,6 +247,8 @@ try {
   for (let i = 0; i < 10; i++) press('Next move')
   check(text === 'Checkmate — you win' && g.replayIdx == null && tintE8() === 0x9a1a1a, 'back at the end: ' + text)
   check(!board.canPick('e2'), 'replay never enables moves')
+  press('Prev move'); press('Prev move'); press('Done')
+  check(text === 'Checkmate — you win' && labels() === 'Rematch,Review game,Menu' && tintE8() === 0x9a1a1a, 'Done returns to the final position: ' + labels())
   g.stop(); await d
 
   // A move request failing after stop() must not touch the board

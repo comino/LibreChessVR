@@ -146,9 +146,13 @@ export class GameSession {
   // Button bar: answer offers, offer a draw, abort (before both moved) or resign.
   _actions() {
     if (this.error) return this.menu?.() ?? [] // state untrustworthy: no rematch/replay
+    if (this.reviewing) return [
+      { label: 'Prev move', run: () => this._step(-1) }, { label: 'Next move', run: () => this._step(1) },
+      { label: 'Flip board', run: () => this.board.togglePeek() },
+      { label: 'Done', run: () => { this.reviewing = false; this._step(Infinity) } }]
     if (this.finished) return [
       ...this._canRematch() ? [{ label: 'Rematch', run: () => this._rematch() }] : [],
-      ...this.applied ? [{ label: 'Prev move', run: () => this._step(-1) }, { label: 'Next move', run: () => this._step(1) }] : [],
+      ...this.applied ? [{ label: 'Review game', run: () => { this.reviewing = true; this._render() } }] : [],
       ...this.menu?.() ?? []]
     const s = this.state, me = this.color[0], opp = me === 'w' ? 'b' : 'w'
     const { lichess: li, gameId: id } = this

@@ -3,6 +3,7 @@ import { Lichess, isRapid } from './lichess.js'
 import { GameSession } from './game.js'
 import { PuzzleSession } from './puzzle.js'
 import { TrainerSession } from './trainer.js'
+import { RushSession } from './rush.js'
 import { settingsView } from './settings.js'
 
 const $ = id => document.getElementById(id)
@@ -68,7 +69,8 @@ function menu({ except } = {}) {
     if (seeking()) acts.push({ label: 'Cancel seek', run: cancelSeek })
     else if (isRapid(time, increment)) acts.push({ label: `Seek human ${tc}`, run: seek }) // lichess: seeks rapid+
   }
-  acts.push({ label: 'Puzzles', run: startPuzzles }, { label: 'Coordinates', run: startTrainer },
+  acts.push({ label: 'Puzzles', run: startPuzzles }, { label: 'Puzzle rush', run: startRush },
+    { label: 'Coordinates', run: startTrainer },
     { label: 'Settings', run: openSettings })
   return acts.filter(a => a.label !== except)
 }
@@ -218,6 +220,14 @@ function openSettings() {
   refresh()
 }
 
+function startRush() {
+  startActivity(() => {
+    const r = new RushSession({ lichess: new Lichess(), board, onStatus: msg, menu: () => menu({ except: 'Puzzle rush' }) })
+    r.start()
+    return r
+  })
+}
+
 function startTrainer() {
   startActivity(() => {
     const t = new TrainerSession({ board, onStatus: msg, menu: () => menu({ except: 'Coordinates' }) })
@@ -253,6 +263,7 @@ $('ai').onclick = playAi
 $('maiaBtn').onclick = playMaia
 $('puzzle').onclick = startPuzzles
 $('coords').onclick = startTrainer
+$('rush').onclick = startRush
 $('resign').onclick = () => {
   if (gameRunning()) lichess.resign(session.gameId).catch(e => msg(e.message))
 }

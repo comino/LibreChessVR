@@ -95,6 +95,7 @@ export class ButtonBar {
 
   // buttons: [{label, run, confirm?}] — confirm buttons need a second press within 3 s.
   set(buttons = []) {
+    if (buttons.length > COLS * ROWS) console.warn('ButtonBar: dropping', buttons.slice(COLS * ROWS).map(b => b.label))
     this.buttons = buttons.slice(0, COLS * ROWS)
     this.armed = this.buttons.find(b => b.label === this.armed?.label) || null
     this.draw()
