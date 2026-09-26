@@ -3,7 +3,7 @@
 # Usage: test/run-smoke.sh [page ...]   (default: all test/*-smoke.html + smoke.html)
 cd "$(dirname "$0")/.."
 CHROME=${CHROME:-"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"}
-PORT=8123
+PORT=${PORT:-8123}
 python3 -m http.server $PORT >/dev/null 2>&1 & SERVER=$!
 trap 'kill $SERVER' EXIT
 sleep 1
