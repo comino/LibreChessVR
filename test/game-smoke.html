@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<base href="/">
+<title>ChessVR game smoke test</title>
+<style>body { margin: 0 }</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+    "chess.js": "https://cdn.jsdelivr.net/npm/chess.js@1.0.0/+esm"
+  }
+}
+</script>
+</head>
+<body>
+<div id="result" style="position:fixed;top:0;right:0;z-index:10;color:#0f0;font-family:monospace"></div>
+<script type="module">
+import * as THREE from 'three'
+import { Board3D } from './src/board3d.js'
+import { GameSession } from './src/game.js'
+const out = document.getElementById('result')
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+const check = (cond, what) => { if (!cond) throw new Error('check failed: ' + what) }
+
+// Fake lichess: a stream we push messages into, API calls recorded.
+const calls = []
+let push, reject = null
+const lichess = {
+  streamGame: (id, onMsg, signal) => new Promise((_, rej) => {
+    push = onMsg
+    signal.addEventListener('abort', () => rej(Object.assign(new Error('aborted'), { name: 'AbortError' })))
+  }),
+  move: async (id, uci) => { calls.push('move ' + uci); if (reject) throw new Error(reject) },
+  draw: async (id, yes) => calls.push('draw ' + yes),
+  takeback: async (id, yes) => calls.push('takeback ' + yes),
+  abort: async () => calls.push('abort'),
+  resign: async () => calls.push('resign')
+}
+const full = (moves, initialFen = 'startpos') => ({
+  type: 'gameFull', initialFen, white: { id: 'Me', name: 'Me' }, black: { aiLevel: 3 },
+  state: { type: 'gameState', moves, wtime: 600000, btime: 600000, status: 'started' }
+})
+const state = (moves, extra = {}) => ({ type: 'gameState', moves, wtime: 590000, btime: 590000, status: 'started', ...extra })
+
+try {
+  const board = new Board3D()
+  await board.init()
+  let text = ''
+  const game = new GameSession({ lichess, board, username: 'me', gameId: 'g1', onStatus: t => { text = t } })
+  const done = game.start()
+  await sleep(0)
+  const labels = () => board.bar.mesh.visible ? board.bar.buttons.map(b => b.label).join() : ''
+  const press = label => {
+    const i = board.bar.buttons.findIndex(b => b.label === label)
+    check(i >= 0, 'button present: ' + label + ' in ' + labels())
+    board.bar.press((i % 3 + 0.5) / 3, 1 - (Math.floor(i / 3) + 0.5) / 2)
+  }
+
+  push(full(''))
+  check(game.color === 'white' && text === 'Your move', 'white to move, got ' + text)
+  check(labels() === 'Offer draw,Abort', 'opening buttons: ' + labels())
+  check(board.canPick('e2') && !board.canPick('e7'), 'canPick own pieces')
+
+  board.onMove('e2', 'e4')
+  check(calls.at(-1) === 'move e2e4' && game.applied === 1, 'optimistic move sent')
+  push(state('e2e4'))                                  // echo: no-op
+  check(game.chess.history().length === 1, 'echo not re-applied')
+  push(state('e2e4 e7e5'))
+  check(labels() === 'Offer draw,Resign', 'resign after both moved: ' + labels())
+
+  press('Resign')
+  check(!calls.includes('resign'), 'resign needs confirmation')
+  press('Resign'); await sleep(0)
+  check(calls.at(-1) === 'resign', 'resign confirmed')
+
+  reject = 'Not your turn'
+  board.onMove('g1', 'f3'); await sleep(0)
+  reject = null
+  check(game.chess.history().length === 2 && game.applied === 2, 'rejected move rolled back')
+  check(text === 'Move rejected: Not your turn', 'rejection shown, got ' + text)
+  check(board.panel.status.text === text, 'rejection shown in VR panel')
+
+  push(state('e2e4 e7e5', { bdraw: true }))
+  check(text === 'Draw offered to you', 'draw offer visible, got ' + text)
+  check(labels() === 'Accept draw,Decline draw,Resign', 'draw buttons: ' + labels())
+  press('Accept draw'); await sleep(0)
+  check(calls.at(-1) === 'draw true', 'draw accepted')
+  push(state('e2e4 e7e5', { wdraw: true }))
+  check(text === 'You offered a draw' && labels() === 'Resign', 'own offer: ' + text + ' / ' + labels())
+
+  // Opponent takeback: moves list shrinks -> state rebuilt from scratch
+  board.onMove('g1', 'f3')
+  push(state('e2e4 e7e5 g1f3 b8c6', { btakeback: true }))
+  check(labels().includes('Accept takeback'), 'takeback buttons: ' + labels())
+  press('Accept takeback'); await sleep(0)
+  check(calls.at(-1) === 'takeback true', 'takeback accepted')
+  push(state('e2e4 e7e5 g1f3'))
+  check(game.chess.history().join() === 'e4,e5,Nf3' && game.applied === 3, 'rebuilt after takeback: ' + game.chess.history())
+  check(board.pieceAt.f3?.userData.type === 'n' && !board.pieceAt.c6 && board.pieceAt.b8, 'board rebuilt after takeback')
+  check(game.chess.turn() === 'b' && text === 'Waiting…', 'black to move after takeback')
+
+  // Promotion through the board picker (reconnect into a new position)
+  push(full('', '8/4P3/8/8/8/8/k7/4K3 w - - 0 1'))
+  const before = calls.length
+  board._select('e7'); board._select('e8')
+  check(board.picker && calls.length === before, 'picker opened, no move yet')
+  board._tick()                                   // render a frame: world matrices
+  const slot = board.picker.group.children[3]   // q r b n
+  const p = slot.getWorldPosition(new THREE.Vector3())
+  board.raycaster.set(p.clone().add(new THREE.Vector3(0, 0.3, 0)), new THREE.Vector3(0, -1, 0))
+  board._pick()
+  check(calls.at(-1) === 'move e7e8n', 'knight underpromotion sent, got ' + calls.at(-1))
+  check(game.chess.get('e8')?.type === 'n' && !board.picker, 'knight on e8, picker closed')
+
+  push(state('e7e8n', { status: 'mate', winner: 'white' }))
+  check(text === 'Checkmate — you win', 'result text, got ' + text)
+  check(!board.bar.mesh.visible && !board.canPick('e8'), 'finished: no buttons, no moves')
+  push(state('e7e8n', { status: 'resign', winner: 'black' }))
+  check(text === 'Resignation — you lose', 'loss text, got ' + text)
+
+  game.stop()
+  await done
+  out.textContent = 'GAME-OK'
+} catch (e) {
+  out.textContent = 'GAME-FAIL ' + e.message
+}
+</script>
+</body>
+</html>

@@ -14,9 +14,12 @@ player who normally plays 2D. Static web app, no build step, no backend, no npm.
 | File | Role |
 |------|------|
 | `src/coords.js` | Pure: square↔XZ mapping, FEN parsing. Unit-tested. |
-| `src/board3d.js` | Dumb 3D view. Takes FEN via `setPosition`, emits `onMove(from,to)`. Selection UI, clocks panel, controller/mouse raycast input. |
-| `src/lichess.js` | Board API client: NDJSON streams, seek (connection must stay open!), moves. |
-| `src/game.js` | `GameSession`: one game stream ↔ chess.js ↔ board. Optimistic local moves, rollback on server reject. |
+| `src/board3d.js` | Dumb 3D view. Takes FEN via `setPosition`, emits `onMove(from,to,promo?)`. Selection, promotion picker, controller/mouse/hand input, `cue(kind)` sounds. |
+| `src/panel.js` | `StatusPanel` (names, clocks, text) and `ButtonBar` (ray/click/fingertip-poke buttons, confirm-twice). |
+| `src/feedback.js` | Synthesized WebAudio cues + controller haptics. No audio files. |
+| `src/bind.js` | `bindBoard(board, session)`: shared `onMove/getTargets/canPick` wiring for both sessions. |
+| `src/lichess.js` | Board API client: NDJSON streams, seek (connection must stay open!), moves, draw/takeback/abort/resign. |
+| `src/game.js` | `GameSession`: one game stream ↔ chess.js ↔ board. Optimistic local moves, rollback on server reject, offers → button bar. |
 | `src/puzzle.js` | `PuzzleSession`: fetches `/api/puzzle/next`, replays game PGN, validates solution moves, auto-plays replies, auto-advances. |
 | `src/main.js` | UI wiring, event stream, resumes ongoing game on load. |
 | `assets/chess.glb` | Piece models (from old prototype). Node names `Pawn/Knight/...`; each piece has `*_Plastic_0` (shown, recolored) and `*_Velvet_0` (hidden) meshes. |
@@ -31,7 +34,16 @@ player who normally plays 2D. Static web app, no build step, no backend, no npm.
 - `_applyState` applies only moves beyond `this.applied`; our own moves are applied
   optimistically so the stream echo is a no-op (no re-render, keeps animation).
 - Lichess seek (`POST /api/board/seek`) is only active while the HTTP request is open.
-- Board API: no bullet games. Promotion auto-queens (`game.js _tryMove`).
+- Board API: no bullet; **seeks** must be rapid+ (`isRapid`: limit + 40×inc ≥ 480 s),
+  blitz only for direct/AI challenges.
+- Takebacks shrink the `moves` list → `_applyState` rebuilds chess.js from `initialFen`.
+- Sessions talk to the in-VR UI only via `board.setStatus({..., actions})`; actions are
+  `{label, run, confirm?}` rendered by `ButtonBar` (max 6). `ts` in the status keeps
+  clocks from jumping when a transient message (`_say`) is shown.
+- Promotion: board detects pawn→last rank from `userData.type` and opens the picker;
+  sessions just receive the promo letter. `setPosition` always closes the picker.
+- `PuzzleSession.stop()` bumps `run`, so an in-flight fetch can't take over the board
+  after a game starts.
 - Hand tracking: hand meshes via `XRHandModelFactory`; two modes, persisted as
   `localStorage.handMode` and set via `board.setHandMode`. `ray` (default): pinch
   fires `selectstart` on the controller groups → normal ray select. `grab`: three's
@@ -56,11 +68,13 @@ player who normally plays 2D. Static web app, no build step, no backend, no npm.
    `http://localhost:8123/test/smoke.html` with
    `--headless=new --use-angle=swiftshader --enable-unsafe-swiftshader --virtual-time-budget=25000 --screenshot=...`
    — page shows `SMOKE-OK 32 pieces` plus scale/bbox diagnostics in `#result`.
-4. Puzzle logic: same headless-Chrome screenshot of `test/puzzle-smoke.html`
-   (stubbed puzzles, drives wrong/correct/mating moves) — expect `PUZZLE-OK`.
-5. Hand-grab logic: same for `test/grab-smoke.html` (fake hand joints drive
-   grab/drop/tracking-loss paths) — expect `GRAB-OK`.
-6. Real-game test needs a lichess token (play Stockfish level 1).
+4. `test/run-smoke.sh` runs every smoke page headless (`--dump-dom`) and exits non-zero
+   unless each prints `*-OK`: `puzzle-smoke` (stubbed puzzles, fetch race, underpromotion),
+   `grab-smoke` (fake hand joints), `game-smoke` (fake lichess stream: optimistic moves,
+   rejects, draw/takeback offers, resign confirm, promotion via picker, results),
+   `ui-smoke` (button bar ray/poke/confirm, drag-click, picker grab/ray/cancel/edges).
+   Tests that ray-pick freshly created objects must `board._tick()` first (world matrices).
+5. Real-game test needs a lichess token (play Stockfish level 1).
 
 ## Testing on the Quest
 
@@ -79,6 +93,6 @@ Desktop pre-check for controller input: Meta's Immersive Web Emulator extension.
 
 ## Ideas / not yet done
 
-- Underpromotion picker, premoves, draw offers, chat, takeback
-- In-VR seek UI (currently seek from the 2D page, then Enter VR)
-- Haptics/audio feedback on grab and drop
+- In-VR seek UI / new game after a finished one (currently the 2D page, then Enter VR)
+- Premoves, chat, requesting takebacks, claim victory when the opponent leaves
+- Move list / PGN view

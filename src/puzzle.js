@@ -2,28 +2,35 @@
 // Any mating move counts as solved (lichess rule). Wrong moves roll back, free retry.
 
 import { Chess } from 'chess.js'
+import { bindBoard } from './bind.js'
 
 export class PuzzleSession {
   constructor({ lichess, board, onStatus }) {
     Object.assign(this, { lichess, board, onStatus })
-    this.active = false
+    this.running = false
+    this.run = 0 // bumps on stop(), so a fetch finishing late is dropped
   }
+
+  active() { return this.running }
 
   async next(difficulty = this.difficulty) {
     this.stop()
-    this.active = true
+    const run = this.run
     this.difficulty = difficulty
-    this.onStatus?.('Fetching puzzle…')
+    this._status('Fetching puzzle…')
+    let data
     try {
-      this._setup(await this.lichess.puzzleNext(difficulty))
+      data = await this.lichess.puzzleNext(difficulty)
     } catch (e) {
-      this.active = false
-      this.onStatus?.('Puzzle fetch failed: ' + e.message)
+      if (run === this.run) this._status('Puzzle fetch failed: ' + e.message)
+      return
     }
+    if (run === this.run) this._setup(data)
   }
 
   stop() {
-    this.active = false
+    this.run++
+    this.running = false
     clearTimeout(this.timer)
   }
 
@@ -34,12 +41,8 @@ export class PuzzleSession {
     this.idx = 0
     this.info = `Puzzle ${puzzle.id} • rating ${puzzle.rating}`
     this.color = this.chess.turn() === 'w' ? 'white' : 'black'
-    this.board.onMove = (f, t) => this._tryMove(f, t)
-    this.board.getTargets = sq => this.chess.moves({ square: sq, verbose: true }).map(m => m.to)
-    this.board.canPick = sq => {
-      const p = this.chess.get(sq)
-      return this.active && !!p && p.color === this.color[0] && this.chess.turn() === this.color[0]
-    }
+    this.running = true
+    bindBoard(this.board, this)
     this.board.setOrientation(this.color)
     const last = this.chess.history({ verbose: true }).at(-1)
     this.board.setPosition(this.chess.fen(), last && { from: last.from, to: last.to })
@@ -47,15 +50,16 @@ export class PuzzleSession {
   }
 
   _status(text) {
-    this.board.setStatus({ puzzle: true, text, sub: this.info })
+    const actions = [{ label: 'Next puzzle', run: () => this.next() }]
+    this.board.setStatus({ puzzle: true, text, sub: this.info, actions })
     this.onStatus?.(text)
   }
 
-  _tryMove(from, to) {
+  tryMove(from, to, promo) {
     const expected = this.solution[this.idx] || ''
     let mv
     try {
-      mv = this.chess.move({ from, to, promotion: expected.slice(4) || 'q' })
+      mv = this.chess.move({ from, to, promotion: promo || expected[4] || 'q' })
     } catch {
       this.board.setPosition(this.chess.fen())
       return
@@ -64,12 +68,15 @@ export class PuzzleSession {
     if (uci !== expected && !this.chess.isCheckmate()) {
       this.chess.undo()
       this.board.setPosition(this.chess.fen())
+      this.board.cue('error')
       this._status('Not it — try again')
       return
     }
     this.idx++
     this.board.setPosition(this.chess.fen(), { from: mv.from, to: mv.to })
     if (this.idx >= this.solution.length || this.chess.isCheckmate()) {
+      this.running = false
+      this.board.cue('success')
       this._status('Solved! Next puzzle…')
       this.timer = setTimeout(() => this.next(), 2000)
     } else {

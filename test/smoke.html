@@ -26,7 +26,8 @@ try {
     { from: 'g8', to: 'f6' })
   board.setStatus({
     names: { white: 'me', black: 'stockfish' }, myColor: 'white',
-    wtime: 600000, btime: 597000, turn: 'w', running: true, text: 'Your move'
+    wtime: 600000, btime: 597000, turn: 'w', running: true, text: 'Your move',
+    actions: [{ label: 'Offer draw', run() {} }, { label: 'Resign', confirm: true, run() {} }]
   })
   if (location.hash === '#closeup') {
     board.camera.position.set(0.18, 0.82, -0.14)
@@ -39,6 +40,10 @@ try {
   const pawn = board.pieceAt.a2
   const box = new (await import('three')).Box3().setFromObject(pawn)
   const info = ` scale=${board.pieceScale.toFixed(5)} kingMeshes=[${names}] pawnBox=${JSON.stringify(box.min)}..${JSON.stringify(box.max)}`
+  if (location.hash === '#picker') {          // promotion picker on e8 (pawn e7 -> e8)
+    board.setPosition('4k3/4P3/8/8/8/8/8/4K3 w - - 0 1')
+    board._openPicker('e7', 'e8')
+  }
   out.textContent = (n === 32 ? 'SMOKE-OK 32 pieces' : 'SMOKE-FAIL pieces=' + n) + info
 } catch (e) {
   out.textContent = 'SMOKE-FAIL ' + e.message

@@ -1,6 +1,7 @@
 // One lichess game: streams state, keeps chess.js in sync, relays board moves.
 
 import { Chess } from 'chess.js'
+import { bindBoard } from './bind.js'
 
 const STATUS_TEXT = {
   mate: 'Checkmate', resign: 'Resignation', outoftime: 'Time out', timeout: 'Timeout',
@@ -19,12 +20,7 @@ export class GameSession {
   }
 
   async start() {
-    this.board.onMove = (f, t) => this._tryMove(f, t)
-    this.board.getTargets = sq => this.chess.moves({ square: sq, verbose: true }).map(m => m.to)
-    this.board.canPick = sq => {
-      const p = this.chess.get(sq)
-      return !this.finished && !!p && p.color === this.color[0] && this.chess.turn() === this.color[0]
-    }
+    bindBoard(this.board, this)
     // The stream dies on network blips or headset sleep; reconnect until the game
     // ends — each reconnect replays gameFull, which fully resets our state.
     while (!this.finished && !this.abort.signal.aborted) {
@@ -32,22 +28,22 @@ export class GameSession {
         await this.lichess.streamGame(this.gameId, m => this._onMsg(m), this.abort.signal)
       } catch (e) {
         if (e.name === 'AbortError') return
-        this.onStatus?.('Reconnecting: ' + e.message, false)
+        this._say('Reconnecting: ' + e.message)
       }
       if (!this.finished) await new Promise(r => setTimeout(r, 2000))
     }
   }
 
   stop() { this.abort.abort() }
+  active() { return !this.finished }
 
   _onMsg(msg) {
     if (msg.type === 'gameFull') {
       this.color = lower(msg.white.id) === lower(this.username) ? 'white' : 'black'
       const name = p => p.name || p.id || (p.aiLevel ? 'Stockfish ' + p.aiLevel : '?')
       this.names = { white: name(msg.white), black: name(msg.black) }
-      this.chess = msg.initialFen && msg.initialFen !== 'startpos'
-        ? new Chess(msg.initialFen) : new Chess()
-      this.applied = 0
+      this.initialFen = msg.initialFen && msg.initialFen !== 'startpos' ? msg.initialFen : undefined
+      this._reset()
       this.board.setOrientation(this.color)
       this._applyState(msg.state)
     } else if (msg.type === 'gameState') {
@@ -55,36 +51,77 @@ export class GameSession {
     }
   }
 
+  _reset() {
+    this.chess = new Chess(this.initialFen)
+    this.applied = 0
+  }
+
   _applyState(state) {
     const moves = state.moves ? state.moves.split(' ') : []
+    if (moves.length < this.applied) this._reset() // takeback: replay from scratch
     let last = null
     for (const uci of moves.slice(this.applied)) last = this._applyUci(uci)
     this.applied = moves.length
     if (last || moves.length === 0) this.board.setPosition(this.chess.fen(), last)
-
+    this.state = state
     this.finished = !!state.status && state.status !== 'started'
-    let text = this.chess.turn() === this.color[0] ? 'Your move' : 'Waiting…'
+    this._render()
+  }
+
+  _render() {
+    const s = this.state, me = this.color[0], opp = me === 'w' ? 'b' : 'w'
+    let text = this.chess.turn() === me ? 'Your move' : 'Waiting…'
+    if (s[opp + 'draw']) text = 'Draw offered to you'
+    else if (s[opp + 'takeback']) text = 'Takeback requested'
+    else if (s[me + 'draw']) text = 'You offered a draw'
     if (this.finished) {
-      text = STATUS_TEXT[state.status] || state.status
-      if (state.winner) text += ` — ${state.winner} wins`
+      text = STATUS_TEXT[s.status] || s.status
+      if (s.winner) text += s.winner === this.color ? ' — you win' : ' — you lose'
     }
-    this.board.setStatus({
-      names: this.names, myColor: this.color,
-      wtime: state.wtime, btime: state.btime,
-      turn: this.chess.turn(), running: !this.finished && moves.length >= 2, text
-    })
+    this.view = {
+      names: this.names, myColor: this.color, wtime: s.wtime, btime: s.btime,
+      turn: this.chess.turn(), running: !this.finished && this.applied >= 2,
+      text, actions: this._actions(), ts: performance.now()
+    }
+    this.board.setStatus(this.view)
     this.onStatus?.(text, this.finished)
+  }
+
+  // Button bar: answer offers, offer a draw, abort (before both moved) or resign.
+  _actions() {
+    if (this.finished) return []
+    const s = this.state, me = this.color[0], opp = me === 'w' ? 'b' : 'w'
+    const { lichess: li, gameId: id } = this
+    const call = fn => () => fn().catch(e => this._say(e.message))
+    const acts = []
+    if (s[opp + 'draw']) acts.push(
+      { label: 'Accept draw', run: call(() => li.draw(id, true)) },
+      { label: 'Decline draw', run: call(() => li.draw(id, false)) })
+    else if (!s[me + 'draw']) acts.push({ label: 'Offer draw', run: call(() => li.draw(id, true)) })
+    if (s[opp + 'takeback']) acts.push(
+      { label: 'Accept takeback', run: call(() => li.takeback(id, true)) },
+      { label: 'Decline takeback', run: call(() => li.takeback(id, false)) })
+    acts.push(this.applied < 2
+      ? { label: 'Abort', run: call(() => li.abort(id)) }
+      : { label: 'Resign', confirm: true, run: call(() => li.resign(id)) })
+    return acts
+  }
+
+  // Transient message on the VR panel and the 2D page; clocks keep running.
+  _say(text) {
+    if (this.view) this.board.setStatus({ ...this.view, text })
+    this.onStatus?.(text, false)
   }
 
   _applyUci(uci) {
     return this.chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] })
   }
 
-  _tryMove(from, to) {
+  tryMove(from, to, promotion = 'q') {
     if (this.finished || this.chess.turn() !== this.color[0]) return
     let mv
     try {
-      mv = this.chess.move({ from, to, promotion: 'q' }) // auto-queen for now
+      mv = this.chess.move({ from, to, promotion })
     } catch {
       this.board.setPosition(this.chess.fen())
       return
@@ -97,7 +134,8 @@ export class GameSession {
       this.chess.undo()
       this.applied--
       this.board.setPosition(this.chess.fen())
-      this.onStatus?.('Move rejected: ' + e.message, false)
+      this.board.cue('error')
+      this._say('Move rejected: ' + e.message)
     })
   }
 }

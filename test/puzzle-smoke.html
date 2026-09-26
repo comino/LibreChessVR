@@ -63,6 +63,29 @@ try {
   board.onMove('d8', 'h4')                     // Qh4#
   check(status === 'Solved! Next puzzle…', 'puzzle B solved')
   check(fetches === 2, 'fetch count')
+  check(board.bar.buttons[0]?.label === 'Next puzzle', 'Next puzzle button')
+
+  // Race: stop() while a fetch is in flight -> the late puzzle must not take the board
+  let release
+  const slow = new PuzzleSession({ lichess: { puzzleNext: () => new Promise(r => { release = r }) },
+    board, onStatus: () => {} })
+  const pending = slow.next()
+  slow.stop()
+  const sentinel = () => 'game'
+  board.canPick = sentinel
+  release(fixtures[0]); await pending
+  check(board.canPick === sentinel && !slow.running, 'stopped puzzle did not hijack the board')
+
+  // Underpromotion: queen is wrong, knight solves
+  const promo = new PuzzleSession({ board, onStatus: t => { status = t }, lichess: { puzzleNext: async () => ({
+    game: { pgn: 'a4 b5 axb5 a6 bxa6 Bb7 axb7 Nc6' }, puzzle: { id: 'testC', rating: 1500, solution: ['b7a8n'] } }) } })
+  await promo.next()
+  board.onMove('b7', 'a8', 'q')
+  check(status === 'Not it — try again' && promo.chess.get('b7')?.type === 'p', 'queen promotion rejected')
+  board.onMove('b7', 'a8', 'n')
+  check(status === 'Solved! Next puzzle…', 'knight promotion solves, got ' + status)
+  check(!board.canPick('a8'), 'no moves after solved')
+  promo.stop()
 
   out.textContent = 'PUZZLE-OK'
 } catch (e) {

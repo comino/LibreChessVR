@@ -23,17 +23,25 @@ WebXR needs a secure context. Two options:
 
 - Point at a piece, **trigger** to select — legal targets light up green.
 - Point at a target square, **trigger** to move. Select the piece again to cancel.
+- Hands: "point & pinch" works like the trigger; "grab pieces" lets you pick up and drop pieces.
+- Promotion: a Q/R/B/N row floats over the last rank — pick one; anywhere else cancels.
+- Button bar right of the board (trigger, or poke it with a fingertip): offer/accept/decline
+  draw, accept/decline takeback, abort (before both moved), resign (press twice), next puzzle.
+- Sounds on move/capture/error/solve; controllers buzz on select and move.
 - Desktop: same with mouse click; drag to orbit the camera.
 
 ## Notes / limitations
 
-- The lichess Board API allows blitz, rapid, classical, correspondence — **no bullet**.
-- Promotion is always to a queen for now.
+- Seeking a human needs rapid or slower (minutes + ⅔ × increment ≥ 8); blitz works
+  vs Stockfish. No bullet (lichess Board API rule).
+- Seek/challenge from the 2D page, then Enter VR.
 - Reconnect: reload the page — it resumes your ongoing game automatically.
 
 ## Development
 
-- `node test/test.js` — unit tests for FEN parsing, coordinates, NDJSON splitting.
+- `node test/test.js` — unit tests for FEN parsing, coordinates, NDJSON splitting, seek rules.
+- `test/run-smoke.sh` — runs all headless-Chrome smoke pages (board render, game session with
+  a fake lichess, puzzles, hand grab, button bar/picker/poke); every line must end in `-OK`.
 - `test/smoke.html` — renders a mid-game position without a lichess account
-  (`#closeup` in the URL for a near camera).
+  (`#closeup` for a near camera, `#picker` for the promotion picker).
 - `old-prototype/` — the previous A-Frame prototype, kept for reference only.

@@ -3,6 +3,9 @@
 
 const API = 'https://lichess.org'
 
+// Board API seeks must be rapid or slower: limit + 40 × increment ≥ 8 minutes.
+export const isRapid = (minutes, increment) => minutes * 60 + 40 * increment >= 480
+
 // Splits streamed text chunks into parsed NDJSON objects (chunks may cut lines anywhere).
 export function makeLineSplitter(onMsg) {
   let buf = ''
@@ -93,4 +96,8 @@ export class Lichess {
 
   move(gameId, uci) { return this._post(`/api/board/game/${gameId}/move/${uci}`) }
   resign(gameId) { return this._post(`/api/board/game/${gameId}/resign`) }
+  abort(gameId) { return this._post(`/api/board/game/${gameId}/abort`) }
+  // yes = offer/accept, no = decline
+  draw(gameId, yes) { return this._post(`/api/board/game/${gameId}/draw/${yes ? 'yes' : 'no'}`) }
+  takeback(gameId, yes) { return this._post(`/api/board/game/${gameId}/takeback/${yes ? 'yes' : 'no'}`) }
 }

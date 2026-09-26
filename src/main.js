@@ -1,5 +1,5 @@
 import { Board3D } from './board3d.js'
-import { Lichess } from './lichess.js'
+import { Lichess, isRapid } from './lichess.js'
 import { GameSession } from './game.js'
 import { PuzzleSession } from './puzzle.js'
 
@@ -79,13 +79,15 @@ $('connect').onclick = () => {
 }
 
 $('seek').onclick = async () => {
+  const time = +$('time').value, increment = +$('inc').value
+  if (!isRapid(time, increment))
+    return msg('Seeks must be rapid: minutes + ⅔ × increment ≥ 8 (e.g. 10+0, 5+5). Blitz works vs Stockfish.')
   seekAbort?.abort()
   seekAbort = new AbortController()
   msg('Seeking opponent…')
   try {
     await lichess.seek({
-      time: +$('time').value, increment: +$('inc').value,
-      rated: $('rated').checked, color: $('color').value
+      time, increment, rated: $('rated').checked, color: $('color').value
     }, seekAbort.signal)
   } catch (e) {
     if (e.name !== 'AbortError') msg('Seek failed: ' + e.message)

@@ -1,5 +1,6 @@
-// 3D chess board for WebXR. Dumb view: takes FEN, emits {from, to} via onMove.
-// Interaction: point (controller ray or mouse) + select a piece, then a target square.
+// 3D chess board for WebXR. Dumb view: takes FEN, emits onMove(from, to, promotion).
+// Input: controller ray / mouse (select piece, then target), pinch-grab with tracked
+// hands, fingertip poke on the button bar. Pawn moves to the last rank open a Q/R/B/N picker.
 
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
@@ -7,16 +8,19 @@ import { VRButton } from 'three/addons/webxr/VRButton.js'
 import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { squareToXZ, xzToSquare, parseFen } from './coords.js'
+import { StatusPanel, ButtonBar } from './panel.js'
+import { playCue, buzz } from './feedback.js'
 
 const SQUARE = 0.06                      // 6cm squares -> 48cm board, tournament-ish size
 const BOARD_POS = new THREE.Vector3(0, 0.73, -0.45)
 const NODE_MAP = { Pawn: 'p', Queen: 'q', King: 'k', Rook: 'r', Knight: 'n', Bishop: 'b' }
 const TILE = { light: 0xd9c49a, dark: 0x77502e }
-const _vA = new THREE.Vector3(), _vB = new THREE.Vector3()
+const _vA = new THREE.Vector3(), _vB = new THREE.Vector3(), _vC = new THREE.Vector3()
 const TINT = { select: 0x8a7a1a, target: 0x1a6a2a, last: 0x1a3a6a }
+const PICKER_Y = 0.115   // promotion picker floats above the tallest piece (king ≈ 0.10)
 
 export class Board3D {
-  onMove = null              // (from, to) =>
+  onMove = null              // (from, to, promotion?) =>
   getTargets = () => []      // square => [squares], set by game logic
   canPick = () => false      // square => bool, set by game logic
   handMode = 'ray'           // 'ray' = point & pinch, 'grab' = pinch-grab pieces
@@ -25,7 +29,7 @@ export class Board3D {
     this._scene()
     this._board()
     await this._loadPieces()
-    this._panelInit()
+    this._ui()
     this._input()
     this.renderer.setAnimationLoop(() => this._tick())
   }
@@ -187,6 +191,8 @@ export class Board3D {
   }
 
   setPosition(fen, lastMove = null) {
+    const before = this.piecesGroup.children.length
+    this._removePicker()
     this.piecesGroup.clear()
     this.pieceAt = {}
     this.anim = null
@@ -195,13 +201,14 @@ export class Board3D {
       const piece = this._makePiece(p.type, p.color)
       const { x, z } = squareToXZ(p.square, SQUARE)
       piece.position.set(x, 0.005, z)
-      piece.userData.square = p.square
+      Object.assign(piece.userData, { square: p.square, type: p.type, color: p.color })
       this.pieceAt[p.square] = piece
       this.piecesGroup.add(piece)
     }
     this.selected = null
     this.lastMove = lastMove
     this._applyTints()
+    if (lastMove) this.cue(this.piecesGroup.children.length < before ? 'capture' : 'move')
     if (lastMove && this.pieceAt[lastMove.to]) {
       const from = squareToXZ(lastMove.from, SQUARE)
       const to = squareToXZ(lastMove.to, SQUARE)
@@ -210,11 +217,13 @@ export class Board3D {
     }
   }
 
-  // state: {names:{white,black}, myColor, wtime, btime, turn, running, text}
+  // state: see StatusPanel.set, plus actions: [{label, run, confirm?}] for the button bar
   setStatus(state) {
-    this.status = { ...state, ts: performance.now() }
-    this._panelDraw()
+    this.panel.set(state)
+    this.bar.set(state.actions)
   }
+
+  cue(kind) { playCue(kind) }
 
   // --- selection & tints ---
 
@@ -229,19 +238,56 @@ export class Board3D {
   }
 
   _select(square) {
-    if (this.selected && square === this.selected) {
-      this.selected = null
-    } else if (this.selected && this.targets.includes(square)) {
-      const from = this.selected
-      this.selected = null
-      this.onMove?.(from, square)
-    } else if (this.canPick(square)) {
-      this.selected = square
-      this.targets = this.getTargets(square)
-    } else {
-      this.selected = null
-    }
+    const from = this.selected
+    const move = from && this.targets.includes(square)
+    this.selected = !move && square && square !== from && this.canPick(square) ? square : null
+    if (this.selected) this.targets = this.getTargets(square)
     this._applyTints()
+    if (move || this.selected) buzz(this.source)
+    if (move) this._emitMove(from, square)
+  }
+
+  _emitMove(from, to) {
+    const p = this.pieceAt[from]?.userData
+    if (p?.type === 'p' && (to[1] === '8' || to[1] === '1')) this._openPicker(from, to)
+    else this.onMove?.(from, to)
+  }
+
+  // --- promotion picker: Q/R/B/N floating in a row over the promotion rank ---
+
+  _openPicker(from, to) {
+    const color = this.pieceAt[from].userData.color
+    // 4 files around the target, clamped to the board; Q leftmost from the mover's side
+    const start = Math.min(Math.max('abcdefgh'.indexOf(to[0]) - 1, 0), 4)
+    const group = new THREE.Group()
+    const discMat = new THREE.MeshBasicMaterial({ color: TINT.target, transparent: true, opacity: 0.85 })
+    for (const [i, type] of [...'qrbn'].entries()) {
+      const disc = new THREE.Mesh(new THREE.CircleGeometry(0.48 * SQUARE, 24), discMat)
+      disc.rotation.x = -Math.PI / 2
+      const slot = new THREE.Group()
+      slot.add(disc, this._makePiece(type, color))
+      const file = 'abcdefgh'[color === 'w' ? start + i : start + 3 - i]
+      const { x, z } = squareToXZ(file + to[1], SQUARE)
+      slot.position.set(x, PICKER_Y, z)
+      slot.userData.promo = type
+      group.add(slot)
+    }
+    this.picker = { from, to, group }
+    this.boardGroup.add(group)
+  }
+
+  // promo = chosen piece type, or null to cancel (the pawn returns home).
+  _closePicker(promo) {
+    const { from, to } = this.picker
+    this._removePicker()
+    if (promo) return this.onMove?.(from, to, promo)
+    const home = squareToXZ(from, SQUARE)
+    this.pieceAt[from]?.position.set(home.x, 0.005, home.z)
+  }
+
+  _removePicker() {
+    if (this.picker) this.boardGroup.remove(this.picker.group)
+    this.picker = null
   }
 
   // --- input ---
@@ -260,10 +306,12 @@ export class Board3D {
       ctrl.add(line)
       ctrl.addEventListener('connected', e => {
         ctrl.userData.isHand = !!e.data?.hand
+        ctrl.userData.source = e.data
         this._updateLines()
       })
       ctrl.addEventListener('selectstart', () => {
         if (this.handMode === 'grab' && ctrl.userData.isHand) return // pinch-grab handles it
+        this.source = ctrl.userData.source
         tmpMat.identity().extractRotation(ctrl.matrixWorld)
         this.raycaster.ray.origin.setFromMatrixPosition(ctrl.matrixWorld)
         this.raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tmpMat)
@@ -276,6 +324,7 @@ export class Board3D {
     // Tracked hands: rendered meshes; pinch fires selectstart on the controller
     // groups above (ray mode), or grabs the nearest piece directly (grab mode).
     this.grab = null
+    this.hands = []
     const handFactory = new XRHandModelFactory()
     for (let i = 0; i < 2; i++) {
       const hand = this.renderer.xr.getHand(i)
@@ -283,9 +332,16 @@ export class Board3D {
       hand.addEventListener('pinchstart', () => this._grabStart(hand))
       hand.addEventListener('pinchend', () => this._grabEnd(hand))
       this.scene.add(hand)
+      this.hands.push(hand)
     }
 
-    this.renderer.domElement.addEventListener('click', e => {
+    // A click that ends an orbit drag is not a pick.
+    const dom = this.renderer.domElement
+    let down = null
+    dom.addEventListener('pointerdown', e => { down = [e.clientX, e.clientY] })
+    dom.addEventListener('click', e => {
+      if (down && Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return
+      this.source = null
       const ndc = new THREE.Vector2(
         (e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1)
       this.raycaster.setFromCamera(ndc, this.camera)
@@ -317,6 +373,7 @@ export class Board3D {
     const p = this._pinchPos(hand)
     if (!p) return
     const local = this.boardGroup.worldToLocal(p.clone())
+    if (this.picker) return this._closePicker(this._nearestPromo(local))
     if (local.y < -0.02 || local.y > 0.18) return
     let best = null
     for (const sq in this.pieceAt) {
@@ -332,6 +389,16 @@ export class Board3D {
     this._applyTints()
   }
 
+  _nearestPromo(local) {
+    let best = null, bestD = 0.8 * SQUARE
+    for (const slot of this.picker.group.children) {
+      const { x, y, z } = slot.position
+      const d = Math.hypot(x - local.x, y + 0.03 - local.y, z - local.z) // aim at the piece body
+      if (d < bestD) [best, bestD] = [slot.userData.promo, d]
+    }
+    return best
+  }
+
   _grabEnd(hand) {
     if (this.grab?.hand === hand) this._drop()
   }
@@ -345,91 +412,35 @@ export class Board3D {
     const { x, z } = squareToXZ(legal ? sq : from, SQUARE)
     piece.position.set(x, 0.005, z)
     this._applyTints()
-    if (legal) this.onMove?.(from, sq)
+    if (legal) this._emitMove(from, sq)
   }
 
+  // Resolves the current raycaster ray: picker first, then button bar, then board.
   _pick() {
-    const objs = [...Object.values(this.tiles), ...this.piecesGroup.children]
-    const hits = this.raycaster.intersectObjects(objs, true)
-    for (const h of hits) {
-      let o = h.object
-      while (o && !o.userData.square) o = o.parent
-      if (o) return this._select(o.userData.square)
-    }
-    this.selected = null
-    this._applyTints()
+    if (this.picker) return this._closePicker(this._hit(this.picker.group.children, 'promo'))
+    const h = this.bar.mesh.visible && this.raycaster.intersectObject(this.bar.mesh)[0]
+    if (h && this.bar.press(h.uv.x, h.uv.y)) return buzz(this.source)
+    this._select(this._hit([...Object.values(this.tiles), ...this.piecesGroup.children], 'square'))
   }
 
-  // --- status panel ---
-
-  _panelInit() {
-    this.panelCanvas = document.createElement('canvas')
-    this.panelCanvas.width = 512
-    this.panelCanvas.height = 256
-    this.panelTex = new THREE.CanvasTexture(this.panelCanvas)
-    this.panelTex.colorSpace = THREE.SRGBColorSpace
-    const panel = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.5, 0.25),
-      new THREE.MeshBasicMaterial({ map: this.panelTex, transparent: true }))
-    panel.position.set(0, 1.25, BOARD_POS.z - 0.5)
-    panel.rotation.x = -0.15
-    this.scene.add(panel)
-    this.status = null
-    this._panelDraw()
+  // userData[key] of the nearest hit object or its ancestors, else null.
+  _hit(objs, key) {
+    for (const h of this.raycaster.intersectObjects(objs, true))
+      for (let o = h.object; o; o = o.parent) if (o.userData[key]) return o.userData[key]
+    return null
   }
 
-  _panelDraw() {
-    const ctx = this.panelCanvas.getContext('2d')
-    ctx.clearRect(0, 0, 512, 256)
-    ctx.fillStyle = 'rgba(15,18,24,0.85)'
-    ctx.beginPath()
-    ctx.roundRect(0, 0, 512, 256, 24)
-    ctx.fill()
-    const s = this.status
-    if (!s) {
-      ctx.fillStyle = '#8899aa'
-      ctx.font = '32px sans-serif'
-      ctx.textAlign = 'center'
-      ctx.fillText('No game', 256, 140)
-      this.panelTex.needsUpdate = true
-      return
-    }
-    if (s.puzzle) {
-      ctx.fillStyle = '#c8ccd4'
-      ctx.font = '32px sans-serif'
-      ctx.textAlign = 'center'
-      ctx.fillText(s.text || '', 256, 118)
-      ctx.fillStyle = '#8899aa'
-      ctx.font = '24px sans-serif'
-      ctx.fillText(s.sub || '', 256, 168)
-      this.panelTex.needsUpdate = true
-      return
-    }
-    const elapsed = s.running ? performance.now() - s.ts : 0
-    const live = c => Math.max(0, (c === 'w' ? s.wtime : s.btime) - (s.turn === c ? elapsed : 0))
-    const fmt = ms => {
-      const t = Math.ceil(ms / 1000)
-      return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0')
-    }
-    const opp = s.myColor === 'white' ? 'b' : 'w'
-    const me = s.myColor[0]
-    const row = (y, c) => {
-      const active = s.turn === c && s.running
-      ctx.fillStyle = active ? '#e8d44a' : '#c8ccd4'
-      ctx.font = '34px sans-serif'
-      ctx.textAlign = 'left'
-      ctx.fillText(s.names[c === 'w' ? 'white' : 'black'], 30, y)
-      ctx.textAlign = 'right'
-      ctx.font = 'bold 40px monospace'
-      ctx.fillText(fmt(live(c)), 482, y)
-    }
-    row(60, opp)
-    row(225, me)
-    ctx.fillStyle = '#8899aa'
-    ctx.font = '26px sans-serif'
-    ctx.textAlign = 'center'
-    ctx.fillText(s.text || '', 256, 143)
-    this.panelTex.needsUpdate = true
+  // --- in-scene UI ---
+
+  _ui() {
+    this.panel = new StatusPanel()
+    this.panel.mesh.position.set(0, 1.25, BOARD_POS.z - 0.5)
+    this.panel.mesh.rotation.x = -0.15
+    // Button bar right of the board, within arm's reach, turned toward the player.
+    this.bar = new ButtonBar()
+    this.bar.mesh.position.set(0.4, 0.86, -0.34)
+    this.bar.mesh.rotation.set(-0.5, -0.9, 0, 'YXZ')
+    this.scene.add(this.panel.mesh, this.bar.mesh)
   }
 
   // --- frame loop ---
@@ -454,10 +465,12 @@ export class Board3D {
         from.z + (to.z - from.z) * e)
       if (k === 1) this.anim = null
     }
-    if (this.status?.running && performance.now() - (this._clockDrawn || 0) > 500) {
-      this._clockDrawn = performance.now()
-      this._panelDraw()
-    }
+    this.hands.forEach((hand, i) => {
+      const tip = hand.joints['index-finger-tip']
+      this.bar.poke(tip?.visible ? tip.getWorldPosition(_vC) : null, i)
+    })
+    this.panel.tick()
+    this.bar.tick()
     this.renderer.render(this.scene, this.camera)
   }
 }

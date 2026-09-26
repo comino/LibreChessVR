@@ -1,7 +1,7 @@
 // Node unit tests for the pure logic. Run: node test/test.js
 import { strict as assert } from 'assert'
 import { squareToXZ, xzToSquare, parseFen } from '../src/coords.js'
-import { makeLineSplitter } from '../src/lichess.js'
+import { makeLineSplitter, isRapid } from '../src/lichess.js'
 
 // --- coords ---
 assert.deepEqual(squareToXZ('a1'), { x: -3.5, z: 3.5 })
@@ -49,5 +49,14 @@ assert.equal(got[0].type, 'gameStart')
 assert.equal(got[0].game.id, 'abc')
 assert.equal(got[1].moves, 'e2e4 e7e5')
 assert.equal(got[2].a, 1)
+
+// --- isRapid: Board API seeks need limit + 40 × increment ≥ 480 s ---
+assert.equal(isRapid(10, 0), true)
+assert.equal(isRapid(8, 0), true)     // exactly 480 s
+assert.equal(isRapid(7, 1), false)    // 420 + 40 = 460 s: blitz
+assert.equal(isRapid(7, 2), true)     // 420 + 80
+assert.equal(isRapid(5, 3), false)    // 300 + 120 = 420: blitz
+assert.equal(isRapid(5, 5), true)     // 300 + 200
+assert.equal(isRapid(3, 2), false)
 
 console.log('All tests passed')

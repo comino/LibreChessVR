@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<base href="/">
+<title>ChessVR ui smoke test</title>
+<style>body { margin: 0 }</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+    "chess.js": "https://cdn.jsdelivr.net/npm/chess.js@1.0.0/+esm"
+  }
+}
+</script>
+</head>
+<body>
+<div id="result" style="position:fixed;top:0;right:0;z-index:10;color:#0f0;font-family:monospace"></div>
+<script type="module">
+import * as THREE from 'three'
+import { Board3D } from './src/board3d.js'
+import { squareToXZ } from './src/coords.js'
+const out = document.getElementById('result')
+const check = (cond, what) => { if (!cond) throw new Error('check failed: ' + what) }
+const S = 0.06
+
+try {
+  const board = new Board3D()
+  await board.init()
+  const runs = []
+  const bar = board.bar
+
+  // Orbit drag ending in a click must not pick; a plain click must.
+  let picks = 0
+  const realPick = board._pick.bind(board)
+  board._pick = () => { picks++; realPick() }
+  const canvas = board.renderer.domElement
+  const ev = (type, x, y) => canvas.dispatchEvent(new MouseEvent(type, { clientX: x, clientY: y, bubbles: true }))
+  const pev = (type, x, y) => canvas.dispatchEvent(new PointerEvent(type, { clientX: x, clientY: y, bubbles: true }))
+  pev('pointerdown', 100, 100); ev('click', 180, 140)
+  check(picks === 0, 'drag-click ignored')
+  pev('pointerdown', 100, 100); ev('click', 102, 101)
+  check(picks === 1, 'plain click picks')
+  board._pick = realPick
+
+  // Button bar via controller ray, confirm flow and expiry
+  board.setStatus({ puzzle: true, text: 't', actions: [
+    { label: 'A', run: () => runs.push('A') }, { label: 'B', confirm: true, run: () => runs.push('B') }] })
+  check(bar.mesh.visible, 'bar visible with actions')
+  const btnWorld = i => bar.mesh.localToWorld(new THREE.Vector3((i - 1) * 0.1, 0.03, 0))
+  const rayAt = world => {
+    const n = new THREE.Vector3(0, 0, 1).applyQuaternion(bar.mesh.getWorldQuaternion(new THREE.Quaternion()))
+    board.raycaster.set(world.clone().addScaledVector(n, 0.3), n.negate())
+  }
+  bar.mesh.updateMatrixWorld(true)
+  rayAt(btnWorld(0)); board._pick()
+  check(runs.join() === 'A', 'ray press A, got ' + runs)
+  rayAt(btnWorld(1)); board._pick()
+  check(runs.join() === 'A' && bar.armed?.label === 'B', 'B armed, not run')
+  bar.armedAt -= 4000; bar.tick()
+  check(!bar.armed, 'confirm expired')
+  rayAt(btnWorld(1)); board._pick()
+  check(runs.join() === 'A', 'expired confirm needs two presses again')
+  rayAt(btnWorld(1)); board._pick()
+  check(runs.join() === 'A,B', 'B confirmed')
+  rayAt(btnWorld(2)); board._pick()               // empty slot: falls through to board
+  check(runs.join() === 'A,B', 'empty slot does nothing')
+
+  // Status update with same labels keeps the armed confirm
+  rayAt(btnWorld(1)); board._pick()
+  board.setStatus({ puzzle: true, text: 'u', actions: [{ label: 'B', confirm: true, run: () => runs.push('B2') }] })
+  check(bar.armed?.label === 'B', 'armed survives status refresh')
+  bar.set([])
+  check(!bar.mesh.visible && !bar.armed, 'no actions: bar hidden')
+
+  // Fingertip poke with hysteresis
+  board.setStatus({ puzzle: true, text: 't', actions: [{ label: 'A', run: () => runs.push('P') }] })
+  const tip = new THREE.Object3D()
+  board.hands = [{ joints: { 'index-finger-tip': tip } }]
+  board.scene.add(tip)
+  const tipAt = z => { tip.position.copy(bar.mesh.localToWorld(new THREE.Vector3(-0.1, 0.03, z))); tip.updateMatrixWorld() }
+  const pokes = () => runs.filter(r => r === 'P').length
+  tipAt(0.05); board._tick()
+  check(pokes() === 0, 'hover does not press')
+  tipAt(0.005); board._tick(); board._tick()
+  check(pokes() === 1, 'touch presses once, got ' + pokes())
+  tipAt(0.015); board._tick()
+  check(pokes() === 1, 'jitter near surface no double press')
+  tipAt(0.05); board._tick(); tipAt(0.0); board._tick()
+  check(pokes() === 2, 'second poke after retreat')
+  tipAt(0.05); board._tick(); tipAt(-0.1); board._tick()
+  check(pokes() === 2, 'hand behind the bar does not press')
+  tip.visible = false; board._tick(); tip.visible = true
+  board.hands = []
+
+  // Promotion picker via grab: drop on e8 opens picker, pinch the rook
+  const moves = []
+  board.onMove = (f, t, p) => moves.push(f + t + (p || ''))
+  board.setPosition('8/4P3/8/8/8/8/k7/4K3 w - - 0 1')
+  board.canPick = sq => sq === 'e7'
+  board.getTargets = sq => sq === 'e7' ? ['e8'] : []
+  board.setHandMode('grab')
+  const j1 = new THREE.Object3D(), j2 = new THREE.Object3D()
+  const hand = { joints: { 'index-finger-tip': j1, 'thumb-tip': j2 } }
+  const at = (x, y, z) => {
+    const p = board.boardGroup.localToWorld(new THREE.Vector3(x, y, z))
+    j1.position.copy(p); j2.position.copy(p)
+  }
+  const sqAt = (sq, y) => { const c = squareToXZ(sq, S); at(c.x, y, c.z) }
+  sqAt('e7', 0.05); board._grabStart(hand); sqAt('e8', 0.06); board._tick(); board._grabEnd(hand)
+  check(board.picker && moves.length === 0, 'drop on last rank opens picker')
+  const rook = board.picker.group.children[1]
+  at(rook.position.x, rook.position.y + 0.03, rook.position.z)
+  board._grabStart(hand)
+  check(moves.join() === 'e7e8r' && !board.picker, 'rook chosen by pinch, got ' + moves)
+
+  // Cancel: pinch away from the picker -> no move, pawn back home
+  board.setPosition('8/4P3/8/8/8/8/k7/4K3 w - - 0 1')
+  sqAt('e7', 0.05); board._grabStart(hand); sqAt('e8', 0.06); board._tick(); board._grabEnd(hand)
+  sqAt('a1', 0.05); board._grabStart(hand)
+  const pawn = board.pieceAt.e7
+  check(!board.picker && moves.length === 1, 'picker cancelled')
+  check(pawn.position.z === squareToXZ('e7', S).z, 'pawn returned home')
+
+  // Black promotes on rank 1: picker grows toward the center; ray picks the queen
+  board.setHandMode('ray')
+  board.setOrientation('black')
+  board.setPosition('4k3/8/8/8/8/8/4p3/K7 b - - 0 1')
+  board.canPick = sq => sq === 'e2'
+  board.getTargets = sq => sq === 'e2' ? ['e1', 'd1'] : []
+  board._select('e2'); board._select('e1')
+  board._tick()                                   // render a frame: world matrices
+  const slots = board.picker.group.children
+  check(slots.map(s => s.userData.promo).join('') === 'qrbn', 'picker order')
+  const onSq = (slot, sq) => slot.position.x === squareToXZ(sq, S).x && slot.position.z === squareToXZ(sq, S).z
+  check(onSq(slots[0], 'g1') && onSq(slots[3], 'd1'), 'black picker row d1..g1, queen on g1 (black\'s left)')
+  const q = slots[0].getWorldPosition(new THREE.Vector3())
+  board.raycaster.set(q.clone().add(new THREE.Vector3(0, 0.3, 0)), new THREE.Vector3(0, -1, 0))
+  board._pick()
+  check(moves.at(-1) === 'e2e1q', 'black queen promotion, got ' + moves.at(-1))
+
+  // Non-promotion move emits no promo; picker closed by a new position
+  board._select('e2'); board._select('d1')
+  check(board.picker, 'capture-promotion opens picker too')
+  board.setPosition('4k3/8/8/8/8/8/8/K7 w - - 0 1')
+  check(!board.picker, 'setPosition clears picker')
+
+  // Edge files: row stays on the board
+  board.setOrientation('white')
+  board.setPosition('7k/7P/8/8/8/8/8/K7 w - - 0 1')
+  board._openPicker('h7', 'h8')
+  const edge = board.picker.group.children
+  check(onSq(edge[0], 'e8') && onSq(edge[3], 'h8'), 'h-file picker clamped to e8..h8')
+  board._closePicker(null)
+
+  board.cue('capture'); board.cue('error')        // must not throw
+  out.textContent = 'UI-OK'
+} catch (e) {
+  out.textContent = 'UI-FAIL ' + e.message
+}
+</script>
+</body>
+</html>
