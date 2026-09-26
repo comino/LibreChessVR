@@ -221,6 +221,42 @@ try {
   check(!board.hover.grab, 'grab hover cleared')
   board._closePicker(null)
 
+  // --- thumbstick raises the whole stage, clamped, saved once on release ---
+  const saved = []
+  board.onHeightChange = h => saved.push(h)
+  const stick = { gamepad: { axes: [0, 0, 0, -1] } }       // full forward
+  board.controllers[1].ctrl.userData.source = stick
+  const y0 = board.tiles.e4.getWorldPosition(new THREE.Vector3()).y
+  board.lastTick = performance.now() - 100; board._tick()   // 0.1 s at 0.25 m/s
+  check(Math.abs(board.stage.position.y - 0.025) < 0.003, 'raised 2.5 cm, got ' + board.stage.position.y)
+  check(saved.length === 0, 'not saved while adjusting')
+  for (let i = 0; i < 40; i++) { board.lastTick = performance.now() - 100; board._tick() }
+  check(board.stage.position.y === 0.45, 'clamped at +45 cm, got ' + board.stage.position.y)
+  const y1 = board.tiles.e4.getWorldPosition(new THREE.Vector3()).y
+  check(Math.abs(y1 - y0 - 0.45) < 1e-6, 'board moved with stage')
+  check(bar.mesh.getWorldPosition(new THREE.Vector3()).y > 1.2, 'bar moved with stage')
+  stick.gamepad.axes[3] = 0.1                                // inside dead zone = released
+  board._tick(); board._tick()
+  check(saved.length === 1 && saved[0] === 0.45, 'saved once on release: ' + saved)
+  stick.gamepad.axes[3] = 1                                  // pull back: lower
+  for (let i = 0; i < 80; i++) { board.lastTick = performance.now() - 100; board._tick() }
+  check(board.stage.position.y === -0.45, 'clamped at -45 cm')
+  board.controllers[1].ctrl.userData.source = null
+  board._tick()
+  check(saved.at(-1) === -0.45, 'disconnect ends adjustment')
+  board.setHeight(0)
+
+  // --- low-time clock turns red ---
+  const drawn = []
+  const realText = board.panel._text.bind(board.panel)
+  board.panel._text = (t, color, ...r) => { drawn.push([t, color]); realText(t, color, ...r) }
+  board.setStatus({ names: { white: 'me', black: 'op' }, myColor: 'white', wtime: 15000, btime: 90000,
+    turn: 'b', running: true, text: 'Waiting…' })
+  const colorOf = t => drawn.find(d => d[0] === t)?.[1]
+  check(colorOf('0:15') === '#ff5a4a', 'my low clock red, got ' + colorOf('0:15'))
+  check(colorOf('1:30') === '#e8d44a', 'opponent running clock yellow, got ' + colorOf('1:30'))
+  board.panel._text = realText
+
   board.cue('capture'); board.cue('error')        // must not throw
   out.textContent = 'UI-OK'
 } catch (e) {

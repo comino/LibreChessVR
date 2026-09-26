@@ -14,6 +14,8 @@ function canvasPlane(w, h, px) {
   return { canvas, ctx: canvas.getContext('2d'), tex, mesh }
 }
 
+const LOW_TIME = 20000 // ms: clock turns red
+
 const fmt = ms => {
   const t = Math.ceil(ms / 1000)
   return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0')
@@ -60,12 +62,12 @@ export class StatusPanel {
 
   _clockRow(y, c) {
     const s = this.status, active = s.turn === c && s.running
-    const elapsed = active ? performance.now() - s.ts : 0
-    const color = active ? '#e8d44a' : '#c8ccd4'
+    const left = Math.max(0, (c === 'w' ? s.wtime : s.btime) - (active ? performance.now() - s.ts : 0))
+    const color = left < LOW_TIME ? '#ff5a4a' : active ? '#e8d44a' : '#c8ccd4'
     this.ctx.textAlign = 'left'
     this._text(s.names[c === 'w' ? 'white' : 'black'], color, '34px sans-serif', 30, y)
     this.ctx.textAlign = 'right'
-    this._text(fmt(Math.max(0, (c === 'w' ? s.wtime : s.btime) - elapsed)), color, 'bold 40px monospace', 482, y)
+    this._text(fmt(left), color, 'bold 40px monospace', 482, y)
   }
 
   _text(text, color, font, x, y) {

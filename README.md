@@ -30,7 +30,8 @@ WebXR needs a secure context. Two options:
 - Promotion: a Q/R/B/N row floats over the last rank — pick one; anywhere else cancels.
 - Button bar right of the board (trigger, or poke it with a fingertip): offer/accept/decline
   draw, accept/decline takeback, abort (before both moved), resign (press twice), next puzzle.
-- Sounds on move/capture/error/solve; controllers buzz on select and move.
+- Thumbstick forward/back raises/lowers the table (remembered) — for sitting vs standing.
+- Sounds on move/capture/error/solve; controllers buzz on select and move. Clocks turn red under 20 s.
 - Desktop: same with mouse click; drag to orbit the camera.
 
 ## Notes / limitations

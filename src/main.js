@@ -158,6 +158,9 @@ function startPuzzles() {
 loadSettings()
 for (const id of FIELDS) $(id).onchange = saveSettings
 
+board.setHeight(+localStorage.getItem('tableHeight') || 0)
+board.onHeightChange = h => localStorage.setItem('tableHeight', h.toFixed(3))
+
 $('handmode').value = localStorage.getItem('handMode') || 'ray'
 board.setHandMode($('handmode').value)
 $('handmode').onchange = () => {

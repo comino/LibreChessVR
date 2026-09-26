@@ -37,6 +37,9 @@ player who normally plays 2D. Static web app, no build step, no backend, no npm.
 - Hover state lives in `board.hover[key]` (`mouse`, `c0`, `c1`, `grab`); tints are
   recomputed in `_applyTints` (last move < check < selection < hover brighten).
 - XR controller groups have `matrixAutoUpdate = false` — tests must `updateMatrix()`.
+- `board.stage` holds table + board + panel + bar; `setHeight(offset)` (±0.45 m) moves it.
+  Thumbstick Y on either controller adjusts it; `onHeightChange` fires once on release and
+  main.js persists `localStorage.tableHeight`. The table box reaches below the floor.
 - `_applyState` applies only moves beyond `this.applied`; our own moves are applied
   optimistically so the stream echo is a no-op (no re-render, keeps animation).
 - Lichess seek (`POST /api/board/seek`) is only active while the HTTP request is open.

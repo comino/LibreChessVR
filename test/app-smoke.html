@@ -71,6 +71,7 @@ try {
   localStorage.clear()
   localStorage.setItem('lichessToken', 'tok')
   localStorage.setItem('settings', JSON.stringify({ time: '5', inc: '0', ailevel: '2' }))
+  localStorage.setItem('tableHeight', '0.2')
   await import('/src/main.js')
   const board = window.chessvr.board, $ = id => document.getElementById(id)
   const labels = () => board.bar.mesh.visible ? board.bar.buttons.map(b => b.label).join() : ''
@@ -82,6 +83,9 @@ try {
 
   await until(() => labels() === 'Stockfish L2 5+0,Seek human 5+0,Puzzles', 'idle menu, got ' + labels())
   check($('time').value === '5' && $('ailevel').value === '2', 'settings restored into the form')
+  check(board.stage.position.y === 0.2, 'table height restored')
+  board.onHeightChange(-0.1)
+  check(localStorage.getItem('tableHeight') === '-0.100', 'table height saved')
 
   press('Seek human 5+0')
   check(!requests.some(r => r.path === '/api/board/seek'), 'blitz seek not sent')

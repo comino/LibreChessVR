@@ -20,6 +20,7 @@ const _m = new THREE.Matrix4()
 const TINT = { select: 0x8a7a1a, target: 0x1a6a2a, last: 0x1a3a6a, check: 0x9a1a1a }
 const HOVER = new THREE.Color(0x303030)   // added on top of the tile's tint
 const RAY_LEN = 1.5
+const HEIGHT_RANGE = 0.45, HEIGHT_SPEED = 0.25 // table offset limit (m), m/s at full stick
 const PROXY_MAT = new THREE.MeshBasicMaterial({ visible: false })
 const PICKER_Y = 0.115   // promotion picker floats above the tallest piece (king ≈ 0.10)
 
@@ -29,6 +30,7 @@ export class Board3D {
   canPick = () => false      // square => bool, set by game logic
   checkSquare = () => null   // () => square of the king in check, set by game logic
   handMode = 'ray'           // 'ray' = point & pinch, 'grab' = pinch-grab pieces
+  onHeightChange = null      // (offset) => after a thumbstick height adjustment ends
 
   async init() {
     this._scene()
@@ -73,12 +75,16 @@ export class Board3D {
     floor.receiveShadow = true
     this.scene.add(floor)
 
+    // Stage = table + board + panel + bar, raised/lowered together (setHeight).
+    // The table reaches below the floor so it never floats when raised.
+    this.stage = new THREE.Group()
+    this.scene.add(this.stage)
     const table = new THREE.Mesh(
-      new THREE.BoxGeometry(0.75, 0.72, 0.75),
+      new THREE.BoxGeometry(0.75, 1.44, 0.75),
       new THREE.MeshStandardMaterial({ color: 0x4a3628, roughness: 0.8 }))
-    table.position.set(BOARD_POS.x, 0.36, BOARD_POS.z)
+    table.position.set(BOARD_POS.x, 0, BOARD_POS.z)
     table.receiveShadow = true
-    this.scene.add(table)
+    this.stage.add(table)
 
     addEventListener('resize', () => {
       this.camera.aspect = innerWidth / innerHeight
@@ -90,7 +96,7 @@ export class Board3D {
   _board() {
     this.boardGroup = new THREE.Group()
     this.boardGroup.position.copy(BOARD_POS)
-    this.scene.add(this.boardGroup)
+    this.stage.add(this.boardGroup)
 
     const base = new THREE.Mesh(
       new THREE.BoxGeometry(8 * SQUARE + 0.05, 0.015, 8 * SQUARE + 0.05),
@@ -195,6 +201,11 @@ export class Board3D {
   }
 
   // --- public API ---
+
+  // Table height offset from the default (m), clamped.
+  setHeight(offset) {
+    this.stage.position.y = THREE.MathUtils.clamp(offset, -HEIGHT_RANGE, HEIGHT_RANGE)
+  }
 
   setOrientation(color) {
     this.boardGroup.rotation.y = color === 'black' ? Math.PI : 0
@@ -335,6 +346,7 @@ export class Board3D {
         ctrl.userData.source = e.data
         this._updateLines()
       })
+      ctrl.addEventListener('disconnected', () => { ctrl.userData.source = null })
       ctrl.addEventListener('selectstart', () => {
         if (this.handMode === 'grab' && ctrl.userData.isHand) return // pinch-grab handles it
         this.source = ctrl.userData.source
@@ -404,6 +416,18 @@ export class Board3D {
       dot.visible = dist !== undefined
       dot.position.z = -(dist ?? 0)
     })
+  }
+
+  // Thumbstick forward/back on either controller raises/lowers the table.
+  _thumbstick(dt) {
+    let v = 0
+    for (const { ctrl } of this.controllers) {
+      const y = ctrl.userData.source?.gamepad?.axes?.[3] ?? 0 // xr-standard: [2,3] = stick
+      if (Math.abs(y) > 0.3) v -= y                           // forward is negative
+    }
+    if (v) this.setHeight(this.stage.position.y + v * HEIGHT_SPEED * dt)
+    else if (this.adjusting) this.onHeightChange?.(this.stage.position.y)
+    this.adjusting = !!v
   }
 
   _updateLines() {
@@ -509,15 +533,18 @@ export class Board3D {
     this.bar = new ButtonBar()
     this.bar.mesh.position.set(0.4, 0.86, -0.34)
     this.bar.mesh.rotation.set(-0.5, -0.9, 0, 'YXZ')
-    this.scene.add(this.panel.mesh, this.bar.mesh)
+    this.stage.add(this.panel.mesh, this.bar.mesh)
   }
 
   // --- frame loop ---
 
   _tick() {
+    const now = performance.now(), dt = Math.min(0.1, (now - (this.lastTick ?? now)) / 1000)
+    this.lastTick = now
     const xr = this.renderer.xr.isPresenting
     if (!xr) this.controls.update()
     if (xr) this._controllerHover()
+    this._thumbstick(dt)
     if (this.grab) {
       const p = this._pinchPos(this.grab.hand)
       if (!p) this._drop(true) // tracking lost -> piece returns home
