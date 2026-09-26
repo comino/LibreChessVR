@@ -16,13 +16,18 @@ const BOARD_POS = new THREE.Vector3(0, 0.73, -0.45)
 const NODE_MAP = { Pawn: 'p', Queen: 'q', King: 'k', Rook: 'r', Knight: 'n', Bishop: 'b' }
 const TILE = { light: 0xd9c49a, dark: 0x77502e }
 const _vA = new THREE.Vector3(), _vB = new THREE.Vector3(), _vC = new THREE.Vector3()
-const TINT = { select: 0x8a7a1a, target: 0x1a6a2a, last: 0x1a3a6a }
+const _m = new THREE.Matrix4()
+const TINT = { select: 0x8a7a1a, target: 0x1a6a2a, last: 0x1a3a6a, check: 0x9a1a1a }
+const HOVER = new THREE.Color(0x303030)   // added on top of the tile's tint
+const RAY_LEN = 1.5
+const PROXY_MAT = new THREE.MeshBasicMaterial({ visible: false })
 const PICKER_Y = 0.115   // promotion picker floats above the tallest piece (king ≈ 0.10)
 
 export class Board3D {
   onMove = null              // (from, to, promotion?) =>
   getTargets = () => []      // square => [squares], set by game logic
   canPick = () => false      // square => bool, set by game logic
+  checkSquare = () => null   // () => square of the king in check, set by game logic
   handMode = 'ray'           // 'ray' = point & pinch, 'grab' = pinch-grab pieces
 
   async init() {
@@ -178,8 +183,13 @@ export class Board3D {
     inner.position.x -= c.x
     inner.position.y -= box.min.y
     inner.position.z -= c.z
+    // Invisible cylinder used for ray hits: cheap per-frame hover, easy to hit.
+    const h = box.max.y - box.min.y, r = 0.42 * SQUARE / this.pieceScale
+    const proxy = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 12), PROXY_MAT)
+    proxy.position.y = h / 2
     const group = new THREE.Group()
-    group.add(inner)
+    group.add(inner, proxy)
+    group.userData.proxy = proxy
     group.scale.setScalar(this.pieceScale)
     return group
   }
@@ -202,11 +212,13 @@ export class Board3D {
       const { x, z } = squareToXZ(p.square, SQUARE)
       piece.position.set(x, 0.005, z)
       Object.assign(piece.userData, { square: p.square, type: p.type, color: p.color })
+      piece.userData.proxy.userData.square = p.square
       this.pieceAt[p.square] = piece
       this.piecesGroup.add(piece)
     }
     this.selected = null
     this.lastMove = lastMove
+    this.check = this.checkSquare()
     this._applyTints()
     if (lastMove) this.cue(this.piecesGroup.children.length < before ? 'capture' : 'move')
     if (lastMove && this.pieceAt[lastMove.to]) {
@@ -228,13 +240,24 @@ export class Board3D {
   // --- selection & tints ---
 
   _applyTints() {
-    for (const sq in this.tiles) this.tiles[sq].material.emissive.setHex(0)
-    if (this.lastMove) for (const sq of [this.lastMove.from, this.lastMove.to])
-      this.tiles[sq]?.material.emissive.setHex(TINT.last)
+    const tint = (sq, hex) => this.tiles[sq]?.material.emissive.setHex(hex)
+    for (const sq in this.tiles) tint(sq, 0)
+    if (this.lastMove) for (const sq of [this.lastMove.from, this.lastMove.to]) tint(sq, TINT.last)
+    if (this.check) tint(this.check, TINT.check)
     if (this.selected) {
-      this.tiles[this.selected].material.emissive.setHex(TINT.select)
-      for (const sq of this.targets) this.tiles[sq].material.emissive.setHex(TINT.target)
+      tint(this.selected, TINT.select)
+      for (const sq of this.targets) tint(sq, TINT.target)
     }
+    for (const sq of new Set(Object.values(this.hover)))
+      this.tiles[sq]?.material.emissive.add(HOVER)
+  }
+
+  // key: 'mouse' | 'c0' | 'c1' | 'grab'; square or null. Retints only on change.
+  _setHover(key, square) {
+    if ((this.hover[key] ?? null) === (square ?? null)) return
+    if (square) this.hover[key] = square
+    else delete this.hover[key]
+    this._applyTints()
   }
 
   _select(square) {
@@ -294,7 +317,7 @@ export class Board3D {
 
   _input() {
     this.raycaster = new THREE.Raycaster()
-    const tmpMat = new THREE.Matrix4()
+    this.hover = {}
 
     this.controllers = []
     for (let i = 0; i < 2; i++) {
@@ -302,8 +325,11 @@ export class Board3D {
       const line = new THREE.Line(
         new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 0, -1)]),
         new THREE.LineBasicMaterial({ color: 0x8899bb }))
-      line.scale.z = 1.5
-      ctrl.add(line)
+      line.scale.z = RAY_LEN
+      const dot = new THREE.Mesh(new THREE.SphereGeometry(0.004, 8, 6),
+        new THREE.MeshBasicMaterial({ color: 0xe8e2d0 }))
+      dot.visible = false
+      ctrl.add(line, dot)
       ctrl.addEventListener('connected', e => {
         ctrl.userData.isHand = !!e.data?.hand
         ctrl.userData.source = e.data
@@ -312,13 +338,11 @@ export class Board3D {
       ctrl.addEventListener('selectstart', () => {
         if (this.handMode === 'grab' && ctrl.userData.isHand) return // pinch-grab handles it
         this.source = ctrl.userData.source
-        tmpMat.identity().extractRotation(ctrl.matrixWorld)
-        this.raycaster.ray.origin.setFromMatrixPosition(ctrl.matrixWorld)
-        this.raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tmpMat)
+        this._rayFrom(ctrl)
         this._pick()
       })
       this.scene.add(ctrl)
-      this.controllers.push({ ctrl, line })
+      this.controllers.push({ ctrl, line, dot })
     }
 
     // Tracked hands: rendered meshes; pinch fires selectstart on the controller
@@ -339,19 +363,47 @@ export class Board3D {
     const dom = this.renderer.domElement
     let down = null
     dom.addEventListener('pointerdown', e => { down = [e.clientX, e.clientY] })
+    const mouseRay = e => this.raycaster.setFromCamera(new THREE.Vector2(
+      (e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1), this.camera)
     dom.addEventListener('click', e => {
       if (down && Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return
       this.source = null
-      const ndc = new THREE.Vector2(
-        (e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1)
-      this.raycaster.setFromCamera(ndc, this.camera)
+      mouseRay(e)
       this._pick()
     })
+    dom.addEventListener('pointermove', e => {
+      mouseRay(e)
+      this._hoverRay('mouse')
+    })
+  }
+
+  _rayFrom(obj) {
+    _m.identity().extractRotation(obj.matrixWorld)
+    this.raycaster.ray.origin.setFromMatrixPosition(obj.matrixWorld)
+    this.raycaster.ray.direction.set(0, 0, -1).applyMatrix4(_m)
   }
 
   setHandMode(mode) {
     this.handMode = mode
     this._updateLines()
+  }
+
+  // Rays end at what they hit (with a dot); the square/button under them lights up.
+  _controllerHover() {
+    this.controllers.forEach(({ ctrl, line, dot }, i) => {
+      const key = 'c' + i
+      let dist
+      if (line.visible && ctrl.visible) {
+        this._rayFrom(ctrl)
+        dist = this._hoverRay(key)
+      } else {
+        this._setHover(key, null)
+        this.bar.hover(key, null)
+      }
+      line.scale.z = dist ?? RAY_LEN
+      dot.visible = dist !== undefined
+      dot.position.z = -(dist ?? 0)
+    })
   }
 
   _updateLines() {
@@ -406,6 +458,7 @@ export class Board3D {
   _drop(cancel = false) {
     const { piece, from } = this.grab
     this.grab = null
+    delete this.hover.grab
     this.selected = null
     const sq = xzToSquare(piece.position.x, piece.position.z, SQUARE)
     const legal = !cancel && sq && sq !== from && this.targets.includes(sq)
@@ -415,19 +468,35 @@ export class Board3D {
     if (legal) this._emitMove(from, sq)
   }
 
-  // Resolves the current raycaster ray: picker first, then button bar, then board.
-  _pick() {
-    if (this.picker) return this._closePicker(this._hit(this.picker.group.children, 'promo'))
-    const h = this.bar.mesh.visible && this.raycaster.intersectObject(this.bar.mesh)[0]
-    if (h && this.bar.press(h.uv.x, h.uv.y)) return buzz(this.source)
-    this._select(this._hit([...Object.values(this.tiles), ...this.piecesGroup.children], 'square'))
+  // Nearest interactive object on the current ray, using the cheap piece proxies:
+  // {promo} while the picker is open, else {uv} on the button bar or {square}; null = miss.
+  _cast() {
+    const proxies = group => group.children.map(g => g.userData.proxy ?? g.children[1].userData.proxy)
+    const objs = this.picker ? proxies(this.picker.group)
+      : [...Object.values(this.tiles), ...proxies(this.piecesGroup), ...(this.bar.mesh.visible ? [this.bar.mesh] : [])]
+    const h = this.raycaster.intersectObjects(objs, false)[0]
+    if (!h) return null
+    const hit = { dist: h.distance }
+    if (h.object === this.bar.mesh) hit.uv = h.uv
+    else if (this.picker) hit.promo = h.object.parent.parent.userData.promo
+    else hit.square = h.object.userData.square
+    return hit
   }
 
-  // userData[key] of the nearest hit object or its ancestors, else null.
-  _hit(objs, key) {
-    for (const h of this.raycaster.intersectObjects(objs, true))
-      for (let o = h.object; o; o = o.parent) if (o.userData[key]) return o.userData[key]
-    return null
+  // Acts on the current ray: picker choice (a miss cancels), bar button, or square.
+  _pick() {
+    const hit = this._cast()
+    if (this.picker) return this._closePicker(hit?.promo ?? null)
+    if (hit?.uv) return this.bar.press(hit.uv.x, hit.uv.y) && buzz(this.source)
+    this._select(hit?.square ?? null)
+  }
+
+  // Hover feedback for one pointer; returns the hit distance (for the ray length).
+  _hoverRay(key) {
+    const hit = this._cast()
+    this._setHover(key, hit?.square)
+    this.bar.hover(key, hit?.uv)
+    return hit?.dist
   }
 
   // --- in-scene UI ---
@@ -446,13 +515,16 @@ export class Board3D {
   // --- frame loop ---
 
   _tick() {
-    if (!this.renderer.xr.isPresenting) this.controls.update()
+    const xr = this.renderer.xr.isPresenting
+    if (!xr) this.controls.update()
+    if (xr) this._controllerHover()
     if (this.grab) {
       const p = this._pinchPos(this.grab.hand)
       if (!p) this._drop(true) // tracking lost -> piece returns home
       else {
         const local = this.boardGroup.worldToLocal(p)
         this.grab.piece.position.set(local.x, Math.max(0.01, local.y - 0.02), local.z)
+        this._setHover('grab', xzToSquare(local.x, local.z, SQUARE))
       }
     }
     if (this.anim) {

@@ -21,6 +21,8 @@
 import * as THREE from 'three'
 import { Board3D } from './src/board3d.js'
 import { squareToXZ } from './src/coords.js'
+import { bindBoard } from './src/bind.js'
+import { Chess } from 'chess.js'
 const out = document.getElementById('result')
 const check = (cond, what) => { if (!cond) throw new Error('check failed: ' + what) }
 const S = 0.06
@@ -152,6 +154,71 @@ try {
   board._openPicker('h7', 'h8')
   const edge = board.picker.group.children
   check(onSq(edge[0], 'e8') && onSq(edge[3], 'h8'), 'h-file picker clamped to e8..h8')
+  board._closePicker(null)
+
+  // --- pointing feedback ---
+  const local = (x, y, z) => board.boardGroup.localToWorld(new THREE.Vector3(x, y, z))
+  const emissive = sq => board.tiles[sq].material.emissive.getHex()
+  board.setOrientation('white')
+  board.setPosition('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1')
+  board.scene.updateMatrixWorld(true)
+
+  // Low-angle aim at the e1 king's head hits e1, not the tile behind it
+  const e1 = squareToXZ('e1', S)
+  const from = local(e1.x, 0.35, 0.6), head = local(e1.x, 0.09, e1.z)
+  board.raycaster.set(from, head.clone().sub(from).normalize())
+  check(board._cast()?.square === 'e1', 'head aim hits e1, got ' + board._cast()?.square)
+
+  // Controller ray: ends at the hit with a dot; hovered tile brightens; sky clears it
+  board.setHandMode('ray')
+  const { ctrl, line, dot } = board.controllers[0]
+  ctrl.visible = true                          // three shows controllers once connected
+  const d4 = squareToXZ('d4', S)
+  const aimAt = local(d4.x, 0.005, d4.z)         // tile top surface
+  ctrl.position.copy(local(d4.x, 0.5, d4.z + 0.3))
+  const aim = target => {                         // controller rays point along local -z
+    ctrl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), target.clone().sub(ctrl.position).normalize())
+    ctrl.updateMatrix(); ctrl.updateMatrixWorld(true)
+  }
+  aim(aimAt)
+  board._controllerHover()
+  check(board.hover.c0 === 'd4', 'controller hovers d4, got ' + board.hover.c0)
+  const expect = ctrl.position.distanceTo(aimAt)
+  check(Math.abs(line.scale.z - expect) < 0.005 && dot.visible, `ray ends at tile: ${line.scale.z} vs ${expect}`)
+  check(emissive('d4') === 0x303030, 'hover tint on d4, got ' + emissive('d4').toString(16))
+  aim(local(d4.x, 5, d4.z - 3))
+  board._controllerHover()
+  check(!board.hover.c0 && line.scale.z === 1.5 && !dot.visible, 'sky: default ray, no hover')
+  check(emissive('d4') === 0, 'hover tint cleared')
+
+  // Hover over a bar button highlights it
+  board.setStatus({ puzzle: true, text: 't', actions: [{ label: 'A', run() {} }, { label: 'B', run() {} }] })
+  bar.mesh.updateMatrixWorld(true)
+  rayAt(btnWorld(1))
+  board._hoverRay('mouse')
+  check(bar.hovered.mouse === 1, 'bar hover index, got ' + bar.hovered.mouse)
+  board.raycaster.set(new THREE.Vector3(0, 5, 0), new THREE.Vector3(0, 1, 0))
+  board._hoverRay('mouse')
+  check(bar.hovered.mouse === -1, 'bar hover cleared')
+
+  // Check highlight via bindBoard + chess.js
+  const chess = new Chess('rnbqkbnr/ppp2ppp/3p4/1B2p3/4P3/8/PPPP1PPP/RNBQK1NR b KQkq - 1 3')
+  bindBoard(board, { chess, color: 'black', active: () => true, tryMove() {} })
+  board.setPosition(chess.fen())
+  check(emissive('e8') === 0x9a1a1a, 'king in check tinted, got ' + emissive('e8').toString(16))
+  chess.move('c6')
+  board.setPosition(chess.fen(), { from: 'c7', to: 'c6' })
+  check(emissive('e8') === 0, 'check tint cleared')
+
+  // Grab hover follows the carried piece, cleared on drop
+  board.setPosition('8/4P3/8/8/8/8/k7/4K3 w - - 0 1')
+  board.canPick = sq => sq === 'e7'
+  board.getTargets = () => ['e8']
+  board.setHandMode('grab')
+  sqAt('e7', 0.05); board._grabStart(hand); sqAt('e8', 0.06); board._tick()
+  check(board.hover.grab === 'e8', 'grab hover e8, got ' + board.hover.grab)
+  board._grabEnd(hand)
+  check(!board.hover.grab, 'grab hover cleared')
   board._closePicker(null)
 
   board.cue('capture'); board.cue('error')        // must not throw

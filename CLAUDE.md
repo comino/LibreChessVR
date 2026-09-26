@@ -31,6 +31,12 @@ player who normally plays 2D. Static web app, no build step, no backend, no npm.
 - GLB piece nodes carry ancestor transforms → templates bake `matrixWorld` via
   decompose at load; recentering must SUBTRACT the bbox offset, not set it.
 - Piece scale is derived from the king's bbox (king = 1.7 × square size), not hardcoded.
+- Ray picking/hover never touches the GLB meshes: each piece has an invisible cylinder
+  `userData.proxy` (too many triangles for per-frame raycasts on the Quest). `_cast()` is
+  the single ray resolver for click, trigger and hover, so hover and pick always agree.
+- Hover state lives in `board.hover[key]` (`mouse`, `c0`, `c1`, `grab`); tints are
+  recomputed in `_applyTints` (last move < check < selection < hover brighten).
+- XR controller groups have `matrixAutoUpdate = false` — tests must `updateMatrix()`.
 - `_applyState` applies only moves beyond `this.applied`; our own moves are applied
   optimistically so the stream echo is a no-op (no re-render, keeps animation).
 - Lichess seek (`POST /api/board/seek`) is only active while the HTTP request is open.

@@ -83,6 +83,7 @@ export class ButtonBar {
     this.buttons = []
     this.armed = null
     this.pokes = {}
+    this.hovered = {} // pointer key -> button index
     this.draw()
   }
 
@@ -95,7 +96,7 @@ export class ButtonBar {
 
   // u,v: texture coords (v = 1 at the top). Returns true if a button was hit.
   press(u, v) {
-    const b = this.buttons[Math.min(COLS - 1, Math.floor(u * COLS)) + COLS * Math.floor((1 - v) * ROWS)]
+    const b = this.buttons[this._index(u, v)]
     if (!b) return false
     if (b.confirm && this.armed !== b) {
       this.armed = b
@@ -107,6 +108,16 @@ export class ButtonBar {
     this.draw()
     return true
   }
+
+  // Highlights the button under a pointer; uv null clears. Redraws only on change.
+  hover(key, uv) {
+    const i = uv ? this._index(uv.x, uv.y) : -1
+    if ((this.hovered[key] ?? -1) === i) return
+    this.hovered[key] = i
+    this.draw()
+  }
+
+  _index(u, v) { return Math.min(COLS - 1, Math.floor(u * COLS)) + COLS * Math.floor((1 - v) * ROWS) }
 
   // Fingertip poke: press when the tip reaches the surface, re-arm once it backs off.
   poke(worldPos, key) {
@@ -137,7 +148,8 @@ export class ButtonBar {
     ctx.font = '30px sans-serif'
     this.buttons.forEach((b, i) => {
       const x = (i % COLS) * bw, y = Math.floor(i / COLS) * bh
-      ctx.fillStyle = b === this.armed ? '#8a2a1a' : 'rgba(42,48,56,0.92)'
+      const hot = Object.values(this.hovered).includes(i)
+      ctx.fillStyle = b === this.armed ? '#8a2a1a' : hot ? 'rgba(70,82,100,0.95)' : 'rgba(42,48,56,0.92)'
       ctx.beginPath()
       ctx.roundRect(x + 6, y + 6, bw - 12, bh - 12, 16)
       ctx.fill()
