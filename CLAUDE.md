@@ -94,6 +94,10 @@ player who normally plays 2D. Static web app, no build step, no backend, no npm.
   Rematch + "Review game" (sub-view: Prev/Next/Flip/Done) + menu = 9 max.
 - Puzzle **Hint** = `setMarks` on the from-square of the next solution move; any move,
   `stop()` and `bindBoard` clear marks.
+- Premoves (game.js): during the opponent's turn `canPick` allows own pieces and targets come
+  from `flipTurn(fen)`; `tryMove` then queues `this.premove` (violet marks, "Premove Nf3").
+  `_applyState` plays it via `_playPremove()` *after* `_render()` (so "Premove cancelled"
+  isn't overwritten). `tryMove` returns true only when a move was made.
 - `opponentGone` → countdown text, then a "Claim win" button (`claim-victory`).
 - Sessions talk to the in-VR UI only via `board.setStatus({..., actions})`; actions are
   `{label, run, confirm?}` rendered by `ButtonBar` (3×3, max 9). `ts` in the status keeps
@@ -166,5 +170,5 @@ Desktop pre-check for controller input: Meta's Immersive Web Emulator extension.
 
 ## Ideas / not yet done
 
-- Premoves, chat, requesting takebacks, claim draw when the opponent leaves
+- Chat, requesting takebacks, claim draw when the opponent leaves
 - Move list / PGN view

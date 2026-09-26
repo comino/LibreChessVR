@@ -8,6 +8,15 @@ const STATUS_TEXT = {
   draw: 'Draw', stalemate: 'Stalemate', aborted: 'Aborted'
 }
 const lower = s => (s || '').toLowerCase()
+const PREMOVE = 0x5a2a8a
+
+// Same position with the other side to move (en passant dropped): premove candidates.
+function flipTurn(fen) {
+  const f = fen.split(' ')
+  f[1] = f[1] === 'w' ? 'b' : 'w'
+  f[3] = '-'
+  return f.join(' ')
+}
 const VARIANTS = ['standard', 'fromPosition'] // what chess.js can follow
 
 export class GameSession {
@@ -23,6 +32,9 @@ export class GameSession {
 
   async start() {
     bindBoard(this.board, this)
+    // During the opponent's turn own pieces stay pickable for premoves.
+    this.board.canPick = sq => this.active() && this.chess.get(sq)?.color === this.color[0]
+    this.board.getTargets = sq => this._premoveBoard().moves({ square: sq, verbose: true }).map(m => m.to)
     // The stream dies on network blips or headset sleep; reconnect until the game
     // ends — each reconnect replays gameFull, which fully resets our state.
     while (!this.finished && !this.abort.signal.aborted) {
@@ -94,6 +106,7 @@ export class GameSession {
   _reset() {
     this.chess = new Chess(this.initialFen)
     this.applied = 0
+    this._clearPremove()
   }
 
   _applyState(state) {
@@ -111,8 +124,10 @@ export class GameSession {
     this.state = state
     this.stateTs = performance.now()
     this.finished = !!state.status && state.status !== 'started'
+    if (this.finished) this._clearPremove()
     if (this.finished && !wasFinished) this.board.cue(this._won() ? 'success' : this._won() === false ? 'error' : 'move')
     this._render()
+    if (last && this.premove && !this.finished && this.chess.turn() === this.color[0]) this._playPremove()
   }
 
   _render() {
@@ -122,6 +137,7 @@ export class GameSession {
     if (s[opp + 'draw']) text = 'Draw offered to you'
     else if (s[opp + 'takeback']) text = 'Takeback requested'
     else if (s[me + 'draw']) text = 'You offered a draw'
+    if (this.premove) text = `Premove ${this.premove.san}`
     if (this.claimAt) text = this._canClaim() ? 'Opponent left — claim the win'
       : `Opponent left — claim in ${Math.ceil((this.claimAt - performance.now() - 100) / 1000)} s`
     if (this.error) text = this.error
@@ -166,6 +182,7 @@ export class GameSession {
     if (s[opp + 'takeback']) acts.push(
       { label: 'Accept takeback', run: call(() => li.takeback(id, true)) },
       { label: 'Decline takeback', run: call(() => li.takeback(id, false)) })
+    if (this.premove) acts.push({ label: 'Cancel premove', run: () => { this._clearPremove(); this._render() } })
     acts.push({ label: 'Flip board', run: () => this.board.togglePeek() }, ...showPiecesAction(this.board))
     acts.push(this.applied < 2
       ? { label: 'Abort', run: call(() => li.abort(id)) }
@@ -230,14 +247,43 @@ export class GameSession {
     }
   }
 
+  // Board for target squares: the real one on our turn, else the premove view.
+  _premoveBoard() {
+    return this.chess.turn() === this.color[0] ? this.chess : new Chess(flipTurn(this.chess.fen()))
+  }
+
+  _setPremove(from, to, promo) {
+    let mv
+    try { mv = this._premoveBoard().move({ from, to, promotion: promo || 'q' }) } catch { return }
+    this.premove = { from, to, promo, san: mv.san }
+    this.board.setMarks({ [from]: PREMOVE, [to]: PREMOVE })
+    this._render()
+  }
+
+  _playPremove() {
+    const { from, to, promo } = this.premove
+    this._clearPremove()
+    if (!this.tryMove(from, to, promo)) this.say('Premove cancelled')
+  }
+
+  _clearPremove() {
+    this.premove = null
+    this.board.setMarks({})
+  }
+
+  // Returns true if the move was made (false: illegal or not possible now).
   tryMove(from, to, promotion = 'q') {
-    if (this.finished || this.chess.turn() !== this.color[0]) return
+    if (this.finished || !this.state) return false
+    if (this.chess.turn() !== this.color[0]) {
+      this._setPremove(from, to, promotion)
+      return false
+    }
     let mv
     try {
       mv = this.chess.move({ from, to, promotion })
     } catch {
       this.board.setPosition(this.chess.fen())
-      return
+      return false
     }
     this.applied++ // optimistic; the stream echo then adds nothing
     const sent = this.applied
@@ -252,5 +298,6 @@ export class GameSession {
       this.board.cue('error')
       this.say('Move rejected: ' + e.message)
     })
+    return true
   }
 }

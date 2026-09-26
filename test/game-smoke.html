@@ -230,6 +230,36 @@ try {
   check(labels() === 'Menu', 'menu kept, rematch used up, got ' + labels())
   g.stop(); await d
 
+  // Premoves: queued during the opponent's turn, played on their move if still legal
+  ;[g, d] = await fresh()
+  push(full(''))
+  board.onMove('e2', 'e4')                              // black to move now
+  check(board.canPick('g1') && board.getTargets('g1').includes('f3'), 'own pieces pickable on their turn')
+  let n0 = calls.length
+  board.onMove('g1', 'f3')
+  check(calls.length === n0 && text === 'Premove Nf3' && board.marks.g1 && board.marks.f3, 'premove queued: ' + text)
+  check(labels().includes('Cancel premove'), 'cancel offered')
+  push(state('e2e4 e7e5'))
+  check(calls.at(-1) === 'move g1f3' && g.chess.history().at(-1) === 'Nf3' && !g.premove && !board.marks.g1, 'premove played')
+  board.onMove('b1', 'c3'); press('Cancel premove')
+  check(!g.premove && !board.marks.b1, 'manual cancel')
+  n0 = calls.length
+  push(state('e2e4 e7e5 g1f3 b8c6'))
+  check(calls.length === n0, 'cancelled premove not played')
+  g.stop(); await d
+
+  // Premove made illegal by a check is dropped with a message
+  ;[g, d] = await fresh()
+  push(full('', '4k2r/8/8/8/8/8/8/R3K3 w - - 0 1'))
+  board.onMove('a1', 'a2')                              // black to move
+  board.onMove('a2', 'a8')                              // premove Ra8+
+  check(text === 'Premove Ra8+', 'premove shown: ' + text)
+  n0 = calls.length
+  push(state('a1a2 h8h1'))                              // check! Ra8 no longer legal
+  check(calls.length === n0 && text === 'Premove cancelled' && !board.marks.a2, 'illegal premove dropped: ' + text)
+  check(board.canPick('e1') && g.chess.turn() === 'w', 'we still have to answer the check')
+  g.stop(); await d
+
   // Anonymous opponent: no rematch possible
   ;[g, d] = await fresh()
   push(full('', 'startpos', { name: 'Anonymous' }))
