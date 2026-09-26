@@ -42,15 +42,26 @@ training, all without taking the headset off.
 | ![Sunset puzzle](docs/img/sunset.jpg) | ![Night rush](docs/img/night.jpg) | ![Blindfold ghost pieces](docs/img/ghost.jpg) |
 | Puzzles at sunset | Puzzle rush at night | Blindfold: ghost pieces |
 
-## Get started
+## Install on the Quest (app)
+
+Parallax runs as a Quest app: it sits in your Library, launches into its own window and offers
+VR right away. It's hosted at **https://parallax.46-224-133-201.sslip.io**.
+
+1. Headset in developer mode, connected by USB (or wireless adb).
+2. `adb install -r android/app-release-signed.apk` (build it with `android/build.sh`).
+3. Library → Unknown Sources → **Parallax**. Log in with lichess once; the app remembers you.
+
+Or skip the APK: open the URL in the Quest Browser and use *Install app* from the menu.
+
+## Run it yourself
 
 1. **Serve the folder** (any static server): `python3 -m http.server 8123`
 2. **On the Quest** — WebXR needs a secure origin:
    - dev mode: `adb reverse tcp:8123 tcp:8123`, then open `http://localhost:8123` in the Quest browser;
    - or host the folder on any HTTPS server.
-3. **Connect lichess** (optional for training) — create a token with `board:play` +
-   `challenge:write`: [create token](https://lichess.org/account/oauth/token/create?scopes[]=board:play&scopes[]=challenge:write&description=Parallax),
-   paste it, **Connect**. The token stays in your browser.
+3. **Log in with lichess** (optional for training) — one click, no token to copy (or paste an
+   API token with `board:play` + `challenge:write` under *Use an API token instead*).
+   The login stays in your browser.
 4. **Enter VR.** The button bar right of the board has everything: start a game, puzzles,
    rush, coordinates and settings (Play, Puzzles, View — incl. scene, pieces, voice and hands).
 

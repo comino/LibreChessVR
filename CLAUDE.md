@@ -163,6 +163,23 @@ frame (`board._tick()`); XR controllers need `updateMatrix()`; tints are `tile.u
 (hover is emissive). Visual changes: screenshot headless Chrome (`--use-angle=swiftshader
 --enable-unsafe-swiftshader --virtual-time-budget=…`) and look at it. Real games need a token.
 
+## App packaging & deploy
+
+- Hosted on fred: `deploy/deploy.sh` → `/opt/parallax/web`, Caddy site in
+  `deploy/Caddyfile.parallax` (appended to `/etc/caddy/Caddyfile`; backups `Caddyfile.bak-parallax-*`).
+  URL https://parallax.46-224-133-201.sslip.io. Bump `CACHE` in `sw.js` on each ship.
+- PWA: `manifest.webmanifest`, `sw.js` (registered on https only, so localhost dev never caches),
+  icons `assets/brand/icon-*.png`. `.well-known/assetlinks.json` ties the APK to the site (no URL bar).
+- Quest APK: `android/build.sh` (Meta's Bubblewrap fork, `horizonOSAppMode: immersive`,
+  package `com.comino.parallax`). Toolchain: brew `openjdk@17`, `android-commandlinetools`
+  (SDK root needs a `tools -> cmdline-tools/latest` symlink for Bubblewrap), `~/.bubblewrap/config.json`.
+  Signing key: `~/.parallax/parallax.keystore` + `keystore.pass` — **never lose it** (updates must
+  match; the asset-links fingerprint is derived from it). Bump `appVersionCode` for updates.
+- Login: `src/auth.js` OAuth PKCE with lichess (client_id `parallax`, no registration);
+  redirect back to the app origin, token then stored like a pasted one.
+- Launch: headsets get `#launch` (Enter VR) + `board.offerVR()` (Quest's own VR prompt);
+  three's VRButton is gone — `board.enterVR()` / `xrSupported()`.
+
 ## Testing on the Quest
 
 WebXR needs a secure context — plain `http://<lan-ip>:8123` never shows the VR button.

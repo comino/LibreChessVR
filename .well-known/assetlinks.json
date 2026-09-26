@@ -1,1 +1,4 @@
-[]
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": { "namespace": "android_app", "package_name": "com.comino.parallax", "sha256_cert_fingerprints": ["90:F4:91:B4:09:D5:7C:9D:13:98:39:DA:E1:B4:77:25:9F:3C:3A:37:CF:2F:2C:6D:11:2C:CA:D8:B4:34:89:02"] }
+}]
