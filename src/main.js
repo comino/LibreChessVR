@@ -56,16 +56,25 @@ function menu({ except } = {}) {
   const acts = []
   if (username) {
     acts.push({ label: `Stockfish L${level} ${tc}`, run: playAi })
-    acts.push(seeking() ? { label: 'Cancel seek', run: cancelSeek } : { label: `Seek human ${tc}`, run: seek })
+    if (seeking()) acts.push({ label: 'Cancel seek', run: cancelSeek })
+    else if (isRapid(time, increment)) acts.push({ label: `Seek human ${tc}`, run: seek }) // lichess: seeks rapid+
   }
   acts.push({ label: 'Puzzles', run: startPuzzles }, { label: 'Coordinates', run: startTrainer },
     { label: 'Settings', run: openSettings })
   return acts.filter(a => a.label !== except)
 }
 
+// Message on the 2D page and, where the current view can show one, on the VR panel.
+let note = null
+function notify(text) {
+  msg(text)
+  if (view?.say) view.say(text)
+  else if (!view) { note = text; refresh() }
+}
+
 function refresh() {
   if (view) view.render()
-  else board.setStatus({ puzzle: true, text: seeking() ? 'Seeking opponent…' : 'ChessVR',
+  else board.setStatus({ puzzle: true, text: seeking() ? 'Seeking opponent…' : note || 'ChessVR',
     sub: username ? 'Connected as ' + username : 'Puzzles work without login', actions: menu() })
 }
 
@@ -112,7 +121,7 @@ const playable = g => g.speed !== 'correspondence' && g.compat?.board !== false
 
 // lichess re-sends gameStart for every ongoing game when the stream (re)opens.
 function onEvent(ev) {
-  if (ev.type === 'challengeDeclined') return view?.say?.('Challenge declined')
+  if (ev.type === 'challengeDeclined') return notify('Challenge declined')
   if (ev.type !== 'gameStart' || !playable(ev.game)) return
   const id = ev.game.gameId || ev.game.id
   if (id === session?.gameId || gameRunning()) return

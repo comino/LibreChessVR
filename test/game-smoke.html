@@ -144,6 +144,10 @@ try {
   press('Rematch'); await sleep(0)
   check(calls.at(-1) === 'ai {"level":3,"time":10,"increment":5,"color":"black"}', 'AI rematch, colors swapped: ' + calls.at(-1))
   check(text === 'Starting rematch…', 'rematch feedback, got ' + text)
+  const nCalls = calls.length
+  check(!labels().includes('Rematch'), 'Rematch gone after use: ' + labels())
+  game._rematch()                                          // e.g. a double trigger
+  check(calls.length === nCalls, 'second rematch ignored')
   push(state('e7e8n', { status: 'resign', winner: 'black' }))
   check(text === 'Resignation — you lose', 'loss text, got ' + text)
 
@@ -207,7 +211,14 @@ try {
   press('Rematch'); await sleep(0)
   check(calls.at(-1) === 'challenge bob {"time":10,"increment":5,"color":"black","rated":true}', 'human rematch: ' + calls.at(-1))
   check(text === 'Rematch offered to Bob…', 'offer text, got ' + text)
-  check(labels() === 'Rematch,Menu', 'menu kept after finish, got ' + labels())
+  check(labels() === 'Menu', 'menu kept, rematch used up, got ' + labels())
+  g.stop(); await d
+
+  // Anonymous opponent: no rematch possible
+  ;[g, d] = await fresh()
+  push(full('', 'startpos', { name: 'Anonymous' }))
+  push(state('', { status: 'aborted' }))
+  check(labels() === 'Menu', 'no rematch vs anonymous: ' + labels())
   g.stop(); await d
 
   // Post-game replay: steps, clamps, check tint follows the shown position

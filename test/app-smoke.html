@@ -82,13 +82,13 @@ try {
     b.run()
   }
 
-  await until(() => labels() === 'Stockfish L2 5+0,Seek human 5+0,Puzzles,Coordinates,Settings', 'idle menu, got ' + labels())
+  await until(() => labels() === 'Stockfish L2 5+0,Puzzles,Coordinates,Settings', 'idle menu (no blitz seek), got ' + labels())
   check($('time').value === '5' && $('ailevel').value === '2', 'settings restored into the form')
   check(board.stage.position.y === 0.2, 'table height restored')
   board.onHeightChange(-0.1)
   check(localStorage.getItem('tableHeight') === '-0.100', 'table height saved')
 
-  press('Seek human 5+0')
+  $('seek').click()                                  // 2D button still explains why
   check(!requests.some(r => r.path === '/api/board/seek'), 'blitz seek not sent')
   check($('msg').textContent.startsWith('Seeks must be rapid'), 'blitz seek explained')
 
@@ -149,6 +149,8 @@ try {
   check(board.panel.status.sub === `Table +${Math.round((h0 + 0.1) * 100)} cm`, 'height shown: ' + board.panel.status.sub)
   press('Back')
   check(labels() === 'Stockfish L3 10+5,Seek human 10+5,Puzzles,Coordinates,Settings', 'idle menu with new settings: ' + labels())
+  streams['/api/stream/event'].push({ type: 'challengeDeclined', challenge: { id: 'y' } })
+  await until(() => board.panel.status.text === 'Challenge declined', 'declined shown on idle panel')
   $('time').value = '10'; $('inc').value = '0'; $('time').dispatchEvent(new Event('change'))
 
   // Idle: a correspondence game announced by the stream is not attached

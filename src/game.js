@@ -122,7 +122,7 @@ export class GameSession {
     else if (s[opp + 'takeback']) text = 'Takeback requested'
     else if (s[me + 'draw']) text = 'You offered a draw'
     if (this.claimAt) text = this._canClaim() ? 'Opponent left — claim the win'
-      : `Opponent left — claim in ${Math.ceil((this.claimAt - performance.now()) / 1000)} s`
+      : `Opponent left — claim in ${Math.ceil((this.claimAt - performance.now() - 100) / 1000)} s`
     if (this.error) text = this.error
     else if (this.replayIdx != null) text = this._replayText()
     else if (this.finished) {
@@ -138,7 +138,8 @@ export class GameSession {
     this.onStatus?.(text, this.finished)
   }
 
-  _canClaim() { return this.claimAt && performance.now() >= this.claimAt }
+  // 100 ms slack: the 1 s countdown interval may fire a hair before claimAt
+  _canClaim() { return this.claimAt && performance.now() >= this.claimAt - 100 }
 
   _won() { return this.state.winner ? this.state.winner === this.color : null }
 
@@ -146,7 +147,7 @@ export class GameSession {
   _actions() {
     if (this.error) return this.menu?.() ?? [] // state untrustworthy: no rematch/replay
     if (this.finished) return [
-      ...this.clock ? [{ label: 'Rematch', run: () => this._rematch() }] : [],
+      ...this._canRematch() ? [{ label: 'Rematch', run: () => this._rematch() }] : [],
       ...this.applied ? [{ label: 'Prev move', run: () => this._step(-1) }, { label: 'Next move', run: () => this._step(1) }] : [],
       ...this.menu?.() ?? []]
     const s = this.state, me = this.color[0], opp = me === 'w' ? 'b' : 'w'
@@ -185,7 +186,13 @@ export class GameSession {
   }
 
   // Same clock, colors swapped: Stockfish starts at once, a human gets a challenge.
+  _canRematch() {
+    return this.clock && !this.rematched && (this.opponent.aiLevel || this.opponent.id)
+  }
+
   _rematch() {
+    if (!this._canRematch()) return // once per game: a second AI game would run unseen
+    this.rematched = true
     const opp = this.opponent
     const params = {
       time: this.clock.initial / 60000, increment: this.clock.increment / 1000,
@@ -200,7 +207,7 @@ export class GameSession {
 
   // Transient message on the VR panel and the 2D page; clocks keep running.
   say(text) {
-    if (this.view) this.board.setStatus({ ...this.view, text })
+    if (this.view) this.board.setStatus({ ...this.view, text, actions: this._actions() })
     this.onStatus?.(text, false)
   }
 

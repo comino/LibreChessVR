@@ -41,7 +41,7 @@ export class PuzzleSession {
 
   // Lights up the piece that has to move next.
   hint() {
-    const uci = this.running && this.solution[this.idx]
+    const uci = this._myTurn() && this.solution[this.idx]
     if (uci) this.board.setMarks({ [uci.slice(0, 2)]: HINT })
   }
 
@@ -60,10 +60,12 @@ export class PuzzleSession {
     this._status(`Find the best move for ${this.color}`)
   }
 
+  _myTurn() { return this.running && this.chess.turn() === this.color[0] }
+
   _status(text) {
     this.text = text
     const actions = [{ label: 'Next puzzle', run: () => this.next() },
-      ...this.running ? [{ label: 'Hint', run: () => this.hint() }] : [], ...this.menu?.() ?? []]
+      ...this._myTurn() ? [{ label: 'Hint', run: () => this.hint() }] : [], ...this.menu?.() ?? []]
     this.board.setStatus({ puzzle: true, text, sub: this.info, actions })
     this.onStatus?.(text)
   }
@@ -94,6 +96,7 @@ export class PuzzleSession {
       this._status('Solved! Next puzzle…')
       this.timer = setTimeout(() => this.next(), 2000)
     } else {
+      this._status('Good move…')
       this.timer = setTimeout(() => this._reply(), 500)
     }
   }
@@ -108,6 +111,7 @@ export class PuzzleSession {
       this.timer = setTimeout(() => this.next(), 1500)
       return
     }
+    this.board.setMarks({})
     this.board.setPosition(this.chess.fen(), { from: mv.from, to: mv.to })
     this._status(`Your move (${this.color})`)
   }
