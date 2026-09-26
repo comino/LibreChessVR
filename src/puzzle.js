@@ -5,13 +5,15 @@ import { Chess } from 'chess.js'
 import { bindBoard } from './bind.js'
 
 export class PuzzleSession {
-  constructor({ lichess, board, onStatus }) {
-    Object.assign(this, { lichess, board, onStatus })
+  // menu: () => extra actions for the button bar (start a game, seek, …)
+  constructor({ lichess, board, onStatus, menu }) {
+    Object.assign(this, { lichess, board, onStatus, menu })
     this.running = false
     this.run = 0 // bumps on stop(), so a fetch finishing late is dropped
   }
 
   active() { return this.running }
+  render() { this._status(this.text) }
 
   async next(difficulty = this.difficulty) {
     this.stop()
@@ -50,7 +52,8 @@ export class PuzzleSession {
   }
 
   _status(text) {
-    const actions = [{ label: 'Next puzzle', run: () => this.next() }]
+    this.text = text
+    const actions = [{ label: 'Next puzzle', run: () => this.next() }, ...this.menu?.() ?? []]
     this.board.setStatus({ puzzle: true, text, sub: this.info, actions })
     this.onStatus?.(text)
   }

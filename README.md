@@ -9,7 +9,9 @@ Purpose: train 3D board vision. Pure static web app — no build step, no backen
    [create token](https://lichess.org/account/oauth/token/create?scopes[]=board:play&scopes[]=challenge:write&description=ChessVR)
 2. Serve the directory: `python3 -m http.server 8000`
 3. Open `http://localhost:8000`, paste the token, connect.
-4. Seek a human game or challenge Stockfish. When the game starts, click **Enter VR**.
+4. Click **Enter VR**. The button bar right of the board starts Stockfish games, seeks a human
+   or opens puzzles, using the time control / level set on the 2D page (remembered).
+   You can solve puzzles while a seek is running; the game takes over when matched.
 
 ## On the Quest
 
@@ -34,7 +36,6 @@ WebXR needs a secure context. Two options:
 
 - Seeking a human needs rapid or slower (minutes + ⅔ × increment ≥ 8); blitz works
   vs Stockfish. No bullet (lichess Board API rule).
-- Seek/challenge from the 2D page, then Enter VR.
 - Reconnect: reload the page — it resumes your ongoing game automatically.
 
 ## Development

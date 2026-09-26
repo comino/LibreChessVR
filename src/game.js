@@ -10,8 +10,9 @@ const STATUS_TEXT = {
 const lower = s => (s || '').toLowerCase()
 
 export class GameSession {
-  constructor({ lichess, board, username, gameId, onStatus }) {
-    Object.assign(this, { lichess, board, username, gameId, onStatus })
+  // menu: () => actions shown once the game is over (new game, puzzles)
+  constructor({ lichess, board, username, gameId, onStatus, menu }) {
+    Object.assign(this, { lichess, board, username, gameId, onStatus, menu })
     this.abort = new AbortController()
     this.chess = new Chess()
     this.applied = 0
@@ -36,6 +37,7 @@ export class GameSession {
 
   stop() { this.abort.abort() }
   active() { return !this.finished }
+  render() { if (this.state) this._render() }
 
   _onMsg(msg) {
     if (msg.type === 'gameFull') {
@@ -45,6 +47,7 @@ export class GameSession {
       this.initialFen = msg.initialFen && msg.initialFen !== 'startpos' ? msg.initialFen : undefined
       this._reset()
       this.board.setOrientation(this.color)
+      if (!msg.state.moves) this.board.cue('start')
       this._applyState(msg.state)
     } else if (msg.type === 'gameState') {
       this._applyState(msg)
@@ -63,8 +66,10 @@ export class GameSession {
     for (const uci of moves.slice(this.applied)) last = this._applyUci(uci)
     this.applied = moves.length
     if (last || moves.length === 0) this.board.setPosition(this.chess.fen(), last)
+    const wasFinished = this.finished
     this.state = state
     this.finished = !!state.status && state.status !== 'started'
+    if (this.finished && !wasFinished) this.board.cue(this._won() ? 'success' : this._won() === false ? 'error' : 'move')
     this._render()
   }
 
@@ -76,7 +81,7 @@ export class GameSession {
     else if (s[me + 'draw']) text = 'You offered a draw'
     if (this.finished) {
       text = STATUS_TEXT[s.status] || s.status
-      if (s.winner) text += s.winner === this.color ? ' — you win' : ' — you lose'
+      if (s.winner) text += this._won() ? ' — you win' : ' — you lose'
     }
     this.view = {
       names: this.names, myColor: this.color, wtime: s.wtime, btime: s.btime,
@@ -87,9 +92,11 @@ export class GameSession {
     this.onStatus?.(text, this.finished)
   }
 
+  _won() { return this.state.winner ? this.state.winner === this.color : null }
+
   // Button bar: answer offers, offer a draw, abort (before both moved) or resign.
   _actions() {
-    if (this.finished) return []
+    if (this.finished) return this.menu?.() ?? []
     const s = this.state, me = this.color[0], opp = me === 'w' ? 'b' : 'w'
     const { lichess: li, gameId: id } = this
     const call = fn => () => fn().catch(e => this._say(e.message))

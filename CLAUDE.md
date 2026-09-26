@@ -21,7 +21,7 @@ player who normally plays 2D. Static web app, no build step, no backend, no npm.
 | `src/lichess.js` | Board API client: NDJSON streams, seek (connection must stay open!), moves, draw/takeback/abort/resign. |
 | `src/game.js` | `GameSession`: one game stream ↔ chess.js ↔ board. Optimistic local moves, rollback on server reject, offers → button bar. |
 | `src/puzzle.js` | `PuzzleSession`: fetches `/api/puzzle/next`, replays game PGN, validates solution moves, auto-plays replies, auto-advances. |
-| `src/main.js` | UI wiring, event stream, resumes ongoing game on load. |
+| `src/main.js` | 2D page + in-VR menu (`menu()`: Stockfish/seek/cancel/puzzles, from persisted `settings`), event stream, resumes ongoing game. `view` = what the panel shows; `refresh()` re-renders it. `window.chessvr.board` = debug handle. |
 | `assets/chess.glb` | Piece models (from old prototype). Node names `Pawn/Knight/...`; each piece has `*_Plastic_0` (shown, recolored) and `*_Velvet_0` (hidden) meshes. |
 
 ## Key invariants & gotchas
@@ -72,7 +72,9 @@ player who normally plays 2D. Static web app, no build step, no backend, no npm.
    unless each prints `*-OK`: `puzzle-smoke` (stubbed puzzles, fetch race, underpromotion),
    `grab-smoke` (fake hand joints), `game-smoke` (fake lichess stream: optimistic moves,
    rejects, draw/takeback offers, resign confirm, promotion via picker, results),
-   `ui-smoke` (button bar ray/poke/confirm, drag-click, picker grab/ray/cancel/edges).
+   `ui-smoke` (button bar ray/poke/confirm, drag-click, picker grab/ray/cancel/edges),
+   `app-smoke` (real index.html + main.js vs stubbed `fetch`: menu, settings, seek/cancel,
+   AI challenge, game over → menu, puzzles, seek-while-puzzling → game takes over).
    Tests that ray-pick freshly created objects must `board._tick()` first (world matrices).
 5. Real-game test needs a lichess token (play Stockfish level 1).
 
@@ -93,6 +95,5 @@ Desktop pre-check for controller input: Meta's Immersive Web Emulator extension.
 
 ## Ideas / not yet done
 
-- In-VR seek UI / new game after a finished one (currently the 2D page, then Enter VR)
 - Premoves, chat, requesting takebacks, claim victory when the opponent leaves
 - Move list / PGN view

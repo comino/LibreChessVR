@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<base href="/">
+<title>ChessVR app smoke test</title>
+<style>body { margin: 0 }</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+    "chess.js": "https://cdn.jsdelivr.net/npm/chess.js@1.0.0/+esm"
+  }
+}
+</script>
+</head>
+<body>
+<div id="result" style="position:fixed;top:0;right:0;z-index:10;color:#0f0;font-family:monospace"></div>
+<script type="module">
+// Drives the real index.html UI + main.js against a fake lichess (stubbed fetch).
+const out = document.getElementById('result')
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+const check = (cond, what) => { if (!cond) throw new Error('check failed: ' + what) }
+async function until(cond, what, ms = 3000) {
+  for (const t0 = performance.now(); performance.now() - t0 < ms; await sleep(20)) if (cond()) return
+  throw new Error('timeout: ' + what)
+}
+
+// Controllable NDJSON streams keyed by path
+const streams = {}, requests = []
+function openStream(path, signal) {
+  const enc = new TextEncoder()
+  let ctl
+  const body = new ReadableStream({ start: c => { ctl = c } })
+  const s = streams[path] = { closed: false, push: o => ctl.enqueue(enc.encode(JSON.stringify(o) + '\n')) }
+  signal?.addEventListener('abort', () => { s.closed = true; ctl.error(new DOMException('aborted', 'AbortError')) })
+  return new Response(body)
+}
+const json = o => new Response(JSON.stringify(o), { headers: { 'content-type': 'application/json' } })
+const puzzle = { game: { pgn: 'e4 e5' }, puzzle: { id: 'p1', rating: 1000, solution: ['f1c4'] } }
+const full = id => ({ type: 'gameFull', initialFen: 'startpos', white: { id: 'me' }, black: { aiLevel: 2 },
+  state: { type: 'gameState', moves: '', wtime: 6e5, btime: 6e5, status: 'started' } })
+const realFetch = window.fetch
+window.fetch = async (url, opts = {}) => {
+  if (typeof url !== 'string' || !url.startsWith('https://lichess.org')) return realFetch(url, opts)
+  const path = url.replace('https://lichess.org', '')
+  requests.push({ path, method: opts.method || 'GET', body: String(opts.body || '') })
+  if (path === '/api/account') return json({ username: 'me' })
+  if (path === '/api/account/playing') return json({ nowPlaying: [] })
+  if (path.startsWith('/api/puzzle/next')) return json(puzzle)
+  if (path === '/api/challenge/ai') {
+    setTimeout(() => streams['/api/stream/event'].push({ type: 'gameStart', game: { gameId: 'g1' } }), 10)
+    return json({ id: 'g1' })
+  }
+  if (path.startsWith('/api/board/game/stream/')) {
+    const r = openStream(path, opts.signal)
+    setTimeout(() => streams[path].push(full()), 10)
+    return r
+  }
+  if (['/api/stream/event', '/api/board/seek'].includes(path)) return openStream(path, opts.signal)
+  return json({ ok: true })
+}
+
+try {
+  const html = await (await realFetch('/index.html')).text()
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  const ui = doc.getElementById('ui')
+  check(ui, 'index.html has #ui')
+  document.body.append(ui)
+  localStorage.clear()
+  localStorage.setItem('lichessToken', 'tok')
+  localStorage.setItem('settings', JSON.stringify({ time: '5', inc: '0', ailevel: '2' }))
+  await import('/src/main.js')
+  const board = window.chessvr.board, $ = id => document.getElementById(id)
+  const labels = () => board.bar.mesh.visible ? board.bar.buttons.map(b => b.label).join() : ''
+  const press = label => {
+    const b = board.bar.buttons.find(b => b.label === label)
+    check(b, `button "${label}" in [${labels()}]`)
+    b.run()
+  }
+
+  await until(() => labels() === 'Stockfish L2 5+0,Seek human 5+0,Puzzles', 'idle menu, got ' + labels())
+  check($('time').value === '5' && $('ailevel').value === '2', 'settings restored into the form')
+
+  press('Seek human 5+0')
+  check(!requests.some(r => r.path === '/api/board/seek'), 'blitz seek not sent')
+  check($('msg').textContent.startsWith('Seeks must be rapid'), 'blitz seek explained')
+
+  $('time').value = '10'; $('time').dispatchEvent(new Event('change'))
+  check(labels() === 'Stockfish L2 10+0,Seek human 10+0,Puzzles', 'menu follows settings, got ' + labels())
+  check(JSON.parse(localStorage.getItem('settings')).time === '10', 'settings persisted')
+
+  press('Seek human 10+0')
+  await until(() => streams['/api/board/seek'], 'seek request open')
+  check(labels().includes('Cancel seek') && board.panel.status.text === 'Seeking opponent…', 'seeking state')
+  press('Cancel seek')
+  await until(() => labels().includes('Seek human 10+0'), 'seek cancelled, got ' + labels())
+  check(streams['/api/board/seek'].closed, 'seek connection closed')
+
+  press('Stockfish L2 10+0')
+  await until(() => labels() === 'Offer draw,Abort', 'game attached, got ' + labels())
+  const ai = requests.find(r => r.path === '/api/challenge/ai')
+  check(/level=2/.test(ai.body) && /clock.limit=600/.test(ai.body), 'AI challenge params: ' + ai.body)
+  check(!board.bar.buttons.some(b => b.label === 'Puzzles'), 'no Puzzles button during a game')
+
+  streams['/api/board/game/stream/g1'].push({ type: 'gameState', moves: 'f2f3 e7e5 g2g4 d8h4',
+    wtime: 6e5, btime: 6e5, status: 'mate', winner: 'black' })
+  await until(() => board.panel.status.text === 'Checkmate — you lose', 'game over text')
+  check(labels() === 'Stockfish L2 10+0,Seek human 10+0,Puzzles', 'menu after game, got ' + labels())
+
+  press('Puzzles')
+  await until(() => labels() === 'Next puzzle,Stockfish L2 10+0,Seek human 10+0', 'puzzle bar, got ' + labels())
+
+  press('Seek human 10+0')                           // seek while solving puzzles
+  await until(() => labels().includes('Cancel seek'), 'cancel seek in puzzle view, got ' + labels())
+  check(board.panel.status.puzzle, 'still in puzzle view')
+  delete streams['/api/board/game/stream/g2']
+  streams['/api/stream/event'].push({ type: 'gameStart', game: { gameId: 'g2' } })
+  await until(() => labels() === 'Offer draw,Abort', 'seeked game replaces puzzles, got ' + labels())
+  check(streams['/api/board/seek'].closed, 'seek closed on game start')
+  check(!board.canPick('e7') && board.canPick('e2'), 'game board live, puzzle unbound')
+  out.textContent = 'APP-OK'
+} catch (e) {
+  out.textContent = 'APP-FAIL ' + e.message + ' @ ' + (e.stack || '').split('\n')[1]
+}
+</script>
+</body>
+</html>

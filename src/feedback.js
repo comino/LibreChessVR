@@ -7,7 +7,8 @@ const CUES = {
   move: [[520, 0.05]],
   capture: [[420, 0.05], [260, 0.08]],
   error: [[150, 0.2]],
-  success: [[660, 0.1], [880, 0.16]]
+  success: [[660, 0.1], [880, 0.16]],
+  start: [[440, 0.08], [660, 0.12]]
 }
 
 export function playCue(kind) {
