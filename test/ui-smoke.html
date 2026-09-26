@@ -333,6 +333,35 @@ try {
   board.setEnvironment('minimal')
   check(board.lamp.intensity === 0, 'lamp off in minimal')
 
+  // scenes are alive: update() animates them (fire flicker, clock, birds, shooting stars)
+  const run = (from, to, step = 0.05) => { for (let t = from; t < to; t += step) board.env.update(t, step, board) }
+  board.setEnvironment('study')
+  const lampLevels = new Set()
+  for (let t = 0; t < 1; t += 0.05) { board.env.update(t, 0.05, board); lampLevels.add(board.lamp.intensity.toFixed(2)) }
+  check(lampLevels.size > 5, 'fire light flickers: ' + lampLevels.size + ' levels')
+  const swinging = []
+  board.envGroup.traverse(o => { if (o.userData.dynamic && o.isGroup) swinging.push(o) })
+  const angles = new Set([0.25, 0.5, 1.5].map(t => { board.env.update(t, 0.05, board); return swinging.map(o => o.rotation.z.toFixed(3)).join() }))
+  check(swinging.length >= 3 && angles.size === 3, 'clock hands/pendulum move: ' + [...angles])
+  board.setEnvironment('sunset')
+  const bird = board.envGroup.children.find(o => o.isMesh && o.geometry.attributes.position.count === 6)
+  board.env.update(10, 0.1, board)
+  const b1 = bird.position.clone()
+  board.env.update(12, 0.1, board)
+  check(bird.position.distanceTo(b1) > 0.5, 'birds fly')
+  board.setEnvironment('night')
+  const streak = board.envGroup.children.find(o => o.isMesh && o.geometry.parameters?.width === 2.4)
+  let seen = false
+  for (let t = 0; t < 20 && !seen; t += 0.05) { board.env.update(t, 0.05, board); seen = streak.material.opacity > 0.3 }
+  check(seen, 'a shooting star crosses the sky within 20 s')
+  for (const env of ENVIRONMENTS) {
+    board.setEnvironment(env)
+    let draws = 0
+    board.envGroup.traverse(o => { if (o.isMesh || o.isPoints || o.isSprite) draws++ })
+    check(draws <= 45, `${env}: draw calls bounded for Quest (${draws})`)
+  }
+  board.setEnvironment('minimal')
+
   // shadows follow the stage and cover a scaled board
   check(board.sun.parent === board.stage, 'sun moves with the table')
   board.setScale(1.5)

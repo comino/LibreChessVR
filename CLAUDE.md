@@ -32,7 +32,8 @@ Never hardcode a color: add a token. Button labels: 1–2 words, sentence case; 
 | `src/rush.js` | `RushSession extends PuzzleSession`: 3 min, 3 lives, wrong move = life lost + next puzzle, difficulty rises every 5 solved; best in `localStorage.rushBest`. Overrides the puzzle hooks only. |
 | `src/speech.js` | `moveToSpeech(verboseMove)` (pure, unit-tested: "Knight takes F 3, check") + `speak()` via speechSynthesis. `board.announce(move, mine)` filters by `board.voice` (off/opponent/all). |
 | `src/trainer.js` | `TrainerSession`: coordinate drill — big target square on the panel, point at it; 30 s rounds alternating white/black view; best in `localStorage.coordBest`. |
-| `src/environments.js` | Procedural scenes (minimal, study, sunset, night): builders return a group + background/fog/exposure/light params; `woodTexture()` canvas grain; `disposeGroup()`. |
+| `src/environments.js` | Scene registry (`buildEnvironment`, `disposeGroup`) + minimal. |
+| `src/scenes/` | One file per scene (`study`, `sunset`, `night`) + `common.js` helpers (seeded `rng`, canvas textures, `glow` sprites, `instanced`, `points`, `lantern`, `mergeStatic`). Builders may return `update(t, dt, {lamp})` — called every frame by the board for scene life. |
 | `src/settings.js` | In-VR settings, three pages: Play (Stockfish level, Maia 1/5/9, time, color, rated) View (scene, board scale, table ↑/↓, flipped view) and Puzzles (difficulty, theme). `cycle()` unit-tested. main.js maps Play values onto the 2D form fields; View values live on the board (`VIEW_SETTERS`, own localStorage keys). |
 | `src/main.js` | 2D page + in-VR menu (`menu()`: Stockfish/seek/cancel/puzzles, from persisted `settings`), event stream, resumes ongoing game. `view` = what the panel shows; `refresh()` re-renders it. `window.parallax.board` = debug handle. |
 | `src/theme.js` | Design tokens: `COLOR`, `TINT` (+`TINT_MIX`), `BOARD`, `PIECES`, `FONT`. |
@@ -70,6 +71,10 @@ Never hardcode a color: add a token. Button labels: 1–2 words, sentence case; 
   is global; panel/bar/label materials are `toneMapped: false` to keep text colors exact.
   Light count is fixed (hemi, sun in `stage`, `lamp` at intensity 0 when unused) so switching
   never recompiles shaders; the sun's shadow box scales with the board.
+  Scenes animate via `env.update` (fire flicker drives the lamp light, clock with real time,
+  dust, clouds, birds, aurora, shooting stars, fireflies). Quest budget: ≤ 45 env draw calls
+  (ui-smoke checks it) — use `instanced` for repeats and `mergeStatic(group)` to fuse plain
+  static meshes (flag animated ones `userData.dynamic`); seeded `rng` for stable layouts.
   The env list lives in settings.js (pure, Node-testable); names must match `BUILDERS`.
 - `board.stage` holds table + board + panel + bar; `setHeight(offset)` (±0.45 m) moves it.
   Thumbstick Y on either controller adjusts it; `onHeightChange` fires once on release and

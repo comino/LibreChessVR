@@ -297,6 +297,7 @@ export class Board3D {
       disposeGroup(this.envGroup)
     }
     const env = buildEnvironment(name)
+    this.env = env
     this.environment = env.name
     this.envGroup = env.group
     this.scene.add(env.group)
@@ -747,6 +748,7 @@ export class Board3D {
     if (xr) this._controllerHover()
     else if (this.hover.c0 || this.hover.c1) this._clearHover('c0', 'c1') // left VR
     this._thumbstick(dt)
+    this.env?.update?.(now / 1000, dt, this) // scene life: fire, clouds, birds, aurora…
     if (this.grab) {
       const p = this._pinchPos(this.grab.hand)
       if (!p) this._drop(true) // tracking lost -> piece returns home
