@@ -38,9 +38,9 @@ export class GameSession {
 
   stop() {
     this.abort.abort()
-    clearTimeout(this.goneTimer)
+    clearInterval(this.goneTimer)
   }
-  active() { return !this.finished }
+  active() { return !!this.state && !this.finished }
   render() { if (this.state) this._render() }
 
   // A message we can't apply means our state is wrong: stop instead of reconnecting
@@ -71,16 +71,19 @@ export class GameSession {
       this.names = { white: name(msg.white), black: name(msg.black) }
       this.initialFen = msg.initialFen && msg.initialFen !== 'startpos' ? msg.initialFen : undefined
       this._reset()
+      this.serverMoves = 0
       this.board.setOrientation(this.color)
       if (!msg.state.moves) this.board.cue('start')
       this._applyState(msg.state)
     } else if (msg.type === 'gameState') {
       this._applyState(msg)
     } else if (msg.type === 'opponentGone') {
-      const wait = (msg.claimWinInSeconds ?? 0) * 1000
-      clearTimeout(this.goneTimer)
-      this.claimAt = msg.gone ? performance.now() + wait : null
-      if (msg.gone) this.goneTimer = setTimeout(() => this.render(), wait + 50)
+      clearInterval(this.goneTimer)
+      this.claimAt = msg.gone ? performance.now() + (msg.claimWinInSeconds ?? 0) * 1000 : null
+      if (msg.gone) this.goneTimer = setInterval(() => { // countdown, then Claim win
+        this.render()
+        if (this._canClaim()) clearInterval(this.goneTimer)
+      }, 1000)
       this.render()
     }
   }
@@ -92,13 +95,17 @@ export class GameSession {
 
   _applyState(state) {
     const moves = state.moves ? state.moves.split(' ') : []
-    if (moves.length < this.applied) this._reset() // takeback: replay from scratch
+    // Only a shrinking *server* list is a takeback; a state sent before our optimistic
+    // move arrived (moves < applied) is just stale and must not undo it.
+    if (moves.length < this.serverMoves) this._reset()
+    this.serverMoves = moves.length
     let last = null
     for (const uci of moves.slice(this.applied)) last = this._applyUci(uci)
-    this.applied = moves.length
+    this.applied = Math.max(this.applied, moves.length)
     if (last || moves.length === 0) this.board.setPosition(this.chess.fen(), last)
     const wasFinished = this.finished
     this.state = state
+    this.stateTs = performance.now()
     this.finished = !!state.status && state.status !== 'started'
     if (this.finished && !wasFinished) this.board.cue(this._won() ? 'success' : this._won() === false ? 'error' : 'move')
     this._render()
@@ -121,7 +128,7 @@ export class GameSession {
     this.view = {
       names: this.names, myColor: this.color, wtime: s.wtime, btime: s.btime,
       turn: this.chess.turn(), running: !this.finished && this.applied >= 2,
-      text, actions: this._actions(), ts: performance.now()
+      text, actions: this._actions(), ts: this.stateTs // clocks count from the server snapshot
     }
     this.board.setStatus(this.view)
     this.onStatus?.(text, this.finished)
@@ -182,7 +189,8 @@ export class GameSession {
     const sent = this.applied
     this.board.setPosition(this.chess.fen(), { from, to })
     this.lichess.move(this.gameId, from + to + (mv.promotion || '')).catch(e => {
-      if (this.applied !== sent) return // a reconnect already resynced the state
+      // stopped (board may belong to another session) or a reconnect already resynced
+      if (this.abort.signal.aborted || this.applied !== sent) return
       this.chess.undo()
       this.applied--
       this.board.setPosition(this.chess.fen())

@@ -77,6 +77,14 @@ player who normally plays 2D. Static web app, no build step, no backend, no npm.
 - Puzzles: `/api/puzzle/next` works without auth (results are NOT recorded to the
   lichess account). Any mating move is accepted, matching lichess rules; wrong moves
   roll back with free retry. Panel uses the `puzzle: true` status branch (no clocks).
+- Event/game streams have a 20 s stall watchdog (`STALL_MS`): half-open TCP after headset
+  sleep never errors on its own; lichess keepalives arrive every few seconds.
+- `attach()` never replaces a running game; lichess re-sends `gameStart` for all ongoing games
+  on reconnect. Correspondence / non-board-compatible games are never auto-attached.
+- Game takebacks are detected by the *server* move count shrinking (`serverMoves`), not by
+  `moves < applied` — a state sent before our optimistic move is merely stale.
+- Clocks count from `stateTs` (server snapshot time), so re-renders don't make them jump.
+- Puzzles always use an anonymous client (a board:play token lacks `puzzle:read` → 403).
 - Streams die on headset sleep/network blips → both the event stream (`main.js runEvents`)
   and the game stream (`game.js start`) auto-reconnect in a loop; a game-stream
   reconnect replays `gameFull`, which fully resets session state.

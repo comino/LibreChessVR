@@ -88,6 +88,15 @@ try {
   check(moves.length === 1, 'no move on tracking loss')
   j1.visible = true
 
+  // Hand disconnects mid-grab (group hidden, joint flags untouched): piece returns home
+  at('a2')
+  board._grabStart(hand)
+  check(board.grab, 'grabbed before disconnect')
+  hand.visible = false
+  board._tick()
+  check(!board.grab && moves.length === 1, 'disconnect cancels grab')
+  hand.visible = true
+
   // Ray mode ignores pinch-grab
   board.setHandMode('ray')
   at('a2')

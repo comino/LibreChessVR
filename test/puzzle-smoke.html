@@ -87,6 +87,14 @@ try {
   check(!board.canPick('a8'), 'no moves after solved')
   promo.stop()
 
+  // Corrupt solution reply: reported and skipped, no exception in the timer
+  const bad = new PuzzleSession({ board, onStatus: t => { status = t }, lichess: { puzzleNext: async () => ({
+    game: { pgn: 'e4 e5' }, puzzle: { id: 'bad', rating: 1, solution: ['f1c4', 'zzzz', 'd1h5'] } }) } })
+  await bad.next()
+  board.onMove('f1', 'c4'); await sleep(700)
+  check(status === 'Puzzle data error — skipping', 'bad reply handled, got ' + status)
+  bad.stop()
+
   out.textContent = 'PUZZLE-OK'
 } catch (e) {
   out.textContent = 'PUZZLE-FAIL ' + e.message

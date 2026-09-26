@@ -1,7 +1,7 @@
 // Node unit tests for the pure logic. Run: node test/test.js
 import { strict as assert } from 'assert'
 import { squareToXZ, xzToSquare, parseFen, captured } from '../src/coords.js'
-import { makeLineSplitter, isRapid } from '../src/lichess.js'
+import { makeLineSplitter, isRapid, Lichess } from '../src/lichess.js'
 
 // --- coords ---
 assert.deepEqual(squareToXZ('a1'), { x: -3.5, z: 3.5 })
@@ -65,5 +65,31 @@ assert.equal(isRapid(7, 2), true)     // 420 + 80
 assert.equal(isRapid(5, 3), false)    // 300 + 120 = 420: blitz
 assert.equal(isRapid(5, 5), true)     // 300 + 200
 assert.equal(isRapid(3, 2), false)
+
+// --- stream watchdog: silent stream -> 'Stream stalled'; data keeps it alive; abort stays AbortError ---
+const enc = new TextEncoder()
+function fakeStream(chunks, everyMs) {  // sends chunks every everyMs, then stays open silently
+  globalThis.fetch = async (url, { signal }) => {
+    if (signal.aborted) throw signal.reason                // like real fetch
+    return new Response(new ReadableStream({
+    start(c) {
+      let i = 0
+      const t = setInterval(() => { if (i < chunks.length) c.enqueue(enc.encode(chunks[i++])) }, everyMs)
+      signal.addEventListener('abort', () => { clearInterval(t); c.error(signal.reason) })
+    }
+  }))
+  }
+}
+const li = new Lichess('tok')
+const got2 = []
+fakeStream(['{"a":1}\n', '\n', '\n', '{"a":2}\n'], 30)
+await assert.rejects(li.stream('/x', o => got2.push(o), undefined, {}, 80), /Stream stalled/)
+assert.deepEqual(got2.map(o => o.a), [1, 2])       // data spaced 30 ms never tripped the 80 ms watchdog
+fakeStream([], 1000)
+const ac = new AbortController()
+setTimeout(() => ac.abort(), 20)
+await assert.rejects(li.stream('/x', () => {}, ac.signal, {}, 5000), e => e.name === 'AbortError')
+const pre = new AbortController(); pre.abort()
+await assert.rejects(li.stream('/x', () => {}, pre.signal, {}, 5000), e => e.name === 'AbortError')
 
 console.log('All tests passed')

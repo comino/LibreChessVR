@@ -45,7 +45,7 @@ const realFetch = window.fetch
 window.fetch = async (url, opts = {}) => {
   if (typeof url !== 'string' || !url.startsWith('https://lichess.org')) return realFetch(url, opts)
   const path = url.replace('https://lichess.org', '')
-  requests.push({ path, method: opts.method || 'GET', body: String(opts.body || '') })
+  requests.push({ path, method: opts.method || 'GET', body: String(opts.body || ''), auth: !!opts.headers?.Authorization })
   if (path === '/api/account') return json({ username: 'me' })
   if (path === '/api/account/playing') return json({ nowPlaying: [] })
   if (path.startsWith('/api/puzzle/next')) return json(puzzle)
@@ -108,13 +108,27 @@ try {
   check(/level=2/.test(ai.body) && /clock.limit=600/.test(ai.body), 'AI challenge params: ' + ai.body)
   check(!board.bar.buttons.some(b => b.label === 'Puzzles'), 'no Puzzles button during a game')
 
+  // While a game runs: replayed/other gameStarts and seeks must not drop it
+  const seeksBefore = requests.filter(r => r.path === '/api/board/seek').length
+  document.getElementById('seek').click()
+  check(requests.filter(r => r.path === '/api/board/seek').length === seeksBefore, '2D seek blocked during game')
+  streams['/api/stream/event'].push({ type: 'gameStart', game: { gameId: 'g9', speed: 'rapid' } })
+  await sleep(50)
+  check(!streams['/api/board/game/stream/g9'] && labels() === 'Offer draw,Abort', 'second game did not replace the live one')
+
   streams['/api/board/game/stream/g1'].push({ type: 'gameState', moves: 'f2f3 e7e5 g2g4 d8h4',
     wtime: 6e5, btime: 6e5, status: 'mate', winner: 'black' })
   await until(() => board.panel.status.text === 'Checkmate — you lose', 'game over text')
   check(labels() === 'Stockfish L2 10+0,Seek human 10+0,Puzzles,Coordinates', 'menu after game, got ' + labels())
 
+  // Idle: a correspondence game announced by the stream is not attached
+  streams['/api/stream/event'].push({ type: 'gameStart', game: { gameId: 'c1', speed: 'correspondence' } })
+  await sleep(50)
+  check(!streams['/api/board/game/stream/c1'], 'correspondence game ignored')
+
   press('Puzzles')
   await until(() => labels() === 'Next puzzle,Stockfish L2 10+0,Seek human 10+0,Coordinates', 'puzzle bar, got ' + labels())
+  check(requests.filter(r => r.path.startsWith('/api/puzzle/next')).every(r => !r.auth), 'puzzles fetched anonymously')
 
   press('Coordinates')                               // trainer replaces puzzles
   await until(() => board.panel.status.big, 'trainer target shown')

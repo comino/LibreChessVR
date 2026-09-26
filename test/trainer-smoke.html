@@ -35,7 +35,9 @@ try {
   const emissive = sq => board.tiles[sq].material.emissive.getHex()
   const other = sq => sq === 'a1' ? 'h8' : 'a1'
 
+  board.checkSquare = () => 'e1'                       // left over from a game that ended in check
   t.start()
+  check(emissive('e1') === 0, 'no stale check tint in trainer')
   check(t.color === 'white' && board.boardGroup.rotation.y === 0, 'first round: white view')
   check(/^[a-h][1-8]$/.test(board.panel.status.big), 'target shown: ' + board.panel.status.big)
   check(board.bar.buttons.map(b => b.label).join() === 'New round,Menu', 'bar: ' + board.bar.buttons.map(b => b.label))

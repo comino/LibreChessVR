@@ -4,6 +4,8 @@
 const API = 'https://lichess.org'
 
 // Board API seeks must be rapid or slower: limit + 40 × increment ≥ 8 minutes.
+const STALL_MS = 20000
+
 export const isRapid = (minutes, increment) => minutes * 60 + 40 * increment >= 480
 
 // Splits streamed text chunks into parsed NDJSON objects (chunks may cut lines anywhere).
@@ -54,28 +56,46 @@ export class Lichess {
   account() { return this._get('/api/account') }
   playing() { return this._get('/api/account/playing') }
 
-  // Reads an NDJSON stream until it closes or the signal aborts.
-  async stream(path, onMsg, signal, opts = {}) {
-    const r = await this._check(await fetch(API + path, {
-      ...opts, signal, headers: this._headers(opts.headers)
-    }))
-    const splitter = makeLineSplitter(onMsg)
-    const reader = r.body.getReader()
-    const dec = new TextDecoder()
-    for (;;) {
-      const { done, value } = await reader.read()
-      if (done) break
-      splitter.push(dec.decode(value, { stream: true }))
+  // Reads an NDJSON stream until it closes or the signal aborts. With idleMs, a stream
+  // silent that long throws 'Stream stalled' (half-open TCP after headset sleep never
+  // errors by itself; lichess sends keepalive newlines every few seconds).
+  async stream(path, onMsg, signal, opts = {}, idleMs = 0) {
+    const ctl = new AbortController()
+    const stop = () => ctl.abort(signal.reason)
+    if (signal?.aborted) stop()
+    signal?.addEventListener('abort', stop)
+    let dog
+    const pet = () => {
+      clearTimeout(dog)
+      if (idleMs) dog = setTimeout(() => ctl.abort(new Error('Stream stalled')), idleMs)
     }
-    splitter.end()
+    try {
+      pet()
+      const r = await this._check(await fetch(API + path, {
+        ...opts, signal: ctl.signal, headers: this._headers(opts.headers)
+      }))
+      const splitter = makeLineSplitter(onMsg)
+      const reader = r.body.getReader()
+      const dec = new TextDecoder()
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        pet()
+        splitter.push(dec.decode(value, { stream: true }))
+      }
+      splitter.end()
+    } finally {
+      clearTimeout(dog)
+      signal?.removeEventListener('abort', stop)
+    }
   }
 
   streamEvents(onMsg, signal) {
-    return this.stream('/api/stream/event', onMsg, signal)
+    return this.stream('/api/stream/event', onMsg, signal, {}, STALL_MS)
   }
 
   streamGame(gameId, onMsg, signal) {
-    return this.stream(`/api/board/game/stream/${gameId}`, onMsg, signal)
+    return this.stream(`/api/board/game/stream/${gameId}`, onMsg, signal, {}, STALL_MS)
   }
 
   // The seek stays active only while this request is open; resolves when matched or aborted.

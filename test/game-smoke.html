@@ -60,6 +60,7 @@ try {
     board.bar.press((i % 3 + 0.5) / 3, 1 - (Math.floor(i / 3) + 0.5) / 2)
   }
 
+  check(!board.canPick('e2'), 'nothing pickable before gameFull')
   push(full(''))
   check(game.color === 'white' && text === 'Your move', 'white to move, got ' + text)
   check(labels() === 'Offer draw,Abort', 'opening buttons: ' + labels())
@@ -71,6 +72,24 @@ try {
   check(game.chess.history().length === 1, 'echo not re-applied')
   push(state('e2e4 e7e5'))
   check(labels() === 'Offer draw,Resign', 'resign after both moved: ' + labels())
+  const ts0 = board.panel.status.ts
+  await sleep(30); game.render()
+  check(board.panel.status.ts === ts0, 're-render keeps the server snapshot time (no clock jump)')
+
+  // Stale state (sent before our optimistic move arrived) must not undo it
+  board.onMove('g1', 'f3')
+  let resets = 0
+  const realSet = board.setPosition.bind(board)
+  board.setPosition = (...a) => { resets++; realSet(...a) }
+  push(state('e2e4 e7e5', { bdraw: true }))
+  check(game.chess.history().join() === 'e4,e5,Nf3' && resets === 0, 'stale state ignored: ' + game.chess.history())
+  check(text === 'Draw offered to you', 'but its offer is shown')
+  push(state('e2e4 e7e5 g1f3'))                         // echo
+  check(game.chess.history().length === 3 && resets === 0, 'echo no-op')
+  board.setPosition = realSet
+  // real takeback of our move by the server: list shrinks below the server's previous count
+  push(state('e2e4 e7e5'))
+  check(game.chess.history().join() === 'e4,e5' && game.applied === 2, 'server takeback undoes Nf3')
 
   press('Resign')
   check(!calls.includes('resign'), 'resign needs confirmation')
@@ -162,9 +181,11 @@ try {
 
   // Opponent leaves: countdown, then a Claim win button; coming back clears it
   push(state('e1g1 e8d8'))
-  push({ type: 'opponentGone', gone: true, claimWinInSeconds: 1 })
-  check(text === 'Opponent left — claim in 1 s' && !labels().includes('Claim win'), 'countdown, got ' + text)
-  await sleep(1200)
+  push({ type: 'opponentGone', gone: true, claimWinInSeconds: 2 })
+  check(text === 'Opponent left — claim in 2 s' && !labels().includes('Claim win'), 'countdown, got ' + text)
+  await sleep(1100)
+  check(text === 'Opponent left — claim in 1 s', 'countdown ticks, got ' + text)
+  await sleep(1100)
   check(text === 'Opponent left — claim the win' && labels().startsWith('Claim win'), 'claimable: ' + labels())
   press('Claim win'); await sleep(0)
   check(calls.at(-1) === 'claim', 'claim sent')
@@ -172,6 +193,18 @@ try {
   check(text === 'Kd8 · Your move' && !labels().includes('Claim win'), 'opponent back, got ' + text)
   g.stop()
   await d
+
+  // A move request failing after stop() must not touch the board
+  ;[g, d] = await fresh()
+  push(full(''))
+  let rejectLater
+  lichess.move = () => new Promise((_, rej) => { rejectLater = rej })
+  board.onMove('e2', 'e4')
+  g.stop(); await d
+  board.setPosition('8/8/8/8/8/8/8/K6k w - - 0 1')       // another session owns the board now
+  rejectLater(new Error('late'))
+  await sleep(0)
+  check(board.piecesGroup.children.length === 2, 'late rejection ignored after stop')
 
   out.textContent = 'GAME-OK'
 } catch (e) {

@@ -23,6 +23,8 @@ const HOVER = new THREE.Color(0x303030)   // added on top of the tile's tint
 const RAY_LEN = 1.5
 const HEIGHT_RANGE = 0.45, HEIGHT_SPEED = 0.25 // table offset limit (m), m/s at full stick
 const PROXY_MAT = new THREE.MeshBasicMaterial({ visible: false })
+const DISC_GEO = new THREE.CircleGeometry(0.48 * SQUARE, 24)   // promotion picker slots
+const DISC_MAT = new THREE.MeshBasicMaterial({ color: 0x1a6a2a, transparent: true, opacity: 0.85 })
 const PICKER_Y = 0.115   // promotion picker floats above the tallest piece (king ≈ 0.10)
 
 export class Board3D {
@@ -242,6 +244,7 @@ export class Board3D {
     this.pieceAt = {}
     this.anim = null
     this.grab = null
+    delete this.hover.grab
     for (const p of parseFen(fen)) {
       const piece = this._makePiece(p.type, p.color)
       const { x, z } = squareToXZ(p.square, SQUARE)
@@ -331,9 +334,8 @@ export class Board3D {
     // 4 files around the target, clamped to the board; Q leftmost from the mover's side
     const start = Math.min(Math.max('abcdefgh'.indexOf(to[0]) - 1, 0), 4)
     const group = new THREE.Group()
-    const discMat = new THREE.MeshBasicMaterial({ color: TINT.target, transparent: true, opacity: 0.85 })
     for (const [i, type] of [...'qrbn'].entries()) {
-      const disc = new THREE.Mesh(new THREE.CircleGeometry(0.48 * SQUARE, 24), discMat)
+      const disc = new THREE.Mesh(DISC_GEO, DISC_MAT)
       disc.rotation.x = -Math.PI / 2
       const slot = new THREE.Group()
       slot.add(disc, this._makePiece(type, color))
@@ -477,7 +479,8 @@ export class Board3D {
   // Pinch point = midpoint of thumb and index tips; null while tracking is lost.
   _pinchPos(hand) {
     const tip = hand.joints['index-finger-tip'], thumb = hand.joints['thumb-tip']
-    if (!tip?.visible || !thumb?.visible) return null
+    // disconnect hides the hand group but leaves joint flags as they were
+    if (hand.visible === false || !tip?.visible || !thumb?.visible) return null
     return tip.getWorldPosition(_vA).add(thumb.getWorldPosition(_vB)).multiplyScalar(0.5)
   }
 

@@ -18,6 +18,8 @@ export class TrainerSession {
     this.color = this.color === 'white' ? 'black' : 'white'
     Object.assign(this, { score: 0, misses: 0, running: true, endAt: performance.now() + ROUND_MS })
     this.board.canPick = () => false
+    this.board.getTargets = () => []
+    this.board.checkSquare = () => null
     this.board.onSquarePick = sq => this._pick(sq)
     this.board.setOrientation(this.color)
     this.board.setPosition(START)

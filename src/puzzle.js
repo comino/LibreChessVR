@@ -89,7 +89,14 @@ export class PuzzleSession {
 
   _reply() {
     const uci = this.solution[this.idx++]
-    const mv = this.chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] })
+    let mv
+    try {
+      mv = this.chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] })
+    } catch {
+      this._status('Puzzle data error — skipping')
+      this.timer = setTimeout(() => this.next(), 1500)
+      return
+    }
     this.board.setPosition(this.chess.fen(), { from: mv.from, to: mv.to })
     this._status(`Your move (${this.color})`)
   }

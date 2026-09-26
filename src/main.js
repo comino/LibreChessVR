@@ -85,7 +85,8 @@ async function runEvents() {
   for (;;) {
     try {
       const { nowPlaying } = await lichess.playing()
-      if (nowPlaying?.length) attach(nowPlaying[0].gameId)
+      const live = nowPlaying?.find(playable)
+      if (live) attach(live.gameId)
       await lichess.streamEvents(onEvent)
     } catch (e) {
       msg('Event stream lost: ' + e.message)
@@ -94,15 +95,20 @@ async function runEvents() {
   }
 }
 
+// Real-time board-compatible games only; correspondence games would hijack the board.
+const playable = g => g.speed !== 'correspondence' && g.compat?.board !== false
+
+// lichess re-sends gameStart for every ongoing game when the stream (re)opens.
 function onEvent(ev) {
-  if (ev.type === 'gameStart') {
-    seekAbort?.abort()
-    attach(ev.game.gameId || ev.game.id)
-  }
+  if (ev.type !== 'gameStart' || !playable(ev.game)) return
+  const id = ev.game.gameId || ev.game.id
+  if (id === session?.gameId || gameRunning()) return
+  seekAbort?.abort()
+  attach(id)
 }
 
 function attach(gameId) {
-  if (session?.gameId === gameId) return
+  if (session?.gameId === gameId || gameRunning()) return // never drop a live game
   view?.stop()
   session = view = new GameSession({ lichess, board, username, gameId, onStatus: t => msg(t), menu })
   session.start().catch(e => { if (e.name !== 'AbortError') msg('Game stream lost: ' + e.message) })
@@ -111,6 +117,7 @@ function attach(gameId) {
 const gameRunning = () => session && !session.finished
 
 async function seek() {
+  if (gameRunning()) return msg('Finish or resign the game first')
   const { time, increment, rated, color } = settings()
   if (!isRapid(time, increment))
     return msg('Seeks must be rapid: minutes + ⅔ × increment ≥ 8 (e.g. 10+0, 5+5). Blitz works vs Stockfish.')
@@ -153,8 +160,8 @@ function startActivity(make) {
 
 function startPuzzles() {
   startActivity(() => {
-    lichess ??= new Lichess()
-    const p = new PuzzleSession({ lichess, board, onStatus: msg, menu: () => menu({ except: 'Puzzles' }) })
+    // Anonymous on purpose: a board:play token lacks puzzle:read and would get 403.
+    const p = new PuzzleSession({ lichess: new Lichess(), board, onStatus: msg, menu: () => menu({ except: 'Puzzles' }) })
     p.next(val('pdiff'))
     return p
   })
