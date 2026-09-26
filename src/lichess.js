@@ -35,7 +35,10 @@ export class Lichess {
   async _check(r) {
     if (r.ok) return r
     let msg = r.status + ' ' + r.statusText
-    try { msg = (await r.json()).error || msg } catch { /* not json */ }
+    try {
+      const err = (await r.json()).error
+      if (err) msg = typeof err === 'string' ? err : JSON.stringify(err) // form errors are objects
+    } catch { /* not json */ }
     throw new Error(msg)
   }
 
@@ -64,10 +67,10 @@ export class Lichess {
     const stop = () => ctl.abort(signal.reason)
     if (signal?.aborted) stop()
     signal?.addEventListener('abort', stop)
-    let dog
+    let dog, stalled = false
     const pet = () => {
       clearTimeout(dog)
-      if (idleMs) dog = setTimeout(() => ctl.abort(new Error('Stream stalled')), idleMs)
+      if (idleMs) dog = setTimeout(() => { stalled = true; ctl.abort(new Error('Stream stalled')) }, idleMs)
     }
     try {
       pet()
@@ -84,9 +87,13 @@ export class Lichess {
         splitter.push(dec.decode(value, { stream: true }))
       }
       splitter.end()
+    } catch (e) {
+      // some browsers reject with a generic AbortError: a stall must stay a reconnectable error
+      throw stalled ? new Error('Stream stalled') : e
     } finally {
       clearTimeout(dog)
       signal?.removeEventListener('abort', stop)
+      ctl.abort() // a throwing handler must not leave the request (e.g. a seek) open
     }
   }
 

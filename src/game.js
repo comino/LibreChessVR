@@ -37,11 +37,13 @@ export class GameSession {
     this.board.getTargets = sq => this._premoveBoard().moves({ square: sq, verbose: true }).map(m => m.to)
     // The stream dies on network blips or headset sleep; reconnect until the game
     // ends — each reconnect replays gameFull, which fully resets our state.
+    let failures = 0
     while (!this.finished && !this.abort.signal.aborted) {
       try {
-        await this.lichess.streamGame(this.gameId, m => this._onMsg(m), this.abort.signal)
+        await this.lichess.streamGame(this.gameId, m => { failures = 0; this._onMsg(m) }, this.abort.signal)
       } catch (e) {
         if (e.name === 'AbortError') return
+        if (++failures >= 10) return this._fail('Lost the game stream: ' + e.message)
         this.say('Reconnecting: ' + e.message)
       }
       if (!this.finished) await new Promise(r => setTimeout(r, 2000))
@@ -58,6 +60,7 @@ export class GameSession {
   // A message we can't apply means our state is wrong: stop instead of reconnecting
   // into the same failure forever.
   _onMsg(msg) {
+    if (this.abort.signal.aborted) return // rest of a chunk after stop()/_fail
     try {
       this._handle(msg)
     } catch (e) {
@@ -68,6 +71,7 @@ export class GameSession {
   _fail(text) {
     this.error = text
     this.finished = true
+    this._clearPremove()
     this.abort.abort()
     if (this.state) this._render()
     else this.board.setStatus({ puzzle: true, text, actions: this.menu?.() })
@@ -116,10 +120,12 @@ export class GameSession {
     if (moves.length < this.serverMoves) this._reset()
     this.serverMoves = moves.length
     let last = null
-    for (const uci of moves.slice(this.applied)) last = this._applyUci(uci)
+    const fresh = moves.slice(this.applied)
+    for (const uci of fresh) last = this._applyUci(uci)
     this.applied = Math.max(this.applied, moves.length)
     if (last || moves.length === 0) this.board.setPosition(this.chess.fen(), last)
-    if (last) this.board.announce(last, last.color === this.color[0])
+    // speak single new moves only (not replays after reconnects or takebacks)
+    if (last && fresh.length === 1) this.board.announce(last, last.color === this.color[0])
     const wasFinished = this.finished
     this.state = state
     this.stateTs = performance.now()
@@ -193,14 +199,15 @@ export class GameSession {
   // Post-game replay: step through the moves on the board; null index = final position.
   _step(d) {
     const hist = this.chess.history({ verbose: true }), n = hist.length
-    const i = Math.max(0, Math.min(n, (this.replayIdx ?? n) + d))
+    const prev = this.replayIdx ?? n
+    const i = Math.max(0, Math.min(n, prev + d))
     const c = new Chess(this.initialFen)
     for (const m of hist.slice(0, i)) c.move({ from: m.from, to: m.to, promotion: m.promotion })
     this.replayIdx = i === n ? null : i
     this.shown = this.replayIdx == null ? null : c
     const m = hist[i - 1]
-    this.board.setPosition(c.fen(), m && { from: m.from, to: m.to })
-    if (d > 0 && d !== Infinity) this.board.announce(m) // forward step names the move just replayed
+    this.board.setPosition(c.fen(), m)
+    if (d === 1 && i !== prev) this.board.announce(m) // forward step names the move just replayed
     this._render()
   }
 
@@ -256,6 +263,7 @@ export class GameSession {
     let mv
     try { mv = this._premoveBoard().move({ from, to, promotion: promo || 'q' }) } catch { return }
     this.premove = { from, to, promo, san: mv.san }
+    this.board.snapBack(from) // a grab-dropped piece waits on its own square
     this.board.setMarks({ [from]: PREMOVE, [to]: PREMOVE })
     this._render()
   }
@@ -287,11 +295,12 @@ export class GameSession {
     }
     this.applied++ // optimistic; the stream echo then adds nothing
     const sent = this.applied
-    this.board.setPosition(this.chess.fen(), { from, to })
+    this.board.setPosition(this.chess.fen(), mv)
     this.board.announce(mv, true)
     this.lichess.move(this.gameId, from + to + (mv.promotion || '')).catch(e => {
-      // stopped (board may belong to another session) or a reconnect already resynced
-      if (this.abort.signal.aborted || this.applied !== sent) return
+      // stopped (board may belong to another session), or a resync that already has our move
+      if (this.abort.signal.aborted || this.applied !== sent || this.serverMoves >= sent) return
+      this._clearPremove()
       this.chess.undo()
       this.applied--
       this.board.setPosition(this.chess.fen())

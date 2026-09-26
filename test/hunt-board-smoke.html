@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<base href="/">
+<title>ChessVR board bug hunt</title>
+<style>body { margin: 0 }</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="result" style="position:fixed;top:0;right:0;z-index:10;color:#0f0;font-family:monospace"></div>
+<script type="module">
+import * as THREE from 'three'
+import { Board3D } from './src/board3d.js'
+import { squareToXZ } from './src/coords.js'
+const out = document.getElementById('result')
+const S = 0.06
+const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+const failed = []
+const check = (cond, name, detail = '') => { if (!cond) failed.push(name + (detail ? ` (${detail})` : '')) }
+const run = async (name, fn) => { try { await fn() } catch (e) { failed.push(name + ' threw: ' + e.message) } }
+
+try {
+  const board = new Board3D()
+  await board.init()
+  const bar = board.bar
+  board.setPosition(START)
+
+  // Fake tracked hand for the fingertip poke; tipAt(z) = z metres in front of button 0.
+  const tip = new THREE.Object3D()
+  board.scene.add(tip)
+  const hand = { visible: true, joints: { 'index-finger-tip': tip } }
+  const tipAt = z => { tip.position.copy(bar.mesh.localToWorld(new THREE.Vector3(-0.1, 0.06, z))); tip.updateMatrixWorld() }
+  const runs = []
+  const actions = [{ label: 'A', run: () => runs.push('A') }]
+  const realHands = board.hands
+
+  // 1. A finger coming out from BEHIND the bar must not press (poke should need a front approach).
+  await run('poke-from-behind', () => {
+    board.hands = [hand]
+    board.setStatus({ puzzle: true, text: 't', actions })
+    bar.mesh.updateMatrixWorld(true)
+    tipAt(-0.1); board._tick()
+    tipAt(-0.02); board._tick()
+    check(runs.length === 0, 'poke-from-behind', 'presses: ' + runs.length)
+    tipAt(0.05); board._tick()                     // retreat to the front: re-arm
+    runs.length = 0
+  })
+
+  // 2. A disconnected hand (group hidden, joint flags left as they were) must not poke.
+  //    Control first: the same tip on a visible hand does press.
+  await run('poke-disconnected-hand', () => {
+    board.hands = [hand]
+    tipAt(0.05); board._tick()
+    tipAt(0.0); board._tick()
+    check(runs.length === 1, 'poke-control', 'visible hand should press once, got ' + runs.length)
+    tipAt(0.05); board._tick()
+    runs.length = 0
+    bar.set([]); board._tick()                     // bar hidden: poke state resets
+    hand.visible = false                           // hand disconnects; stale tip rests on the bar spot
+    tipAt(0.0)
+    board.setStatus({ puzzle: true, text: 't', actions })  // bar reappears under the stale tip
+    board._tick(); board._tick()
+    check(runs.length === 0, 'poke-disconnected-hand', 'phantom presses: ' + runs.length)
+    hand.visible = true
+    bar.set([])
+    board.hands = realHands
+  })
+
+  // 3. Controller hover must not linger once the controller is gone and XR is not presenting
+  //    (session end disconnects controllers; _controllerHover only runs while presenting).
+  await run('hover-after-xr-exit', () => {
+    board.setPosition(START)
+    const { ctrl } = board.controllers[0]
+    const local = (x, y, z) => board.boardGroup.localToWorld(new THREE.Vector3(x, y, z))
+    board.scene.updateMatrixWorld(true)
+    const d4 = squareToXZ('d4', S), target = local(d4.x, 0.005, d4.z)
+    ctrl.visible = true
+    ctrl.position.copy(local(d4.x, 0.5, d4.z + 0.3))
+    ctrl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), target.clone().sub(ctrl.position).normalize())
+    ctrl.updateMatrix(); ctrl.updateMatrixWorld(true)
+    board._controllerHover()
+    check(board.hover.c0 === 'd4', 'hover-precondition', 'c0 hover ' + board.hover.c0)
+    const lit = board.tiles.d4.material.emissive.getHex()
+    ctrl.visible = false                           // what three does on disconnect / session end
+    board._tick(); board._tick()
+    check(!board.hover.c0 && board.tiles.d4.material.emissive.getHex() !== lit, 'hover-after-xr-exit',
+      'c0 still hovers ' + board.hover.c0)
+  })
+
+  // 4. Unknown scene names fall back to minimal (environments.js contract) — also inherited keys.
+  await run('env-prototype-name', () => {
+    let err = null
+    try { board.setEnvironment('toString') } catch (e) { err = e.message }
+    check(!err && board.environment === 'minimal', 'env-prototype-name', err || 'got ' + board.environment)
+    board.setEnvironment('minimal')
+  })
+} catch (e) {
+  failed.push('setup: ' + e.message)
+}
+out.textContent = failed.length ? `HUNT-BOARD-FAIL ${failed.length}: ${failed.join(' | ')}` : 'HUNT-BOARD-OK'
+</script>
+</body>
+</html>

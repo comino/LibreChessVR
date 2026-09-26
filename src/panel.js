@@ -88,7 +88,7 @@ export class ButtonBar {
     Object.assign(this, canvasPlane(BAR_W, BAR_H, 600))
     this.buttons = []
     this.armed = null
-    this.pokes = {}
+    this.armedPoke = {} // pointer key -> tip was seen in front of the bar
     this.hovered = {} // pointer key -> button index
     this.draw()
   }
@@ -126,16 +126,17 @@ export class ButtonBar {
 
   _index(u, v) { return Math.min(COLS - 1, Math.floor(u * COLS)) + COLS * Math.floor((1 - v) * ROWS) }
 
-  // Fingertip poke: press when the tip reaches the surface, re-arm once it backs off.
+  // Fingertip poke: arms while the tip is in front of the bar, presses when it reaches the
+  // surface (only from the front: a hand pulling back out through the bar never presses).
   poke(worldPos, key) {
-    if (!worldPos || !this.mesh.visible) return void (this.pokes[key] = false)
+    if (!worldPos || !this.mesh.visible) return void (this.armedPoke[key] = false)
     const p = this.mesh.worldToLocal(worldPos.clone())
     const inside = Math.abs(p.x) < BAR_W / 2 && Math.abs(p.y) < BAR_H / 2
-    if (!this.pokes[key] && inside && p.z < 0.01 && p.z > -0.04) {
-      this.pokes[key] = true
+    if (!inside || p.z > 0.025) this.armedPoke[key] = inside && p.z < 0.15
+    else if (p.z <= -0.04) this.armedPoke[key] = false // went through: must come back out front
+    else if (this.armedPoke[key] && p.z < 0.01) {
+      this.armedPoke[key] = false
       this.press(p.x / BAR_W + 0.5, p.y / BAR_H + 0.5)
-    } else if (this.pokes[key] && (!inside || p.z > 0.025)) {
-      this.pokes[key] = false
     }
   }
 

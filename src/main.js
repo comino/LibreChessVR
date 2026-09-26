@@ -27,7 +27,8 @@ const FIELDS = ['time', 'inc', 'color', 'rated', 'ailevel', 'maia', 'pdiff', 'pt
 const val = id => $(id).type === 'checkbox' ? $(id).checked : $(id).value
 function loadSettings() {
   let saved = {}
-  try { saved = JSON.parse(localStorage.getItem('settings')) || {} } catch { /* corrupt */ }
+  try { saved = JSON.parse(localStorage.getItem('settings')) } catch { /* corrupt */ }
+  if (!saved || typeof saved !== 'object') saved = {}
   for (const id of FIELDS) if (id in saved) $(id)[$(id).type === 'checkbox' ? 'checked' : 'value'] = saved[id]
 }
 function saveSettings() {
@@ -36,7 +37,8 @@ function saveSettings() {
 }
 const settings = () => ({
   time: +val('time'), increment: +val('inc'), color: val('color'), rated: val('rated'),
-  level: +val('ailevel'), maia: +val('maia'), pdiff: val('pdiff'), ptheme: val('ptheme'),
+  level: Math.min(8, Math.max(1, Math.round(+val('ailevel')) || 3)),
+  maia: [1, 5, 9].includes(+val('maia')) ? +val('maia') : 5, pdiff: val('pdiff'), ptheme: val('ptheme'),
   height: board.stage.position.y, scale: board.boardScale, flipped: !!board.flipped,
   environment: board.environment, pieces: board.pieceStyle, voice: board.voice
 })
@@ -96,6 +98,7 @@ function notify(text) {
 }
 
 function refresh() {
+  $('seek').textContent = seeking() ? 'Cancel seek' : 'Seek human'
   if (view) view.render()
   else board.setStatus({ puzzle: true, text: seeking() ? 'Seeking opponent…' : note || 'ChessVR',
     sub: username ? 'Connected as ' + username : 'Puzzles work without login', actions: menu() })
@@ -110,8 +113,12 @@ async function connect(token) {
   try {
     username = (await li.account()).username
   } catch (e) {
-    msg('Login failed: ' + e.message)
     connecting = false
+    // offline (e.g. headset just woke up): retry; a rejected token needs the user
+    if (e instanceof TypeError) {
+      msg('Offline — retrying login…')
+      setTimeout(() => connect(token), 5000)
+    } else msg('Login failed: ' + e.message)
     return
   }
   lichess = li
@@ -140,7 +147,10 @@ async function runEvents() {
 }
 
 // Real-time board-compatible games only; correspondence games would hijack the board.
-const playable = g => g.speed !== 'correspondence' && g.compat?.board !== false
+// nowPlaying entries lack compat.board, so speeds/variants are checked explicitly.
+const UNPLAYABLE = ['ultraBullet', 'bullet', 'correspondence']
+const playable = g => !UNPLAYABLE.includes(g.speed) && g.compat?.board !== false &&
+  ['standard', 'fromPosition', undefined].includes(g.variant?.key)
 
 // lichess re-sends gameStart for every ongoing game when the stream (re)opens.
 function onEvent(ev) {
@@ -154,6 +164,7 @@ function onEvent(ev) {
 
 function attach(gameId) {
   if (session?.gameId === gameId || gameRunning()) return // never drop a live game
+  note = null
   view?.stop()
   session = view = new GameSession({ lichess, board, username, gameId, onStatus: t => msg(t), menu: compactMenu })
   session.start().catch(e => { if (e.name !== 'AbortError') msg('Game stream lost: ' + e.message) })
@@ -173,7 +184,7 @@ async function seek() {
   try {
     await lichess.seek({ time, increment, rated, color }, ctl.signal)
   } catch (e) {
-    if (e.name !== 'AbortError') msg('Seek failed: ' + e.message)
+    if (e.name !== 'AbortError') notify('Seek failed: ' + e.message)
   }
   ctl.abort() // closed by the server or failed: no longer seeking
   refresh()
@@ -186,18 +197,19 @@ function cancelSeek() {
 
 async function playAi() {
   if (gameRunning()) return
-  msg('Challenging Stockfish…')
+  notify('Challenging Stockfish…')
   const { level, time, increment, color } = settings()
   try {
     await lichess.challengeAi({ level, time, increment, color })
   } catch (e) {
-    msg('AI challenge failed: ' + e.message)
+    notify('Stockfish challenge failed: ' + e.message)
   }
 }
 
 // Puzzles and the trainer need no login; they replace whatever the board shows.
 function startActivity(make) {
   if (gameRunning()) return msg('Finish or resign the game first')
+  note = null
   view?.stop()
   session = null
   view = make()
@@ -272,7 +284,7 @@ $('connect').onclick = () => {
   const t = $('token').value.trim()
   t ? connect(t) : msg('Paste a lichess API token first')
 }
-$('seek').onclick = seek
+$('seek').onclick = () => seeking() ? cancelSeek() : seek()
 $('ai').onclick = playAi
 $('maiaBtn').onclick = playMaia
 $('puzzle').onclick = startPuzzles

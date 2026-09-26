@@ -143,13 +143,14 @@ function night() {
 const BUILDERS = { minimal, study, sunset, night }
 // Unknown names fall back to minimal; the result's name says which one was built.
 export function buildEnvironment(name) {
-  const key = name in BUILDERS ? name : 'minimal'
+  const key = Object.hasOwn(BUILDERS, name) ? name : 'minimal'
   return { name: key, ...BUILDERS[key]() }
 }
 
 // Frees GPU resources of a built environment group.
 export function disposeGroup(group) {
   group.traverse(o => {
+    if (o.isInstancedMesh) o.dispose() // frees the per-instance buffers
     o.geometry?.dispose()
     for (const m of [o.material].flat()) {
       if (!m) continue

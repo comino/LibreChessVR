@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<base href="/">
+<title>ChessVR training bug hunt</title>
+<style>body { margin: 0 }</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+    "chess.js": "https://cdn.jsdelivr.net/npm/chess.js@1.0.0/+esm"
+  }
+}
+</script>
+</head>
+<body>
+<div id="result" style="position:fixed;top:0;right:0;z-index:10;color:#0f0;font-family:monospace"></div>
+<script type="module">
+import { Board3D } from './src/board3d.js'
+import { PuzzleSession } from './src/puzzle.js'
+import { RushSession } from './src/rush.js'
+import { TrainerSession } from './src/trainer.js'
+const out = document.getElementById('result')
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+const failed = []
+const check = (cond, name) => { if (!cond) failed.push(name) }
+const until = async (cond, ms = 3000) => { for (let t = 0; t < ms && !cond(); t += 20) await sleep(20); return cond() }
+
+// Lichess sometimes serves data chess.js can't replay; the session must skip it like a bad reply.
+const good = { game: { pgn: 'f3 e5 g4' }, puzzle: { id: 'ok', rating: 600, solution: ['d8h4'] } }
+const badPgn = { game: { pgn: 'f3 e5 Qz9' }, puzzle: { id: 'bad', rating: 600, solution: ['d8h4'] } }
+const feed = list => { let i = 0; return { calls: () => i, puzzleNext: async () => list[Math.min(i++, list.length - 1)] } }
+
+try {
+  const board = new Board3D()
+  await board.init()
+
+  // 1. Puzzle mode: unreplayable PGN -> reported and skipped, streak untouched, no rejection
+  localStorage.setItem('puzzleStats', JSON.stringify({ streak: 4, best: 4, solved: 4 }))
+  const li = feed([badPgn, good])
+  let status = ''
+  const p = new PuzzleSession({ lichess: li, board, onStatus: t => { status = t } })
+  let threw = null
+  try { await p.next() } catch (e) { threw = e }
+  check(!threw, 'puzzle: next() rejects on bad PGN (' + threw?.message + ')')
+  check(status !== 'Fetching puzzle…', 'puzzle: stuck on "Fetching puzzle…" after bad PGN')
+  check(await until(() => li.calls() === 2 && p.running), 'puzzle: bad PGN not auto-skipped to the next puzzle')
+  check(p.stats.streak === 4, 'puzzle: data error broke the streak (' + p.stats.streak + ')')
+  p.stop()
+
+  // 2. Rush: unreplayable puzzle while the clock runs -> move on, no life lost
+  localStorage.removeItem('rushBest')
+  const rl = feed([badPgn, good])
+  const r = new RushSession({ lichess: rl, board })
+  r.start()
+  check(await until(() => rl.calls() === 2 && r.running), 'rush: stuck with an empty board after bad puzzle data')
+  check(r.lives === 3 && !r.over, 'rush: data error cost a life / ended the rush')
+
+  // 3. Rush: a move after the clock ran out (before the 250 ms tick notices) must not score
+  r.stop()
+  const r2 = new RushSession({ lichess: feed([good]), board })
+  r2.start()
+  await until(() => r2.running)
+  r2.endAt = performance.now() - 1
+  board.onMove('d8', 'h4')
+  check(r2.score === 0, 'rush: move after time ran out still scored')
+  r2.stop()
+
+  // 4. Trainer: same grace window for picks after the round's time is up
+  const t = new TrainerSession({ board })
+  t.start()
+  t.endAt = performance.now() - 1
+  board._select(t.target)
+  check(t.score === 0, 'trainer: pick after time ran out still scored')
+  t.stop()
+} catch (e) {
+  failed.push('crash: ' + e.message)
+}
+out.textContent = failed.length ? `HUNT-TRAINING-FAIL ${failed.length}: ${failed.join(' | ')}` : 'HUNT-TRAINING-OK'
+</script>
+</body>
+</html>

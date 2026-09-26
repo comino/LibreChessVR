@@ -47,6 +47,7 @@ export class TrainerSession {
 
   _pick(sq) {
     if (!this.running) return
+    if (performance.now() >= this.endAt) return this._end() // tick may lag the deadline
     const ok = sq === this.target
     if (ok) this.score++
     else this.misses++
@@ -59,8 +60,10 @@ export class TrainerSession {
 
   _tick() {
     if (performance.now() >= this.endAt) this._end()
-    else this._show()
+    else if (this._left() !== this.shownSec) this._show() // redraw once per second
   }
+
+  _left() { return Math.ceil((this.endAt - performance.now()) / 1000) }
 
   _end() {
     this.stop()
@@ -78,7 +81,7 @@ export class TrainerSession {
   _show() {
     const again = { label: 'New round', run: () => this.start() }
     const status = this.running
-      ? { big: this.target, text: `${Math.ceil((this.endAt - performance.now()) / 1000)} s`,
+      ? { big: this.target, text: `${this.shownSec = this._left()} s`,
           sub: `Score ${this.score} • ${this.board.viewSide()}'s view` }
       : { text: 'Time!', sub: this.result }
     this.board.setStatus({ puzzle: true, ...status, actions: [again, ...this.menu?.() ?? []] })

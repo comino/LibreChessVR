@@ -41,6 +41,7 @@ export function parseFen(fen) {
       })
       f++
     }
+    if (f !== 8) throw new Error('Bad FEN rank: ' + fen)
   })
   return pieces
 }

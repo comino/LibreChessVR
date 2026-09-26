@@ -247,6 +247,14 @@ export class Board3D {
     for (const g of [this.piecesGroup, this.capturedGroup]) g.traverse(m => { if (m.isMesh) m.castShadow = style === 'solid' })
   }
 
+  // Puts a piece dropped elsewhere (grab mode) back on its own square.
+  snapBack(square) {
+    const p = this.pieceAt[square]
+    if (!p) return
+    const { x, z } = squareToXZ(square, SQUARE)
+    p.position.set(x, 0.005, z)
+  }
+
   deselect() {
     this.selected = null
     this._applyTints()
@@ -360,8 +368,11 @@ export class Board3D {
     this.lastMove = lastMove
     this.check = this.checkSquare()
     this._applyTints()
-    if (lastMove) this.cue(this.piecesGroup.children.length < before ? 'capture' : 'move')
-    if (lastMove && this.pieceAt[lastMove.to]) {
+    // lastMove may be a chess.js move: then `captured` is known, else guess from the piece count
+    if (lastMove) this.cue(('captured' in lastMove || lastMove.san ? lastMove.captured : this.piecesGroup.children.length < before) ? 'capture' : 'move')
+    const handDropped = lastMove?.to === this.dropped
+    this.dropped = null
+    if (lastMove && this.pieceAt[lastMove.to] && !handDropped) { // a hand-placed piece doesn't re-slide
       const from = squareToXZ(lastMove.from, SQUARE)
       const to = squareToXZ(lastMove.to, SQUARE)
       this.anim = { obj: this.pieceAt[lastMove.to], from, to, t0: performance.now() }
@@ -404,6 +415,13 @@ export class Board3D {
       this.tiles[sq]?.material.emissive.add(HOVER)
   }
 
+  _clearHover(...keys) {
+    for (const k of keys) {
+      this._setHover(k, null)
+      this.bar.hover(k, null)
+    }
+  }
+
   // key: 'mouse' | 'c0' | 'c1' | 'grab'; square or null. Retints only on change.
   _setHover(key, square) {
     if ((this.hover[key] ?? null) === (square ?? null)) return
@@ -437,8 +455,9 @@ export class Board3D {
 
   _openPicker(from, to) {
     const color = this.pieceAt[from].userData.color
-    // 4 files around the target, clamped to the board; Q leftmost from the mover's side
-    const start = Math.min(Math.max('abcdefgh'.indexOf(to[0]) - 1, 0), 4)
+    // 4 files around the target in the mover's frame (Q leftmost, target 2nd unless at an edge)
+    const mirror = i => color === 'w' ? i : 7 - i
+    const start = Math.min(Math.max(mirror('abcdefgh'.indexOf(to[0])) - 1, 0), 4)
     const group = new THREE.Group()
     for (const [i, type] of [...'qrbn'].entries()) {
       const disc = new THREE.Mesh(DISC_GEO, DISC_MAT)
@@ -447,7 +466,7 @@ export class Board3D {
       const piece = this._makePiece(type, color)
       piece.traverse(m => { if (m.material === this.pieceMat[color]) m.material = this.solidMat[color] })
       slot.add(disc, piece)
-      const file = 'abcdefgh'[color === 'w' ? start + i : start + 3 - i]
+      const file = 'abcdefgh'[mirror(start + i)]
       const { x, z } = squareToXZ(file + to[1], SQUARE)
       slot.position.set(x, PICKER_Y, z)
       slot.userData.promo = type
@@ -524,6 +543,7 @@ export class Board3D {
     dom.addEventListener('pointerdown', e => { down = [e.clientX, e.clientY] })
     const mouseRay = e => this.raycaster.setFromCamera(new THREE.Vector2(
       (e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1), this.camera)
+    this.renderer.xr.addEventListener('sessionstart', () => this._clearHover('mouse'))
     dom.addEventListener('click', e => {
       if (down && Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return
       this.source = null
@@ -641,6 +661,7 @@ export class Board3D {
     const { x, z } = squareToXZ(legal ? sq : from, SQUARE)
     piece.position.set(x, 0.005, z)
     this._applyTints()
+    if (legal) this.dropped = sq
     if (legal) this._emitMove(from, sq)
   }
 
@@ -696,6 +717,7 @@ export class Board3D {
     const xr = this.renderer.xr.isPresenting
     if (!xr) this.controls.update()
     if (xr) this._controllerHover()
+    else if (this.hover.c0 || this.hover.c1) this._clearHover('c0', 'c1') // left VR
     this._thumbstick(dt)
     if (this.grab) {
       const p = this._pinchPos(this.grab.hand)
@@ -718,7 +740,8 @@ export class Board3D {
     }
     this.hands.forEach((hand, i) => {
       const tip = hand.joints['index-finger-tip']
-      this.bar.poke(tip?.visible ? tip.getWorldPosition(_vC) : null, i)
+      // disconnect hides the hand group but leaves joint flags as they were
+      this.bar.poke(hand.visible !== false && tip?.visible ? tip.getWorldPosition(_vC) : null, i)
     })
     this.panel.tick()
     this.bar.tick()

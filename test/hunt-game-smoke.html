@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<base href="/">
+<title>ChessVR game bug hunt</title>
+<style>body { margin: 0 }</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+    "chess.js": "https://cdn.jsdelivr.net/npm/chess.js@1.0.0/+esm"
+  }
+}
+</script>
+</head>
+<body>
+<div id="result" style="position:fixed;top:0;right:0;z-index:10;color:#0f0;font-family:monospace"></div>
+<script type="module">
+import * as THREE from 'three'
+import { Board3D } from './src/board3d.js'
+import { GameSession } from './src/game.js'
+import { Lichess } from './src/lichess.js'
+import { squareToXZ } from './src/coords.js'
+const out = document.getElementById('result')
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+const failures = []
+const check = (cond, name, detail = '') => { if (!cond) { failures.push(name); console.log('FAIL', name, detail) } }
+
+// Fake lichess: pushable game stream; move() behaviour switchable per scenario.
+const calls = []
+let push, moveImpl = async () => {}
+const lichess = {
+  streamGame: (id, onMsg, signal) => new Promise((_, rej) => {
+    push = onMsg
+    signal.addEventListener('abort', () => rej(Object.assign(new Error('aborted'), { name: 'AbortError' })))
+  }),
+  move: (id, uci) => { calls.push('move ' + uci); return moveImpl(uci) },
+  draw: async (id, yes) => calls.push('draw ' + yes),
+  takeback: async (id, yes) => calls.push('takeback ' + yes),
+  abort: async () => calls.push('abort'),
+  resign: async () => calls.push('resign'),
+  challengeAi: async p => calls.push('ai ' + JSON.stringify(p)),
+  challenge: async (user, p) => calls.push('challenge ' + user),
+  claimVictory: async () => calls.push('claim')
+}
+const full = (moves, initialFen = 'startpos') => ({
+  type: 'gameFull', initialFen, white: { id: 'me', name: 'Me' }, black: { aiLevel: 3 }, rated: false,
+  clock: { initial: 600000, increment: 5000 },
+  state: { type: 'gameState', moves, wtime: 600000, btime: 600000, status: 'started' }
+})
+const state = (moves, extra = {}) => ({ type: 'gameState', moves, wtime: 590000, btime: 590000, status: 'started', ...extra })
+
+const spoken = []
+Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: { cancel() {}, speak: u => spoken.push(u.text) } })
+
+const board = new Board3D()
+await board.init()
+let text = ''
+const labels = () => board.bar.mesh.visible ? board.bar.buttons.map(b => b.label).join() : ''
+const press = label => {
+  const i = board.bar.buttons.findIndex(b => b.label === label)
+  if (i < 0) throw new Error('no button ' + label + ' in ' + labels())
+  board.bar.press((i % 3 + 0.5) / 3, 1 - (Math.floor(i / 3) + 0.5) / 3)
+}
+const menu = () => [{ label: 'Menu', run() {} }]
+let g
+const scenario = async (name, fn) => {
+  moveImpl = async () => {}
+  board.voice = 'off'
+  g = new GameSession({ lichess, board, username: 'me', gameId: 'h', onStatus: t => { text = t }, menu })
+  const done = g.start()
+  await sleep(0)
+  try { await fn() } catch (e) { failures.push(name + ' threw'); console.log('THREW', name, e.stack) }
+  g.stop()
+  await Promise.race([done, sleep(3000)])
+}
+
+// 1. A premove queued on top of an optimistic move must not survive that move's rejection
+//    (else it fires a whole move later, after the player already moved by hand).
+await scenario('stale premove', async () => {
+  push(full(''))
+  let rej
+  moveImpl = uci => uci === 'e2e4' ? new Promise((_, r) => { rej = r }) : Promise.resolve()
+  board.onMove('e2', 'e4')
+  board.onMove('d2', 'd4')                               // premove on top of the pending e4
+  check(g.premove?.san === 'd4', 'premove queued (setup)')
+  rej(new Error('Not your turn')); await sleep(0)
+  check(g.chess.history().length === 0, 'rollback (setup)')
+  board.onMove('g1', 'f3')                               // player moves again by hand
+  push(state('g1f3')); push(state('g1f3 e7e5'))
+  check(!calls.includes('move d2d4'), 'stale premove not played after rejection', calls.join())
+})
+
+// 2. Grab mode: a premove drop must leave the piece at home (it hasn't moved); after
+//    "Cancel premove" it must certainly be back on its square.
+await scenario('grab premove', async () => {
+  push(full(''))
+  board.onMove('e2', 'e4')                               // black to move
+  board.setHandMode('grab')
+  const j1 = new THREE.Object3D(), j2 = new THREE.Object3D()
+  const hand = { joints: { 'index-finger-tip': j1, 'thumb-tip': j2 } }
+  board.boardGroup.updateWorldMatrix(true, false)
+  const at = (sq, y = 0.05) => {
+    const { x, z } = squareToXZ(sq, 0.06)
+    j1.position.copy(board.boardGroup.localToWorld(new THREE.Vector3(x, y, z)))
+    j2.position.copy(j1.position)
+  }
+  at('g1'); board._grabStart(hand)
+  const knight = board.grab?.piece
+  at('f3', 0.08); board._tick(); board._grabEnd(hand)
+  board.setHandMode('ray')
+  check(g.premove?.san === 'Nf3', 'grab premove queued (setup)', text)
+  press('Cancel premove')
+  const home = squareToXZ('g1', 0.06)
+  check(knight && Math.abs(knight.position.x - home.x) < 1e-6 && Math.abs(knight.position.z - home.z) < 1e-6,
+    'grab-premoved piece back home after cancel', knight && knight.position.toArray().join())
+})
+
+// 3. After a sync error, further lines of the same stream chunk (splitter keeps looping
+//    after abort) must not revive the session.
+await scenario('revive after fail', async () => {
+  push(full('e2e4'))
+  push(state('e2e4 a1a8'))                               // unappliable -> _fail
+  check(g.finished && text.startsWith('Sync error'), 'sync error (setup)', text)
+  push(state('e2e4 e7e5'))                               // next line of the same chunk
+  check(g.finished && !g.active() && !board.canPick('d2'), 'failed session stays dead', 'finished=' + g.finished)
+})
+
+// 4. A sync error ends the game like any finish: queued premove and its marks are dropped.
+await scenario('premove on fail', async () => {
+  push(full(''))
+  board.onMove('e2', 'e4')
+  board.onMove('g1', 'f3')                               // premove
+  check(!!board.marks.g1, 'premove marked (setup)')
+  push(state('e2e4 a1a8'))
+  check(g.finished && !g.premove && !board.marks.g1 && !board.marks.f3, 'premove cleared on sync error', JSON.stringify(board.marks))
+})
+
+// 5. A takeback is not a new opponent move: nothing must be spoken.
+await scenario('takeback speech', async () => {
+  board.voice = 'opponent'
+  push(full(''))
+  board.onMove('e2', 'e4'); push(state('e2e4')); push(state('e2e4 e7e5'))
+  board.onMove('g1', 'f3'); push(state('e2e4 e7e5 g1f3'))
+  const n = spoken.length
+  push(state('e2e4 e7e5'))                               // Nf3 taken back
+  check(g.chess.history().join() === 'e4,e5', 'takeback applied (setup)')
+  check(spoken.length === n, 'takeback not announced as a move', spoken.slice(n).join('|'))
+})
+
+// 6. Review: "Next move" at the final position replays nothing, so it must not re-announce.
+await scenario('review next at end', async () => {
+  push(full(''))
+  push(state('e2e4 e7e5 d1h5 b8c6 f1c4 g8f6 h5f7', { status: 'mate', winner: 'white' }))
+  board.voice = 'all'
+  press('Review game')
+  const n = spoken.length
+  press('Next move')
+  check(spoken.length === n, 'Next at end is silent', spoken.slice(n).join('|'))
+  press('Prev move'); press('Next move')
+  check(spoken.at(-1) === 'Queen takes F 7, checkmate', 'Next after Prev names the move (edge, passes)', spoken.at(-1))
+})
+
+// --- passing edge cases (plus 7 below) ---
+
+// Premove after giving check: flipped-turn FEN must still work.
+await scenario('premove after check', async () => {
+  push(full('', '4k3/8/8/8/8/8/8/R3K3 w - - 0 1'))
+  board.onMove('a1', 'a8')                               // Ra8+, black in check
+  let targets = []
+  try { targets = board.getTargets('e1') } catch (e) { targets = ['threw ' + e.message] }
+  check(targets.includes('e2'), 'targets while opponent in check', targets.join())
+  board.onMove('e1', 'e2')
+  push(state('a1a8')); push(state('a1a8 e8e7'))
+  check(calls.at(-1) === 'move e1e2', 'premove played after check', calls.at(-1))
+})
+
+// Underpromotion as a premove via the picker keeps the chosen piece.
+await scenario('premove underpromotion', async () => {
+  push(full('', '8/4P3/8/8/8/8/k7/4K3 w - - 0 1'))
+  board.onMove('e1', 'd1')                               // black to move now
+  push(state('e1d1'))
+  board._select('e7'); board._select('e8')
+  check(!!board.picker, 'picker opens for premove promotion')
+  board._closePicker('r')
+  check(text === 'Premove e8=R', 'rook premove shown', text)
+  push(state('e1d1 a2a3'))
+  check(calls.at(-1) === 'move e7e8r' && g.chess.get('e8')?.type === 'r', 'underpromotion premove played', calls.at(-1))
+})
+
+// 7. POST response lost in a network blip, stream reconnects and gameFull already contains
+//    our move: the late error must not undo a move the server has (code comment intends this).
+await scenario('reconnect vs late reject', async () => {
+  push(full(''))
+  let rej
+  moveImpl = () => new Promise((_, r) => { rej = r })
+  board.onMove('e2', 'e4')
+  push(full('e2e4'))                                     // reconnect: server already has e4
+  rej(new Error('late')); await sleep(0)
+  check(g.chess.history().join() === 'e4' && !text.startsWith('Move rejected'), 'late rejection after resync ignored', text)
+})
+
+// lichess.stream: NDJSON split across chunks, stall watchdog, user abort.
+{
+  const realFetch = window.fetch
+  const fakeFetch = chunks => (url, opts) => Promise.resolve(new Response(new ReadableStream({
+    start(c) {
+      const enc = new TextEncoder()
+      chunks.forEach(t => c.enqueue(enc.encode(t)))
+      opts.signal.addEventListener('abort', () => c.error(opts.signal.reason))
+    }
+  })))
+  const li = new Lichess('t')
+  try {
+    window.fetch = fakeFetch(['{"type":"gameSt', 'ate","moves":"e2e4"}\n', '\n'])
+    const got = []
+    const err = await li.stream('/x', m => got.push(m.moves), new AbortController().signal, {}, 200).catch(e => e)
+    check(got.join() === 'e2e4' && err?.message === 'Stream stalled', 'stall watchdog after split line', got + ' ' + err?.message)
+    const ctl = new AbortController()
+    window.fetch = fakeFetch([])
+    const p = li.stream('/x', () => {}, ctl.signal, {}, 5000).catch(e => e)
+    await sleep(10); ctl.abort()
+    check((await p)?.name === 'AbortError', 'user abort surfaces as AbortError')
+  } finally { window.fetch = realFetch }
+}
+
+out.textContent = failures.length ? `HUNT-GAME-FAIL ${failures.length}: ${failures.join(' | ')}` : 'HUNT-GAME-OK'
+</script>
+</body>
+</html>

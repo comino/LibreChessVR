@@ -72,9 +72,16 @@ export class PuzzleSession {
     try { localStorage.setItem('puzzleStats', JSON.stringify(this.stats)) } catch { /* private mode */ }
   }
 
-  _setup({ game, puzzle }) {
-    this.chess = new Chess()
-    for (const san of game.pgn.split(' ')) if (san) this.chess.move(san)
+  _setup(data) {
+    try {
+      this.chess = new Chess()
+      for (const san of data.game.pgn.split(' ')) if (san) this.chess.move(san)
+      const [first] = data.puzzle.solution
+      new Chess(this.chess.fen()).move({ from: first.slice(0, 2), to: first.slice(2, 4), promotion: first[4] })
+    } catch {
+      return this._dataError()
+    }
+    const { puzzle } = data
     this.solution = puzzle.solution
     this.idx = 0
     this.info = `Puzzle ${puzzle.id} • rating ${puzzle.rating}`
@@ -84,7 +91,7 @@ export class PuzzleSession {
     bindBoard(this.board, this)
     this.board.setOrientation(this.color)
     const last = this.chess.history({ verbose: true }).at(-1)
-    this.board.setPosition(this.chess.fen(), last && { from: last.from, to: last.to })
+    this.board.setPosition(this.chess.fen(), last)
     this.board.announce(last)
     this._status(`Find the best move for ${this.color}`)
   }
@@ -95,6 +102,13 @@ export class PuzzleSession {
     this.text = text
     this.board.setStatus({ puzzle: true, text, sub: this._sub(), actions: this._actions() })
     this.onStatus?.(text)
+  }
+
+  // Unplayable puzzle data: not the player's fault, skip without touching the streak.
+  _dataError() {
+    this.running = false
+    this._status('Puzzle data error — skipping')
+    this.timer = setTimeout(() => this.next(), 1500)
   }
 
   _fetchFailed(e) { this._status('Puzzle fetch failed: ' + e.message) }
@@ -143,7 +157,7 @@ export class PuzzleSession {
     }
     this.idx++
     this.board.setMarks({})
-    this.board.setPosition(this.chess.fen(), { from: mv.from, to: mv.to })
+    this.board.setPosition(this.chess.fen(), mv)
     this.board.announce(mv, true)
     if (this.idx >= this.solution.length || this.chess.isCheckmate()) {
       this.running = false
@@ -160,13 +174,10 @@ export class PuzzleSession {
     try {
       mv = this.chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] })
     } catch {
-      this.running = false // not the player's fault: skip without breaking the streak
-      this._status('Puzzle data error — skipping')
-      this.timer = setTimeout(() => this.next(), 1500)
-      return
+      return this._dataError()
     }
     this.board.setMarks({})
-    this.board.setPosition(this.chess.fen(), { from: mv.from, to: mv.to })
+    this.board.setPosition(this.chess.fen(), mv)
     this.board.announce(mv)
     this._status(`Your move (${this.color})`)
   }

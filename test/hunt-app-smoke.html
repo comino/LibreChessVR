@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<base href="/">
+<title>ChessVR app bug hunt</title>
+<style>body { margin: 0 } iframe { width: 400px; height: 300px }</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+    "chess.js": "https://cdn.jsdelivr.net/npm/chess.js@1.0.0/+esm"
+  }
+}
+</script>
+</head>
+<body>
+<div id="result" style="position:fixed;top:0;right:0;z-index:10;color:#0f0;font-family:monospace"></div>
+<script type="module">
+// main.js runs once per page load, so each scenario runs in its own iframe
+// (this page with ?s=<name>); the top page collects the failing check names.
+const out = document.getElementById('result')
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+const scenario = new URLSearchParams(location.search).get('s')
+
+// Per scenario: localStorage before main.js loads.
+const SETUP = {
+  corrupt: { settings: '42' },
+  bullet: { lichessToken: 'tok' },
+  main: { lichessToken: 'tok' }
+}
+
+if (!scenario) runAll()
+else runScenario(scenario)
+
+async function runAll() {
+  const fails = []
+  for (const name of Object.keys(SETUP)) {
+    localStorage.clear()
+    for (const [k, v] of Object.entries(SETUP[name])) localStorage.setItem(k, v)
+    const res = await new Promise(resolve => {
+      const t = setTimeout(() => resolve({ fails: [name + ': no result'] }), 25000)
+      addEventListener('message', function on(e) {
+        if (e.data?.scenario !== name) return
+        removeEventListener('message', on); clearTimeout(t); resolve(e.data)
+      })
+      const f = document.createElement('iframe')
+      f.src = '/test/hunt-app-smoke.html?s=' + name
+      document.body.append(f)
+    })
+    fails.push(...res.fails)
+    document.querySelector('iframe').remove()
+  }
+  out.textContent = fails.length ? `HUNT-APP-FAIL ${fails.length}: ${fails.join(' | ')}` : 'HUNT-APP-OK'
+}
+
+async function runScenario(name) {
+  const fails = []
+  const check = (cond, what) => { if (!cond) fails.push(what) }
+  async function until(cond, ms = 3000) {
+    for (const t0 = performance.now(); performance.now() - t0 < ms; await sleep(20)) if (cond()) return true
+    return false
+  }
+
+  // Fake lichess; routes[path] may override a response per scenario.
+  const streams = {}, requests = [], routes = {}
+  function openStream(path, signal) {
+    const enc = new TextEncoder()
+    let ctl
+    const body = new ReadableStream({ start: c => { ctl = c } })
+    const s = streams[path] = { closed: false, push: o => ctl.enqueue(enc.encode(JSON.stringify(o) + '\n')) }
+    signal?.addEventListener('abort', () => { s.closed = true; ctl.error(new DOMException('aborted', 'AbortError')) })
+    return new Response(body)
+  }
+  const json = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json' } })
+  const full = (black, white = { id: 'me' }) => ({ type: 'gameFull', initialFen: 'startpos', white, black,
+    clock: { initial: 600000, increment: 5000 },
+    state: { type: 'gameState', moves: '', wtime: 6e5, btime: 6e5, status: 'started' } })
+  let nowPlaying = []
+  const realFetch = window.fetch
+  window.fetch = async (url, opts = {}) => {
+    if (typeof url !== 'string' || !url.startsWith('https://lichess.org')) return realFetch(url, opts)
+    const path = url.replace('https://lichess.org', '')
+    requests.push({ path, method: opts.method || 'GET', body: String(opts.body || '') })
+    if (routes[path]) return routes[path](opts)
+    if (path === '/api/account') return json({ username: 'me' })
+    if (path === '/api/account/playing') return json({ nowPlaying })
+    if (path.startsWith('/api/board/game/stream/')) {
+      const r = openStream(path, opts.signal)
+      setTimeout(() => streams[path].push(full({ id: 'maia5', name: 'maia5' })), 10)
+      return r
+    }
+    if (['/api/stream/event', '/api/board/seek'].includes(path)) return openStream(path, opts.signal)
+    return json({ ok: true })
+  }
+
+  const html = await (await realFetch('/index.html')).text()
+  document.body.append(new DOMParser().parseFromString(html, 'text/html').getElementById('ui'))
+  if (name === 'bullet') nowPlaying = [{ gameId: 'b1', speed: 'bullet', perf: 'bullet', variant: { key: 'standard' } }]
+
+  let loaded = true
+  try { await import('/src/main.js') } catch { loaded = false }
+  const board = window.chessvr?.board, $ = id => document.getElementById(id)
+  const labels = () => board?.bar.mesh.visible ? board.bar.buttons.map(b => b.label).join() : ''
+  const text = () => board?.panel.status.text
+  const press = label => board.bar.buttons.find(b => b.label === label)?.run()
+
+  try {
+    if (name === 'corrupt') {
+      // Valid JSON but not an object: loadSettings's try only guards the parse,
+      // `id in 42` then throws and the whole app dies at load.
+      check(loaded && await until(() => labels().includes('Puzzles')), 'corrupt settings (non-object JSON) kill app load')
+    }
+
+    if (name === 'bullet') {
+      // Resume-on-load via /api/account/playing must apply the same filter as the event
+      // stream (compat.board === false): the Board API can't play bullet.
+      await until(() => streams['/api/stream/event'])
+      await sleep(200)
+      check(!requests.some(r => r.path === '/api/board/game/stream/b1'), 'bullet game from nowPlaying attached on load')
+    }
+
+    if (name === 'main') {
+      await until(() => labels().startsWith('Stockfish L3 10+5'))
+
+      // Stockfish challenge rejected: the VR user must see why (Maia does this via notify).
+      routes['/api/challenge/ai'] = () => json({ error: 'Invalid clock' }, 400)
+      press('Stockfish L3 10+5')
+      await until(() => $('msg').textContent.includes('Invalid clock'))
+      check(text()?.includes('Invalid clock'), 'AI challenge failure not shown on VR panel (got "' + text() + '")')
+
+      // Seek rejected by lichess: same, the panel silently falls back to the menu.
+      routes['/api/board/seek'] = () => json({ error: 'Too many seeks' }, 429)
+      press('Seek human 10+5')
+      await until(() => $('msg').textContent.includes('Too many seeks'))
+      await sleep(50)
+      check(text()?.includes('Too many seeks'), 'seek failure not shown on VR panel (got "' + text() + '")')
+
+      // Maia accepts, game is played and ends; back to the menu the stale
+      // "Challenging Maia 5…" note must be gone.
+      routes['/api/challenge/maia5'] = () => {
+        setTimeout(() => streams['/api/stream/event'].push({ type: 'gameStart', game: { gameId: 'm1', speed: 'rapid' } }), 10)
+        return json({ id: 'm1' })
+      }
+      press('Maia 5 10+5')
+      await until(() => streams['/api/board/game/stream/m1'] && labels().includes('Abort'))
+      streams['/api/board/game/stream/m1'].push({ type: 'gameState', moves: 'e2e4 e7e5', wtime: 6e5, btime: 6e5,
+        status: 'resign', winner: 'white' })
+      await until(() => labels().includes('Menu'))
+      press('Menu')
+      check(labels().includes('Puzzles'), 'Menu after game shows idle menu')
+      check(text() !== 'Challenging Maia 5…', 'stale "Challenging Maia 5…" on idle panel after the Maia game ended')
+    }
+  } catch (e) {
+    fails.push(name + ' crashed: ' + e.message)
+  }
+  parent.postMessage({ scenario: name, fails }, '*')
+}
+</script>
+</body>
+</html>

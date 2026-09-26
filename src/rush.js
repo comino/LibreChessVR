@@ -29,6 +29,12 @@ export class RushSession extends PuzzleSession {
 
   next() { if (!this.over) return super.next() }
 
+  // The 250 ms clock tick may lag the deadline: a move after it never counts.
+  tryMove(...args) {
+    if (performance.now() >= this.endAt) return this._end()
+    return super.tryMove(...args)
+  }
+
   _miss() {} // rush has lives, not streaks
 
   // The clock keeps running, so don't leave the board empty: retry shortly.

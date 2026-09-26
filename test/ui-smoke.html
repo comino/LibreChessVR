@@ -137,7 +137,7 @@ try {
   const slots = board.picker.group.children
   check(slots.map(s => s.userData.promo).join('') === 'qrbn', 'picker order')
   const onSq = (slot, sq) => slot.position.x === squareToXZ(sq, S).x && slot.position.z === squareToXZ(sq, S).z
-  check(onSq(slots[0], 'g1') && onSq(slots[3], 'd1'), 'black picker row d1..g1, queen on g1 (black\'s left)')
+  check(onSq(slots[0], 'f1') && onSq(slots[1], 'e1') && onSq(slots[3], 'c1'), 'black picker: queen f1 (black\'s left), target e1 under the 2nd slot like white')
   const q = slots[0].getWorldPosition(new THREE.Vector3())
   board.raycaster.set(q.clone().add(new THREE.Vector3(0, 0.3, 0)), new THREE.Vector3(0, -1, 0))
   board._pick()
