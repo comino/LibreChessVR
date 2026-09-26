@@ -26,8 +26,10 @@ WebXR needs a secure context. Two options:
 - The ray stops where it hits; the square or button under it lights up. A king in check glows red.
 - Point at a piece, **trigger** to select — legal targets light up green.
 - Point at a target square, **trigger** to move. Select the piece again to cancel.
-- **Settings** (menu): Stockfish level, time control, color, rated/casual, table up/down — no
-  need to take the headset off. After a game, **Rematch** swaps colors (humans get a challenge), and
+- **Maia** (menu): play the human-like Maia bots (maia1/5/9) with one press.
+- **Settings** (menu): Play page (Stockfish level, Maia level, time control, color, rated) and
+  View page (board size 80–150%, table up/down, flipped view) — no need to take the headset off.
+- **Flip board** (in games and puzzles): see the position from your opponent's side. After a game, **Rematch** swaps colors (humans get a challenge), and
   **Prev/Next move** replay the game on the board. Puzzles have a **Hint** button.
 - **Coordinates** (menu): a square name appears — point at that square. 30 s rounds,
   alternating white/black view; best score is kept. Trains 3D board vision directly.

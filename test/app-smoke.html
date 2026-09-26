@@ -82,7 +82,7 @@ try {
     b.run()
   }
 
-  await until(() => labels() === 'Stockfish L2 5+0,Puzzles,Coordinates,Settings', 'idle menu (no blitz seek), got ' + labels())
+  await until(() => labels() === 'Stockfish L2 5+0,Maia 5 5+0,Puzzles,Coordinates,Settings', 'idle menu (no blitz seek), got ' + labels())
   check($('time').value === '5' && $('ailevel').value === '2', 'settings restored into the form')
   check(board.stage.position.y === 0.2, 'table height restored')
   board.onHeightChange(-0.1)
@@ -93,8 +93,14 @@ try {
   check($('msg').textContent.startsWith('Seeks must be rapid'), 'blitz seek explained')
 
   $('time').value = '10'; $('time').dispatchEvent(new Event('change'))
-  check(labels() === 'Stockfish L2 10+0,Seek human 10+0,Puzzles,Coordinates,Settings', 'menu follows settings, got ' + labels())
+  check(labels() === 'Stockfish L2 10+0,Maia 5 10+0,Seek human 10+0,Puzzles,Coordinates,Settings', 'menu follows settings, got ' + labels())
   check(JSON.parse(localStorage.getItem('settings')).time === '10', 'settings persisted')
+
+  press('Maia 5 10+0')
+  await until(() => requests.some(r => r.path === '/api/challenge/maia5'), 'maia challenge sent')
+  const mc = requests.find(r => r.path === '/api/challenge/maia5')
+  check(mc.method === 'POST' && /clock.limit=600/.test(mc.body) && /clock.increment=0/.test(mc.body) && /color=random/.test(mc.body), 'maia params: ' + mc.body)
+  check(board.panel.status.text === 'Challenging Maia 5…', 'maia feedback on panel: ' + board.panel.status.text)
 
   press('Seek human 10+0')
   await until(() => streams['/api/board/seek'], 'seek request open')
@@ -104,7 +110,7 @@ try {
   check(streams['/api/board/seek'].closed, 'seek connection closed')
 
   press('Stockfish L2 10+0')
-  await until(() => labels() === 'Offer draw,Abort', 'game attached, got ' + labels())
+  await until(() => labels() === 'Offer draw,Flip board,Abort', 'game attached, got ' + labels())
   const ai = requests.find(r => r.path === '/api/challenge/ai')
   check(/level=2/.test(ai.body) && /clock.limit=600/.test(ai.body), 'AI challenge params: ' + ai.body)
   check(!board.bar.buttons.some(b => b.label === 'Puzzles'), 'no Puzzles button during a game')
@@ -115,12 +121,12 @@ try {
   check(requests.filter(r => r.path === '/api/board/seek').length === seeksBefore, '2D seek blocked during game')
   streams['/api/stream/event'].push({ type: 'gameStart', game: { gameId: 'g9', speed: 'rapid' } })
   await sleep(50)
-  check(!streams['/api/board/game/stream/g9'] && labels() === 'Offer draw,Abort', 'second game did not replace the live one')
+  check(!streams['/api/board/game/stream/g9'] && labels() === 'Offer draw,Flip board,Abort', 'second game did not replace the live one')
 
   streams['/api/board/game/stream/g1'].push({ type: 'gameState', moves: 'f2f3 e7e5 g2g4 d8h4',
     wtime: 6e5, btime: 6e5, status: 'mate', winner: 'black' })
   await until(() => board.panel.status.text === 'Checkmate — you lose', 'game over text')
-  check(labels() === 'Rematch,Prev move,Next move,Stockfish L2 10+0,Seek human 10+0,Puzzles,Coordinates,Settings', 'menu after game, got ' + labels())
+  check(labels() === 'Rematch,Prev move,Next move,Stockfish L2 10+0,Maia 5 10+0,Seek human 10+0,Puzzles,Coordinates,Settings', 'menu after game, got ' + labels())
   const aiBefore = requests.filter(r => r.path === '/api/challenge/ai').length
   const realPush = streams['/api/stream/event'].push
   press('Rematch')
@@ -134,21 +140,34 @@ try {
 
   // Settings page: cycle values, persisted, reflected in the menu; table buttons; Back
   press('Settings')
-  check(board.panel.status.text === 'Settings', 'settings shown')
-  check(labels() === 'Stockfish L2,Time 10+0,Color random,Casual,Table up,Table down,Back', 'settings bar: ' + labels())
-  press('Stockfish L2'); press('Time 10+0'); press('Color random'); press('Casual')
-  check(labels().startsWith('Stockfish L3,Time 10+5,Color white,Rated'), 'cycled: ' + labels())
-  check($('ailevel').value === '3' && $('inc').value === '5' && $('color').value === 'white' && $('rated').checked, '2D form updated')
+  check(board.panel.status.text === 'Settings · Play', 'settings shown')
+  check(labels() === 'Stockfish L2,Maia 5,Time 10+0,Color random,Casual,View settings,Back', 'play page: ' + labels())
+  press('Stockfish L2'); press('Maia 5'); press('Time 10+0'); press('Color random'); press('Casual')
+  check(labels().startsWith('Stockfish L3,Maia 9,Time 10+5,Color white,Rated'), 'cycled: ' + labels())
+  check($('ailevel').value === '3' && $('maia').value === '9' && $('inc').value === '5' && $('color').value === 'white' && $('rated').checked, '2D form updated')
   const saved = JSON.parse(localStorage.getItem('settings'))
-  check(saved.ailevel === '3' && saved.time === '10' && saved.inc === '5' && saved.rated === true, 'persisted: ' + JSON.stringify(saved))
+  check(saved.ailevel === '3' && saved.maia === '9' && saved.inc === '5' && saved.rated === true, 'persisted: ' + JSON.stringify(saved))
   for (let i = 0; i < 8; i++) press(labels().split(',')[0])        // level wraps 3 -> ... -> 3
   check(labels().startsWith('Stockfish L3'), 'level wraps at 8')
+  press('Maia 9'); press('Maia 1')
+  check(labels().includes('Maia 5'), 'maia cycles 9 -> 1 -> 5')
+
+  press('View settings')
+  check(labels() === 'Board 100%,Table up,Table down,Normal view,Play settings,Back', 'view page: ' + labels())
   const h0 = board.stage.position.y
   press('Table up'); press('Table up')
   check(Math.abs(board.stage.position.y - h0 - 0.1) < 1e-9 && localStorage.getItem('tableHeight') === (h0 + 0.1).toFixed(3), 'table up saved')
   check(board.panel.status.sub === `Table +${Math.round((h0 + 0.1) * 100)} cm`, 'height shown: ' + board.panel.status.sub)
+  press('Board 100%')
+  check(board.boardScale === 1.25 && board.boardGroup.scale.x === 1.25 && localStorage.getItem('boardScale') === '1.25', 'board scaled + saved')
+  press('Normal view')
+  check(board.flipped && Math.abs(board.boardGroup.rotation.y - Math.PI) < 1e-9 && localStorage.getItem('flipped') === '1', 'flipped + saved')
+  press('Flipped view')
+  check(!board.flipped && localStorage.getItem('flipped') === '', 'unflipped')
+  press('Play settings')
+  check(labels().startsWith('Stockfish L3'), 'back on play page')
   press('Back')
-  check(labels() === 'Stockfish L3 10+5,Seek human 10+5,Puzzles,Coordinates,Settings', 'idle menu with new settings: ' + labels())
+  check(labels() === 'Stockfish L3 10+5,Maia 5 10+5,Seek human 10+5,Puzzles,Coordinates,Settings', 'idle menu with new settings: ' + labels())
   streams['/api/stream/event'].push({ type: 'challengeDeclined', challenge: { id: 'y' } })
   await until(() => board.panel.status.text === 'Challenge declined', 'declined shown on idle panel')
   $('time').value = '10'; $('inc').value = '0'; $('time').dispatchEvent(new Event('change'))
@@ -159,12 +178,12 @@ try {
   check(!streams['/api/board/game/stream/c1'], 'correspondence game ignored')
 
   press('Puzzles')
-  await until(() => labels() === 'Next puzzle,Stockfish L3 10+0,Seek human 10+0,Coordinates,Settings', 'puzzle bar, got ' + labels())
+  await until(() => labels() === 'Next puzzle,Flip board,Stockfish L3 10+0,Maia 5 10+0,Seek human 10+0,Coordinates,Settings', 'puzzle bar, got ' + labels())
   check(requests.filter(r => r.path.startsWith('/api/puzzle/next')).every(r => !r.auth), 'puzzles fetched anonymously')
 
   press('Coordinates')                               // trainer replaces puzzles
   await until(() => board.panel.status.big, 'trainer target shown')
-  check(labels() === 'New round,Stockfish L3 10+0,Seek human 10+0,Puzzles,Settings', 'trainer bar, got ' + labels())
+  check(labels() === 'New round,Stockfish L3 10+0,Maia 5 10+0,Seek human 10+0,Puzzles,Settings', 'trainer bar, got ' + labels())
   board._select(board.panel.status.big)
   check(board.panel.status.sub.startsWith('Score 1'), 'trainer scored, got ' + board.panel.status.sub)
   press('Puzzles')
@@ -176,7 +195,7 @@ try {
   check(board.panel.status.puzzle, 'still in puzzle view')
   delete streams['/api/board/game/stream/g2']
   streams['/api/stream/event'].push({ type: 'gameStart', game: { gameId: 'g2' } })
-  await until(() => labels() === 'Offer draw,Abort', 'seeked game replaces puzzles, got ' + labels())
+  await until(() => labels() === 'Offer draw,Flip board,Abort', 'seeked game replaces puzzles, got ' + labels())
   check(streams['/api/board/seek'].closed, 'seek closed on game start')
   check(!board.canPick('e7') && board.canPick('e2'), 'game board live, puzzle unbound')
   out.textContent = 'APP-OK'

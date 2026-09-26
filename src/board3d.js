@@ -21,6 +21,7 @@ const _m = new THREE.Matrix4()
 const TINT = { select: 0x8a7a1a, target: 0x1a6a2a, last: 0x1a3a6a, check: 0x9a1a1a }
 const HOVER = new THREE.Color(0x303030)   // added on top of the tile's tint
 const RAY_LEN = 1.5
+const BAR_X = 0.4
 const HEIGHT_RANGE = 0.45, HEIGHT_SPEED = 0.25 // table offset limit (m), m/s at full stick
 const PROXY_MAT = new THREE.MeshBasicMaterial({ visible: false })
 const DISC_GEO = new THREE.CircleGeometry(0.48 * SQUARE, 24)   // promotion picker slots
@@ -35,6 +36,8 @@ export class Board3D {
   onSquarePick = null        // square => ; when set, any square pick goes here (trainer)
   marks = {}                 // square -> tint hex, see setMarks
   handMode = 'ray'           // 'ray' = point & pinch, 'grab' = pinch-grab pieces
+  boardScale = 1
+  flipped = false
   onHeightChange = null      // (offset) => after a thumbstick height adjustment ends
 
   async init() {
@@ -92,6 +95,7 @@ export class Board3D {
     table.position.set(BOARD_POS.x, 0, BOARD_POS.z)
     table.receiveShadow = true
     this.stage.add(table)
+    this.table = table
 
     addEventListener('resize', () => {
       this.camera.aspect = innerWidth / innerHeight
@@ -203,7 +207,8 @@ export class Board3D {
     inner.position.z -= c.z
     // Invisible cylinder used for ray hits: cheap per-frame hover, easy to hit.
     const h = box.max.y - box.min.y, r = 0.42 * SQUARE / this.pieceScale
-    this.proxyGeo[type] ??= new THREE.CylinderGeometry(r, r, h, 12)
+    // thetaStart π/12: no cap triangle edge on the straight-ahead axis (edge-on rays can miss)
+    this.proxyGeo[type] ??= new THREE.CylinderGeometry(r, r, h, 12, 1, false, Math.PI / 12)
     const proxy = new THREE.Mesh(this.proxyGeo[type], PROXY_MAT)
     proxy.position.y = h / 2
     const group = new THREE.Group()
@@ -233,8 +238,30 @@ export class Board3D {
     this.stage.position.y = THREE.MathUtils.clamp(offset, -HEIGHT_RANGE, HEIGHT_RANGE)
   }
 
+  // color = the side the session plays; flipped (sticky, practice) views it from the other side.
   setOrientation(color) {
-    this.boardGroup.rotation.y = color === 'black' ? Math.PI : 0
+    this.orientation = color
+    this._orient()
+  }
+
+  setFlipped(flipped) {
+    this.flipped = flipped
+    this._orient()
+  }
+
+  _orient() {
+    const black = (this.orientation === 'black') !== !!this.flipped
+    this.boardGroup.rotation.y = black ? Math.PI : 0
+  }
+
+  // Board + pieces scale (1 = 6 cm squares); the table grows with bigger boards and the
+  // button bar moves out so it never overlaps the board or captured pieces.
+  setScale(s) {
+    this.boardScale = THREE.MathUtils.clamp(s, 0.5, 2)
+    const grow = Math.max(1, this.boardScale)
+    this.boardGroup.scale.setScalar(this.boardScale)
+    this.table.scale.set(grow, 1, grow)
+    this.bar.mesh.position.x = BAR_X + (grow - 1) * 0.35
   }
 
   setPosition(fen, lastMove = null) {
@@ -575,7 +602,7 @@ export class Board3D {
     this.panel.mesh.rotation.x = -0.15
     // Button bar right of the board, within arm's reach, turned toward the player.
     this.bar = new ButtonBar()
-    this.bar.mesh.position.set(0.4, 0.88, -0.34)
+    this.bar.mesh.position.set(BAR_X, 0.88, -0.34)
     this.bar.mesh.rotation.set(-0.5, -0.9, 0, 'YXZ')
     this.stage.add(this.panel.mesh, this.bar.mesh)
   }

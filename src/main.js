@@ -22,7 +22,7 @@ window.chessvr = { board } // debug handle (chrome://inspect, app-smoke test)
 
 // --- settings: 2D form fields, persisted so the in-VR menu uses the same values ---
 
-const FIELDS = ['time', 'inc', 'color', 'rated', 'ailevel', 'pdiff']
+const FIELDS = ['time', 'inc', 'color', 'rated', 'ailevel', 'maia', 'pdiff']
 const val = id => $(id).type === 'checkbox' ? $(id).checked : $(id).value
 function loadSettings() {
   let saved = {}
@@ -34,17 +34,23 @@ function saveSettings() {
   refresh()
 }
 const settings = () => ({
-  time: +val('time'), increment: +val('inc'), color: val('color'), rated: val('rated'), level: +val('ailevel')
+  time: +val('time'), increment: +val('inc'), color: val('color'), rated: val('rated'),
+  level: +val('ailevel'), maia: +val('maia'),
+  height: board.stage.position.y, scale: board.boardScale, flipped: !!board.flipped
 })
-const FIELD_OF = { time: 'time', increment: 'inc', color: 'color', rated: 'rated', level: 'ailevel' }
-function setSettings(patch) {
-  for (const [k, v] of Object.entries(patch)) $(FIELD_OF[k])[typeof v === 'boolean' ? 'checked' : 'value'] = v
-  saveSettings()
+const FIELD_OF = { time: 'time', increment: 'inc', color: 'color', rated: 'rated', level: 'ailevel', maia: 'maia' }
+// View settings live on the board and persist in their own localStorage keys.
+const VIEW_SETTERS = {
+  height: h => { board.setHeight(h); board.onHeightChange(board.stage.position.y) },
+  scale: s => { board.setScale(s); localStorage.setItem('boardScale', s) },
+  flipped: f => { board.setFlipped(f); localStorage.setItem('flipped', f ? '1' : '') }
 }
-function nudgeHeight(d) {
-  board.setHeight(board.stage.position.y + d)
-  board.onHeightChange(board.stage.position.y)
-  refresh()
+function setSettings(patch) {
+  for (const [k, v] of Object.entries(patch)) {
+    if (VIEW_SETTERS[k]) VIEW_SETTERS[k](v)
+    else $(FIELD_OF[k])[typeof v === 'boolean' ? 'checked' : 'value'] = v
+  }
+  saveSettings()
 }
 
 // --- in-VR menu ---
@@ -56,6 +62,7 @@ function menu({ except } = {}) {
   const acts = []
   if (username) {
     acts.push({ label: `Stockfish L${level} ${tc}`, run: playAi })
+    acts.push({ label: `Maia ${settings().maia} ${tc}`, run: playMaia })
     if (seeking()) acts.push({ label: 'Cancel seek', run: cancelSeek })
     else if (isRapid(time, increment)) acts.push({ label: `Seek human ${tc}`, run: seek }) // lichess: seeks rapid+
   }
@@ -180,6 +187,18 @@ function startActivity(make) {
   view = make()
 }
 
+// Maia: human-like lichess bots (maia1/5/9), challenged directly; they accept on their own.
+async function playMaia() {
+  if (gameRunning()) return
+  const { maia, time, increment, rated, color } = settings()
+  notify(`Challenging Maia ${maia}…`)
+  try {
+    await lichess.challenge('maia' + maia, { time, increment, rated, color })
+  } catch (e) {
+    notify('Maia challenge failed: ' + e.message)
+  }
+}
+
 function startPuzzles() {
   startActivity(() => {
     // Anonymous on purpose: a board:play token lacks puzzle:read and would get 403.
@@ -191,9 +210,7 @@ function startPuzzles() {
 
 function openSettings() {
   startActivity(() => settingsView({
-    board, get: settings, set: setSettings,
-    height: { get: () => board.stage.position.y, nudge: nudgeHeight },
-    onBack: () => { view = null; refresh() }
+    board, get: settings, set: setSettings, onBack: () => { view = null; refresh() }
   }))
   refresh()
 }
@@ -212,6 +229,8 @@ loadSettings()
 for (const id of FIELDS) $(id).onchange = saveSettings
 
 board.setHeight(+localStorage.getItem('tableHeight') || 0)
+board.setScale(+localStorage.getItem('boardScale') || 1)
+board.setFlipped(!!localStorage.getItem('flipped'))
 board.onHeightChange = h => localStorage.setItem('tableHeight', h.toFixed(3))
 
 $('handmode').value = localStorage.getItem('handMode') || 'ray'
@@ -227,6 +246,7 @@ $('connect').onclick = () => {
 }
 $('seek').onclick = seek
 $('ai').onclick = playAi
+$('maiaBtn').onclick = playMaia
 $('puzzle').onclick = startPuzzles
 $('coords').onclick = startTrainer
 $('resign').onclick = () => {

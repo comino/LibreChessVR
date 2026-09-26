@@ -66,7 +66,7 @@ try {
   check(!board.canPick('e2'), 'nothing pickable before gameFull')
   push(full(''))
   check(game.color === 'white' && text === 'Your move', 'white to move, got ' + text)
-  check(labels() === 'Offer draw,Abort', 'opening buttons: ' + labels())
+  check(labels() === 'Offer draw,Flip board,Abort', 'opening buttons: ' + labels())
   check(board.canPick('e2') && !board.canPick('e7'), 'canPick own pieces')
 
   board.onMove('e2', 'e4')
@@ -74,7 +74,12 @@ try {
   push(state('e2e4'))                                  // echo: no-op
   check(game.chess.history().length === 1, 'echo not re-applied')
   push(state('e2e4 e7e5'))
-  check(labels() === 'Offer draw,Resign', 'resign after both moved: ' + labels())
+  check(labels() === 'Offer draw,Flip board,Resign', 'resign after both moved: ' + labels())
+  press('Flip board')
+  check(Math.abs(board.boardGroup.rotation.y - Math.PI) < 1e-9, 'white game viewed from black side')
+  check(board.canPick('e2') === false && board.canPick('g1'), 'moves unaffected by the flip')
+  press('Flip board')
+  check(board.boardGroup.rotation.y === 0, 'flip back')
   const ts0 = board.panel.status.ts
   await sleep(30); game.render()
   check(board.panel.status.ts === ts0, 're-render keeps the server snapshot time (no clock jump)')
@@ -108,11 +113,11 @@ try {
 
   push(state('e2e4 e7e5', { bdraw: true }))
   check(text === 'Draw offered to you', 'draw offer visible, got ' + text)
-  check(labels() === 'Accept draw,Decline draw,Resign', 'draw buttons: ' + labels())
+  check(labels() === 'Accept draw,Decline draw,Flip board,Resign', 'draw buttons: ' + labels())
   press('Accept draw'); await sleep(0)
   check(calls.at(-1) === 'draw true', 'draw accepted')
   push(state('e2e4 e7e5', { wdraw: true }))
-  check(text === 'You offered a draw' && labels() === 'Resign', 'own offer: ' + text + ' / ' + labels())
+  check(text === 'You offered a draw' && labels() === 'Flip board,Resign', 'own offer: ' + text + ' / ' + labels())
 
   // Opponent takeback: moves list shrinks -> state rebuilt from scratch
   board.onMove('g1', 'f3')

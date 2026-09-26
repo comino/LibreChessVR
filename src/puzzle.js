@@ -65,7 +65,8 @@ export class PuzzleSession {
   _status(text) {
     this.text = text
     const actions = [{ label: 'Next puzzle', run: () => this.next() },
-      ...this._myTurn() ? [{ label: 'Hint', run: () => this.hint() }] : [], ...this.menu?.() ?? []]
+      ...this._myTurn() ? [{ label: 'Hint', run: () => this.hint() }] : [],
+      { label: 'Flip board', run: () => this.board.setFlipped(!this.board.flipped) }, ...this.menu?.() ?? []]
     this.board.setStatus({ puzzle: true, text, sub: this.info, actions })
     this.onStatus?.(text)
   }

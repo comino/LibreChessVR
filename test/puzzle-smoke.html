@@ -45,7 +45,7 @@ try {
   check(status === 'Find the best move for white', 'initial status, got: ' + status)
   check(board.canPick('f1') && !board.canPick('e7'), 'canPick own pieces only')
 
-  check(board.bar.buttons.map(b => b.label).join() === 'Next puzzle,Hint', 'puzzle bar: ' + board.bar.buttons.map(b => b.label))
+  check(board.bar.buttons.map(b => b.label).join() === 'Next puzzle,Hint,Flip board', 'puzzle bar: ' + board.bar.buttons.map(b => b.label))
   board.bar.buttons[1].run()                   // Hint: f1 bishop
   check(board.tiles.f1.material.emissive.getHex() === 0x8a6a1a, 'hint marks f1')
   const fen = puzzles.chess.fen()

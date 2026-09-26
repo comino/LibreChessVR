@@ -22,7 +22,7 @@ player who normally plays 2D. Static web app, no build step, no backend, no npm.
 | `src/game.js` | `GameSession`: one game stream ↔ chess.js ↔ board. Optimistic local moves, rollback on server reject, offers → button bar. |
 | `src/puzzle.js` | `PuzzleSession`: fetches `/api/puzzle/next`, replays game PGN, validates solution moves, auto-plays replies, auto-advances. |
 | `src/trainer.js` | `TrainerSession`: coordinate drill — big target square on the panel, point at it; 30 s rounds alternating white/black view; best in `localStorage.coordBest`. |
-| `src/settings.js` | In-VR settings page (cycle level/time/color/rated, table ↑/↓, Back); `cycle()` is unit-tested. main.js maps it onto the 2D form fields (single source of truth). |
+| `src/settings.js` | In-VR settings, two pages: Play (Stockfish level, Maia 1/5/9, time, color, rated) and View (board scale, table ↑/↓, flipped view). `cycle()` unit-tested. main.js maps Play values onto the 2D form fields; View values live on the board (`VIEW_SETTERS`, own localStorage keys). |
 | `src/main.js` | 2D page + in-VR menu (`menu()`: Stockfish/seek/cancel/puzzles, from persisted `settings`), event stream, resumes ongoing game. `view` = what the panel shows; `refresh()` re-renders it. `window.chessvr.board` = debug handle. |
 | `assets/chess.glb` | Piece models (from old prototype). Node names `Pawn/Knight/...`; each piece has `*_Plastic_0` (shown, recolored) and `*_Velvet_0` (hidden) meshes. |
 
@@ -42,6 +42,14 @@ player who normally plays 2D. Static web app, no build step, no backend, no npm.
 - Hover state lives in `board.hover[key]` (`mouse`, `c0`, `c1`, `grab`); tints are
   recomputed in `_applyTints` (last move < check < selection < hover brighten).
 - XR controller groups have `matrixAutoUpdate = false` — tests must `updateMatrix()`.
+- Orientation = `setOrientation(color)` (session's side) XOR `setFlipped(bool)` (sticky practice
+  view, also a "Flip board" button in games/puzzles). Never remap coordinates for either.
+- `setScale(s)` scales `boardGroup` (all logic is in board-local units, so input needs no
+  changes), grows the table for s>1 and moves the bar out (`BAR_X`).
+- Proxy cylinders use `thetaStart = π/12`: a ray exactly along a cap-triangle edge (e.g. aiming
+  straight at a piece's axis) can miss both triangles.
+- Maia = lichess bots `maia1/5/9`, challenged via `POST /api/challenge/{bot}`; they accept
+  on their own and the normal `gameStart` path attaches the game.
 - `board.stage` holds table + board + panel + bar; `setHeight(offset)` (±0.45 m) moves it.
   Thumbstick Y on either controller adjusts it; `onHeightChange` fires once on release and
   main.js persists `localStorage.tableHeight`. The table box reaches below the floor.

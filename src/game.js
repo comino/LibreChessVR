@@ -161,6 +161,7 @@ export class GameSession {
     if (s[opp + 'takeback']) acts.push(
       { label: 'Accept takeback', run: call(() => li.takeback(id, true)) },
       { label: 'Decline takeback', run: call(() => li.takeback(id, false)) })
+    acts.push({ label: 'Flip board', run: () => this.board.setFlipped(!this.board.flipped) })
     acts.push(this.applied < 2
       ? { label: 'Abort', run: call(() => li.abort(id)) }
       : { label: 'Resign', confirm: true, run: call(() => li.resign(id)) })
