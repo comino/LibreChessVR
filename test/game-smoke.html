@@ -69,11 +69,16 @@ try {
   check(labels() === 'Offer draw,Flip board,Abort', 'opening buttons: ' + labels())
   check(board.canPick('e2') && !board.canPick('e7'), 'canPick own pieces')
 
+  const spoken = []
+  Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: { cancel() {}, speak: u => spoken.push(u.text) } })
+  board.voice = 'opponent'
   board.onMove('e2', 'e4')
   check(calls.at(-1) === 'move e2e4' && game.applied === 1, 'optimistic move sent')
   push(state('e2e4'))                                  // echo: no-op
   check(game.chess.history().length === 1, 'echo not re-applied')
   push(state('e2e4 e7e5'))
+  check(spoken.join('|') === 'Pawn E 5', 'only the opponent move spoken: ' + spoken)
+  board.voice = 'off'
   check(labels() === 'Offer draw,Flip board,Resign', 'resign after both moved: ' + labels())
   press('Flip board')
   check(Math.abs(board.boardGroup.rotation.y - Math.PI) < 1e-9, 'white game viewed from black side')

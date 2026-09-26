@@ -22,6 +22,7 @@ player who normally plays 2D. Static web app, no build step, no backend, no npm.
 | `src/game.js` | `GameSession`: one game stream ↔ chess.js ↔ board. Optimistic local moves, rollback on server reject, offers → button bar. |
 | `src/puzzle.js` | `PuzzleSession`: fetches `/api/puzzle/next`, replays game PGN, validates solution moves, auto-plays replies, auto-advances. |
 | `src/rush.js` | `RushSession extends PuzzleSession`: 3 min, 3 lives, wrong move = life lost + next puzzle, difficulty rises every 5 solved; best in `localStorage.rushBest`. Overrides the puzzle hooks only. |
+| `src/speech.js` | `moveToSpeech(verboseMove)` (pure, unit-tested: "Knight takes F 3, check") + `speak()` via speechSynthesis. `board.announce(move, mine)` filters by `board.voice` (off/opponent/all). |
 | `src/trainer.js` | `TrainerSession`: coordinate drill — big target square on the panel, point at it; 30 s rounds alternating white/black view; best in `localStorage.coordBest`. |
 | `src/environments.js` | Procedural scenes (minimal, study, sunset, night): builders return a group + background/fog/exposure/light params; `woodTexture()` canvas grain; `disposeGroup()`. |
 | `src/settings.js` | In-VR settings, three pages: Play (Stockfish level, Maia 1/5/9, time, color, rated) View (scene, board scale, table ↑/↓, flipped view) and Puzzles (difficulty, theme). `cycle()` unit-tested. main.js maps Play values onto the 2D form fields; View values live on the board (`VIEW_SETTERS`, own localStorage keys). |

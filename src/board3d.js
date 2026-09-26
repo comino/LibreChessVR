@@ -12,6 +12,7 @@ import { buildEnvironment, disposeGroup, woodTexture } from './environments.js'
 import { squareToXZ, xzToSquare, parseFen, captured } from './coords.js'
 import { StatusPanel, ButtonBar } from './panel.js'
 import { playCue, buzz } from './feedback.js'
+import { moveToSpeech, speak } from './speech.js'
 
 const SQUARE = 0.06                      // 6cm squares -> 48cm board, tournament-ish size
 const BOARD_POS = new THREE.Vector3(0, 0.73, -0.45)
@@ -39,6 +40,7 @@ export class Board3D {
   handMode = 'ray'           // 'ray' = point & pinch, 'grab' = pinch-grab pieces
   boardScale = 1
   pieceStyle = 'solid'
+  voice = 'off'              // 'off' | 'opponent' | 'all': spoken moves
   flipped = false
   onHeightChange = null      // (offset) => after a thumbstick height adjustment ends
 
@@ -367,6 +369,11 @@ export class Board3D {
   }
 
   cue(kind) { playCue(kind) }
+
+  // Speaks a chess.js verbose move if the voice setting covers it (mine = the player's move).
+  announce(move, mine = false) {
+    if (move && (this.voice === 'all' || (this.voice === 'opponent' && !mine))) speak(moveToSpeech(move))
+  }
 
   // Extra square tints owned by a session, e.g. {e4: 0x1a6a2a}; {} clears.
   setMarks(marks) {

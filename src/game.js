@@ -106,6 +106,7 @@ export class GameSession {
     for (const uci of moves.slice(this.applied)) last = this._applyUci(uci)
     this.applied = Math.max(this.applied, moves.length)
     if (last || moves.length === 0) this.board.setPosition(this.chess.fen(), last)
+    if (last) this.board.announce(last, last.color === this.color[0])
     const wasFinished = this.finished
     this.state = state
     this.stateTs = performance.now()
@@ -182,6 +183,7 @@ export class GameSession {
     this.shown = this.replayIdx == null ? null : c
     const m = hist[i - 1]
     this.board.setPosition(c.fen(), m && { from: m.from, to: m.to })
+    if (d > 0 && d !== Infinity) this.board.announce(m) // forward step names the move just replayed
     this._render()
   }
 
@@ -240,6 +242,7 @@ export class GameSession {
     this.applied++ // optimistic; the stream echo then adds nothing
     const sent = this.applied
     this.board.setPosition(this.chess.fen(), { from, to })
+    this.board.announce(mv, true)
     this.lichess.move(this.gameId, from + to + (mv.promotion || '')).catch(e => {
       // stopped (board may belong to another session) or a reconnect already resynced
       if (this.abort.signal.aborted || this.applied !== sent) return

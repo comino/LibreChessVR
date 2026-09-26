@@ -155,7 +155,10 @@ try {
   check(labels().includes('Maia 5'), 'maia cycles 9 -> 1 -> 5')
 
   press('View settings')
-  check(labels() === 'Scene study,Pieces solid,Board 100%,Table up,Table down,Normal view,Play settings,Back', 'view page: ' + labels())
+  check(labels() === 'Scene study,Pieces solid,Voice off,Board 100%,Table up,Table down,Normal view,Play settings,Back', 'view page: ' + labels())
+  press('Voice off')
+  check(board.voice === 'opponent' && localStorage.getItem('voice') === 'opponent', 'voice cycled + saved')
+  press('Voice opponent'); press('Voice all')
   press('Pieces solid')
   check(board.pieceStyle === 'ghost' && localStorage.getItem('pieceStyle') === 'ghost', 'piece style cycled + saved')
   press('Pieces ghost'); press('Pieces hidden')

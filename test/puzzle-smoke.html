@@ -44,7 +44,11 @@ try {
   const puzzles = new PuzzleSession({ lichess, board, onStatus: t => { status = t },
     options: () => ({ difficulty: 'harder', angle: 'mateIn2' }) })
 
+  const spoken = []
+  Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: { cancel() {}, speak: u => spoken.push(u.text) } })
+  board.voice = 'all'
   await puzzles.next('normal')
+  check(spoken.join('|') === 'Pawn E 5', 'setup move spoken: ' + spoken)
   check(status === 'Find the best move for white', 'initial status, got: ' + status)
   check(board.canPick('f1') && !board.canPick('e7'), 'canPick own pieces only')
 
@@ -62,6 +66,8 @@ try {
   board.bar.buttons.find(b => b.label === 'Hint').run()    // d1 queen
   check(board.marks.d1, 'second hint on d1')
   check(status === 'Your move (white)', 'opponent replied')
+  check(spoken.slice(1, 3).join('|') === 'Bishop C 4|Knight C 6', 'own + reply spoken in "all" mode: ' + spoken)
+  board.voice = 'off'
   check(puzzles.chess.get('c6')?.type === 'n', 'reply applied on board state')
   board.onMove('d1', 'h5')
   check(!board.bar.buttons.some(b => b.label === 'Hint'), 'no hint while the reply is pending')

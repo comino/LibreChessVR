@@ -84,6 +84,7 @@ export class PuzzleSession {
     this.board.setOrientation(this.color)
     const last = this.chess.history({ verbose: true }).at(-1)
     this.board.setPosition(this.chess.fen(), last && { from: last.from, to: last.to })
+    this.board.announce(last)
     this._status(`Find the best move for ${this.color}`)
   }
 
@@ -139,6 +140,7 @@ export class PuzzleSession {
     this.idx++
     this.board.setMarks({})
     this.board.setPosition(this.chess.fen(), { from: mv.from, to: mv.to })
+    this.board.announce(mv, true)
     if (this.idx >= this.solution.length || this.chess.isCheckmate()) {
       this.running = false
       this._solved()
@@ -161,6 +163,7 @@ export class PuzzleSession {
     }
     this.board.setMarks({})
     this.board.setPosition(this.chess.fen(), { from: mv.from, to: mv.to })
+    this.board.announce(mv)
     this._status(`Your move (${this.color})`)
   }
 }

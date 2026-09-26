@@ -3,6 +3,7 @@ import { strict as assert } from 'assert'
 import { squareToXZ, xzToSquare, parseFen, captured } from '../src/coords.js'
 import { makeLineSplitter, isRapid, Lichess } from '../src/lichess.js'
 import { cycle, TIME_PRESETS } from '../src/settings.js'
+import { moveToSpeech } from '../src/speech.js'
 
 // --- coords ---
 assert.deepEqual(squareToXZ('a1'), { x: -3.5, z: 3.5 })
@@ -72,6 +73,16 @@ assert.equal(cycle(TIME_PRESETS, '10+0'), '10+5')
 assert.equal(cycle(TIME_PRESETS, '30+0'), '3+2')     // wraps
 assert.equal(cycle(TIME_PRESETS, '7+7'), '3+2')      // unknown -> first
 assert.equal(cycle(['random', 'white', 'black'], 'black'), 'random')
+
+// --- spoken moves ---
+const mv = (piece, to, flags = 'n', san = 'x', extra = {}) => ({ piece, to, flags, san, ...extra })
+assert.equal(moveToSpeech(mv('n', 'f3', 'n', 'Nf3')), 'Knight F 3')
+assert.equal(moveToSpeech(mv('p', 'd5', 'c', 'exd5', { captured: 'p' })), 'Pawn takes D 5')
+assert.equal(moveToSpeech(mv('q', 'f7', 'c', 'Qxf7#', { captured: 'p' })), 'Queen takes F 7, checkmate')
+assert.equal(moveToSpeech(mv('b', 'b5', 'n', 'Bb5+')), 'Bishop B 5, check')
+assert.equal(moveToSpeech(mv('k', 'g1', 'k', 'O-O')), 'Castles kingside')
+assert.equal(moveToSpeech(mv('k', 'c8', 'q', 'O-O-O+')), 'Castles queenside, check')
+assert.equal(moveToSpeech(mv('p', 'e8', 'np', 'e8=N+', { promotion: 'n' })), 'Pawn E 8, promotes to knight, check')
 
 // --- stream watchdog: silent stream -> 'Stream stalled'; data keeps it alive; abort stays AbortError ---
 const enc = new TextEncoder()
