@@ -99,4 +99,12 @@ await assert.rejects(li.stream('/x', () => {}, ac.signal, {}, 5000), e => e.name
 const pre = new AbortController(); pre.abort()
 await assert.rejects(li.stream('/x', () => {}, pre.signal, {}, 5000), e => e.name === 'AbortError')
 
+// --- puzzleNext query ---
+const urls = []
+globalThis.fetch = async url => { urls.push(url); return new Response('{}') }
+await new Lichess().puzzleNext('harder', 'fork')
+await new Lichess().puzzleNext('normal')
+assert.equal(urls[0], 'https://lichess.org/api/puzzle/next?difficulty=harder&angle=fork')
+assert.equal(urls[1], 'https://lichess.org/api/puzzle/next?difficulty=normal')
+
 console.log('All tests passed')

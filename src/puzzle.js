@@ -6,10 +6,18 @@ import { bindBoard } from './bind.js'
 
 const HINT = 0x8a6a1a
 
+// Streak = puzzles solved in a row without a mistake or hint; kept across sessions.
+function loadStats() {
+  try { return { streak: 0, best: 0, solved: 0, ...JSON.parse(localStorage.getItem('puzzleStats')) } }
+  catch { return { streak: 0, best: 0, solved: 0 } }
+}
+
 export class PuzzleSession {
   // menu: () => extra actions for the button bar (start a game, seek, …)
-  constructor({ lichess, board, onStatus, menu }) {
-    Object.assign(this, { lichess, board, onStatus, menu })
+  // options: () => {difficulty, angle} read on every fetch, so settings apply to the next puzzle
+  constructor({ lichess, board, onStatus, menu, options }) {
+    Object.assign(this, { lichess, board, onStatus, menu, options })
+    this.stats = loadStats()
     this.running = false
     this.run = 0 // bumps on stop(), so a fetch finishing late is dropped
   }
@@ -17,14 +25,14 @@ export class PuzzleSession {
   active() { return this.running }
   render() { this._status(this.text) }
 
-  async next(difficulty = this.difficulty) {
+  async next() {
     this.stop()
     const run = this.run
-    this.difficulty = difficulty
+    const { difficulty, angle } = this.options?.() ?? {}
     this._status('Fetching puzzle…')
     let data
     try {
-      data = await this.lichess.puzzleNext(difficulty)
+      data = await this.lichess.puzzleNext(difficulty, angle)
     } catch (e) {
       if (run === this.run) this._status('Puzzle fetch failed: ' + e.message)
       return
@@ -39,10 +47,24 @@ export class PuzzleSession {
     this.board.setMarks({})
   }
 
-  // Lights up the piece that has to move next.
+  // Lights up the piece that has to move next (breaks the streak).
   hint() {
     const uci = this._myTurn() && this.solution[this.idx]
-    if (uci) this.board.setMarks({ [uci.slice(0, 2)]: HINT })
+    if (!uci) return
+    this._miss()
+    this.board.setMarks({ [uci.slice(0, 2)]: HINT })
+    this.render()
+  }
+
+  _miss() {
+    this.clean = false
+    this._saveStats({ streak: 0 })
+  }
+
+  _saveStats(patch) {
+    Object.assign(this.stats, patch)
+    this.stats.best = Math.max(this.stats.best, this.stats.streak)
+    try { localStorage.setItem('puzzleStats', JSON.stringify(this.stats)) } catch { /* private mode */ }
   }
 
   _setup({ game, puzzle }) {
@@ -51,6 +73,7 @@ export class PuzzleSession {
     this.solution = puzzle.solution
     this.idx = 0
     this.info = `Puzzle ${puzzle.id} • rating ${puzzle.rating}`
+    this.clean = true
     this.color = this.chess.turn() === 'w' ? 'white' : 'black'
     this.running = true
     bindBoard(this.board, this)
@@ -67,7 +90,9 @@ export class PuzzleSession {
     const actions = [{ label: 'Next puzzle', run: () => this.next() },
       ...this._myTurn() ? [{ label: 'Hint', run: () => this.hint() }] : [],
       { label: 'Flip board', run: () => this.board.setFlipped(!this.board.flipped) }, ...this.menu?.() ?? []]
-    this.board.setStatus({ puzzle: true, text, sub: this.info, actions })
+    const { streak, best } = this.stats
+    const sub = this.info && `${this.info} • streak ${streak} (best ${best})`
+    this.board.setStatus({ puzzle: true, text, sub, actions })
     this.onStatus?.(text)
   }
 
@@ -85,6 +110,7 @@ export class PuzzleSession {
       this.chess.undo()
       this.board.setPosition(this.chess.fen())
       this.board.cue('error')
+      this._miss()
       this._status('Not it — try again')
       return
     }
@@ -93,6 +119,7 @@ export class PuzzleSession {
     this.board.setPosition(this.chess.fen(), { from: mv.from, to: mv.to })
     if (this.idx >= this.solution.length || this.chess.isCheckmate()) {
       this.running = false
+      this._saveStats({ streak: this.clean ? this.stats.streak + 1 : 0, solved: this.stats.solved + 1 })
       this.board.cue('success')
       this._status('Solved! Next puzzle…')
       this.timer = setTimeout(() => this.next(), 2000)

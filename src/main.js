@@ -22,7 +22,7 @@ window.chessvr = { board } // debug handle (chrome://inspect, app-smoke test)
 
 // --- settings: 2D form fields, persisted so the in-VR menu uses the same values ---
 
-const FIELDS = ['time', 'inc', 'color', 'rated', 'ailevel', 'maia', 'pdiff']
+const FIELDS = ['time', 'inc', 'color', 'rated', 'ailevel', 'maia', 'pdiff', 'ptheme']
 const val = id => $(id).type === 'checkbox' ? $(id).checked : $(id).value
 function loadSettings() {
   let saved = {}
@@ -35,11 +35,11 @@ function saveSettings() {
 }
 const settings = () => ({
   time: +val('time'), increment: +val('inc'), color: val('color'), rated: val('rated'),
-  level: +val('ailevel'), maia: +val('maia'),
+  level: +val('ailevel'), maia: +val('maia'), pdiff: val('pdiff'), ptheme: val('ptheme'),
   height: board.stage.position.y, scale: board.boardScale, flipped: !!board.flipped,
   environment: board.environment
 })
-const FIELD_OF = { time: 'time', increment: 'inc', color: 'color', rated: 'rated', level: 'ailevel', maia: 'maia' }
+const FIELD_OF = { time: 'time', increment: 'inc', color: 'color', rated: 'rated', level: 'ailevel', maia: 'maia', pdiff: 'pdiff', ptheme: 'ptheme' }
 // View settings live on the board and persist in their own localStorage keys.
 const VIEW_SETTERS = {
   height: h => { board.setHeight(h); board.onHeightChange(board.stage.position.y) },
@@ -204,8 +204,9 @@ async function playMaia() {
 function startPuzzles() {
   startActivity(() => {
     // Anonymous on purpose: a board:play token lacks puzzle:read and would get 403.
-    const p = new PuzzleSession({ lichess: new Lichess(), board, onStatus: msg, menu: () => menu({ except: 'Puzzles' }) })
-    p.next(val('pdiff'))
+    const p = new PuzzleSession({ lichess: new Lichess(), board, onStatus: msg, menu: () => menu({ except: 'Puzzles' }),
+      options: () => ({ difficulty: val('pdiff'), angle: val('ptheme') === 'mix' ? undefined : val('ptheme') }) })
+    p.next()
     return p
   })
 }

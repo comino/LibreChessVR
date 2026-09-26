@@ -23,7 +23,7 @@ player who normally plays 2D. Static web app, no build step, no backend, no npm.
 | `src/puzzle.js` | `PuzzleSession`: fetches `/api/puzzle/next`, replays game PGN, validates solution moves, auto-plays replies, auto-advances. |
 | `src/trainer.js` | `TrainerSession`: coordinate drill — big target square on the panel, point at it; 30 s rounds alternating white/black view; best in `localStorage.coordBest`. |
 | `src/environments.js` | Procedural scenes (minimal, study, sunset, night): builders return a group + background/fog/exposure/light params; `woodTexture()` canvas grain; `disposeGroup()`. |
-| `src/settings.js` | In-VR settings, two pages: Play (Stockfish level, Maia 1/5/9, time, color, rated) and View (board scale, table ↑/↓, flipped view). `cycle()` unit-tested. main.js maps Play values onto the 2D form fields; View values live on the board (`VIEW_SETTERS`, own localStorage keys). |
+| `src/settings.js` | In-VR settings, three pages: Play (Stockfish level, Maia 1/5/9, time, color, rated) View (scene, board scale, table ↑/↓, flipped view) and Puzzles (difficulty, theme). `cycle()` unit-tested. main.js maps Play values onto the 2D form fields; View values live on the board (`VIEW_SETTERS`, own localStorage keys). |
 | `src/main.js` | 2D page + in-VR menu (`menu()`: Stockfish/seek/cancel/puzzles, from persisted `settings`), event stream, resumes ongoing game. `view` = what the panel shows; `refresh()` re-renders it. `window.chessvr.board` = debug handle. |
 | `assets/chess.glb` | Piece models (from old prototype). Node names `Pawn/Knight/...`; each piece has `*_Plastic_0` (shown, recolored) and `*_Velvet_0` (hidden) meshes. |
 
@@ -74,6 +74,9 @@ player who normally plays 2D. Static web app, no build step, no backend, no npm.
 - Post-game replay (`_step`): builds a chess.js instance for move i and sets `session.shown`;
   bindBoard's `checkSquare` uses `shown ?? chess`. `replayIdx == null` = final position.
   No rematch/replay buttons after `_fail` (state untrustworthy).
+- Puzzles: `options()` (difficulty + lichess `angle` theme) is read on every fetch, so settings
+  apply to the next puzzle. Streak/best/solved in `localStorage.puzzleStats`; any wrong move or
+  hint sets `clean = false` and resets the streak immediately.
 - Puzzle **Hint** = `setMarks` on the from-square of the next solution move; any move,
   `stop()` and `bindBoard` clear marks.
 - `opponentGone` → countdown text, then a "Claim win" button (`claim-victory`).

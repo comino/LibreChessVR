@@ -119,7 +119,10 @@ export class Lichess {
     })
   }
 
-  puzzleNext(difficulty = 'normal') { return this._get('/api/puzzle/next?difficulty=' + difficulty) }
+  // angle: lichess puzzle theme (e.g. 'fork', 'mateIn2'); omitted = mixed
+  puzzleNext(difficulty = 'normal', angle) {
+    return this._get('/api/puzzle/next?' + new URLSearchParams({ difficulty, ...angle && { angle } }))
+  }
 
   move(gameId, uci) { return this._post(`/api/board/game/${gameId}/move/${uci}`) }
   resign(gameId) { return this._post(`/api/board/game/${gameId}/resign`) }

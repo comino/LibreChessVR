@@ -141,7 +141,7 @@ try {
   // Settings page: cycle values, persisted, reflected in the menu; table buttons; Back
   press('Settings')
   check(board.panel.status.text === 'Settings · Play', 'settings shown')
-  check(labels() === 'Stockfish L2,Maia 5,Time 10+0,Color random,Casual,View settings,Back', 'play page: ' + labels())
+  check(labels() === 'Stockfish L2,Maia 5,Time 10+0,Color random,Casual,Puzzle settings,View settings,Back', 'play page: ' + labels())
   press('Stockfish L2'); press('Maia 5'); press('Time 10+0'); press('Color random'); press('Casual')
   check(labels().startsWith('Stockfish L3,Maia 9,Time 10+5,Color white,Rated'), 'cycled: ' + labels())
   check($('ailevel').value === '3' && $('maia').value === '9' && $('inc').value === '5' && $('color').value === 'white' && $('rated').checked, '2D form updated')
@@ -169,6 +169,11 @@ try {
   check(!board.flipped && localStorage.getItem('flipped') === '', 'unflipped')
   press('Play settings')
   check(labels().startsWith('Stockfish L3'), 'back on play page')
+  press('Puzzle settings')
+  check(labels() === 'Level normal,Mixed,Play settings,Back', 'puzzle page: ' + labels())
+  press('Level normal'); press('Mixed'); press('Mate in 1')
+  check(labels().startsWith('Level harder,Mate in 2') && $('pdiff').value === 'harder' && $('ptheme').value === 'mateIn2', 'puzzle settings cycled: ' + labels())
+  press('Play settings')
   press('Back')
   check(labels() === 'Stockfish L3 10+5,Maia 5 10+5,Seek human 10+5,Puzzles,Coordinates,Settings', 'idle menu with new settings: ' + labels())
   streams['/api/stream/event'].push({ type: 'challengeDeclined', challenge: { id: 'y' } })
@@ -183,6 +188,7 @@ try {
   press('Puzzles')
   await until(() => labels() === 'Next puzzle,Flip board,Stockfish L3 10+0,Maia 5 10+0,Seek human 10+0,Coordinates,Settings', 'puzzle bar, got ' + labels())
   check(requests.filter(r => r.path.startsWith('/api/puzzle/next')).every(r => !r.auth), 'puzzles fetched anonymously')
+  check(requests.some(r => r.path === '/api/puzzle/next?difficulty=harder&angle=mateIn2'), 'puzzle settings used in the fetch')
 
   press('Coordinates')                               // trainer replaces puzzles
   await until(() => board.panel.status.big, 'trainer target shown')

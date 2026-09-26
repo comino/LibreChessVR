@@ -33,13 +33,16 @@ const fixtures = [
     puzzle: { id: 'testB', rating: 600, solution: ['d8h4'] } }
 ]
 let fetches = 0
-const lichess = { puzzleNext: async () => fixtures[fetches++ % 2] }
+const fetchArgs = []
+const lichess = { puzzleNext: async (...a) => { fetchArgs.push(a); return fixtures[fetches++ % 2] } }
+localStorage.removeItem('puzzleStats')
 
 try {
   const board = new Board3D()
   await board.init()
   let status = ''
-  const puzzles = new PuzzleSession({ lichess, board, onStatus: t => { status = t } })
+  const puzzles = new PuzzleSession({ lichess, board, onStatus: t => { status = t },
+    options: () => ({ difficulty: 'harder', angle: 'mateIn2' }) })
 
   await puzzles.next('normal')
   check(status === 'Find the best move for white', 'initial status, got: ' + status)
@@ -74,6 +77,11 @@ try {
   board.onMove('d8', 'h4')                     // Qh4#
   check(status === 'Solved! Next puzzle…', 'puzzle B solved')
   check(fetches === 2, 'fetch count')
+  check(fetchArgs.every(a => a[0] === 'harder' && a[1] === 'mateIn2'), 'options passed to fetch: ' + JSON.stringify(fetchArgs))
+  // A: wrong move + hint -> not clean -> streak stays 0; B: clean -> streak 1
+  const stats = JSON.parse(localStorage.getItem('puzzleStats'))
+  check(stats.streak === 1 && stats.best === 1 && stats.solved === 2, 'streak after A (dirty) + B (clean): ' + JSON.stringify(stats))
+  check(board.panel.status.sub.endsWith('streak 1 (best 1)'), 'streak on panel: ' + board.panel.status.sub)
   check(board.bar.buttons[0]?.label === 'Next puzzle', 'Next puzzle button')
 
   // Race: stop() while a fetch is in flight -> the late puzzle must not take the board
@@ -86,6 +94,18 @@ try {
   board.canPick = sentinel
   release(fixtures[0]); await pending
   check(board.canPick === sentinel && !slow.running, 'stopped puzzle did not hijack the board')
+
+  // Streak grows with clean solves, hint breaks it, best is kept; persists across sessions
+  const clean = () => ({ game: { pgn: 'f3 e5 g4' }, puzzle: { id: 'm', rating: 600, solution: ['d8h4'] } })
+  const s2 = new PuzzleSession({ board, onStatus: () => {}, lichess: { puzzleNext: async () => clean() } })
+  check(s2.stats.streak === 1, 'stats loaded from storage')
+  await s2.next(); board.onMove('d8', 'h4'); s2.stop()
+  await s2.next(); board.onMove('d8', 'h4'); s2.stop()
+  check(s2.stats.streak === 3 && s2.stats.best === 3, 'streak 3: ' + JSON.stringify(s2.stats))
+  await s2.next(); s2.hint()
+  check(s2.stats.streak === 0 && s2.stats.best === 3, 'hint resets streak, best kept')
+  board.onMove('d8', 'h4'); s2.stop()
+  check(s2.stats.streak === 0 && s2.stats.solved === 5, 'hinted solve does not count for streak')
 
   // Underpromotion: queen is wrong, knight solves
   const promo = new PuzzleSession({ board, onStatus: t => { status = t }, lichess: { puzzleNext: async () => ({
