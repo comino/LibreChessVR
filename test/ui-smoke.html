@@ -343,6 +343,31 @@ try {
   check(Math.abs(board.sun.shadow.camera.right - 1.05) < 1e-9, 'shadow box scaled: ' + board.sun.shadow.camera.right)
   board.setScale(1)
 
+  // --- blindfold styles: hidden pieces stay pickable; picker always solid; timed reveal ---
+  board.setPosition('8/4P3/8/8/8/8/k7/4K3 w - - 0 1')
+  const wMat = board.pieceMat.w
+  board.setPieceStyle('ghost')
+  check(wMat.transparent && wMat.opacity === 0.25 && wMat.visible, 'ghost material')
+  board.setPieceStyle('hidden')
+  check(!wMat.visible, 'hidden material')
+  board.scene.updateMatrixWorld(true)
+  const e7 = squareToXZ('e7', S)
+  board.raycaster.set(board.boardGroup.localToWorld(new THREE.Vector3(e7.x, 0.3, e7.z)), new THREE.Vector3(0, -1, 0))
+  check(board._cast()?.square === 'e7', 'hidden piece still pickable')
+  board._openPicker('e7', 'e8')
+  const pickerMats = new Set()
+  board.picker.group.children.forEach(slot => slot.children[1].traverse(m => {
+    if (m.isMesh && m.visible && m !== slot.children[1].userData.proxy) pickerMats.add(m.material)
+  }))
+  check(pickerMats.size === 1 && pickerMats.has(board.solidMat.w) && board.solidMat.w.visible, 'promotion picker pieces stay solid when hidden')
+  board._closePicker(null)
+  board.showPieces(100)
+  check(wMat.visible && !wMat.transparent, 'show pieces reveals')
+  await new Promise(r => setTimeout(r, 200))
+  check(!wMat.visible && board.pieceStyle === 'hidden', 'back to hidden after the reveal')
+  board.setPieceStyle('solid')
+  check(wMat.visible && wMat.opacity === 1 && !wMat.transparent, 'solid again')
+
   board.cue('capture'); board.cue('error')        // must not throw
   out.textContent = 'UI-OK'
 } catch (e) {

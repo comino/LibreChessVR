@@ -38,6 +38,7 @@ export class Board3D {
   marks = {}                 // square -> tint hex, see setMarks
   handMode = 'ray'           // 'ray' = point & pinch, 'grab' = pinch-grab pieces
   boardScale = 1
+  pieceStyle = 'solid'
   flipped = false
   onHeightChange = null      // (offset) => after a thumbstick height adjustment ends
 
@@ -185,7 +186,8 @@ export class Board3D {
       color, roughness: 0.35, metalness: 0.05, envMap: this.envMap, envMapIntensity: 0.6,
       side: THREE.DoubleSide // piece shells are open at the base (felt mesh is hidden)
     })
-    this.pieceMat = { w: mat(0xf2ead8), b: mat(0x3b3630) }
+    this.pieceMat = { w: mat(0xf2ead8), b: mat(0x3b3630) }     // follows pieceStyle
+    this.solidMat = { w: mat(0xf2ead8), b: mat(0x3b3630) }     // promotion picker: always solid
     this.proxyGeo = {}
   }
 
@@ -230,6 +232,28 @@ export class Board3D {
       const col = Math.floor(i / 8), row = i % 8
       piece.position.set(side * (4.8 + col * 0.7) * SQUARE, 0.005, side * (3.5 - row * 0.7) * SQUARE)
       this.capturedGroup.add(piece)
+    })
+  }
+
+  // 'solid' | 'ghost' (see-through) | 'hidden' (blindfold). Pieces stay pickable through
+  // their invisible proxies, and all square tints still show.
+  setPieceStyle(style) {
+    this.pieceStyle = style
+    clearTimeout(this.showTimer)
+    this._styleMaterials(style)
+  }
+
+  // Momentary reveal while ghosted/hidden (training aid).
+  showPieces(ms = 2000) {
+    clearTimeout(this.showTimer)
+    this._styleMaterials('solid')
+    this.showTimer = setTimeout(() => this._styleMaterials(this.pieceStyle), ms)
+  }
+
+  _styleMaterials(style) {
+    for (const m of Object.values(this.pieceMat)) Object.assign(m, {
+      visible: style !== 'hidden', transparent: style === 'ghost',
+      opacity: style === 'ghost' ? 0.25 : 1, depthWrite: style !== 'ghost', needsUpdate: true
     })
   }
 
@@ -406,7 +430,9 @@ export class Board3D {
       const disc = new THREE.Mesh(DISC_GEO, DISC_MAT)
       disc.rotation.x = -Math.PI / 2
       const slot = new THREE.Group()
-      slot.add(disc, this._makePiece(type, color))
+      const piece = this._makePiece(type, color)
+      piece.traverse(m => { if (m.material === this.pieceMat[color]) m.material = this.solidMat[color] })
+      slot.add(disc, piece)
       const file = 'abcdefgh'[color === 'w' ? start + i : start + 3 - i]
       const { x, z } = squareToXZ(file + to[1], SQUARE)
       slot.position.set(x, PICKER_Y, z)

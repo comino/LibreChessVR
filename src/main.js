@@ -38,7 +38,7 @@ const settings = () => ({
   time: +val('time'), increment: +val('inc'), color: val('color'), rated: val('rated'),
   level: +val('ailevel'), maia: +val('maia'), pdiff: val('pdiff'), ptheme: val('ptheme'),
   height: board.stage.position.y, scale: board.boardScale, flipped: !!board.flipped,
-  environment: board.environment
+  environment: board.environment, pieces: board.pieceStyle
 })
 const FIELD_OF = { time: 'time', increment: 'inc', color: 'color', rated: 'rated', level: 'ailevel', maia: 'maia', pdiff: 'pdiff', ptheme: 'ptheme' }
 // View settings live on the board and persist in their own localStorage keys.
@@ -46,7 +46,8 @@ const VIEW_SETTERS = {
   height: h => { board.setHeight(h); board.onHeightChange(board.stage.position.y) },
   scale: s => { board.setScale(s); localStorage.setItem('boardScale', s) },
   flipped: f => { board.setFlipped(f); localStorage.setItem('flipped', f ? '1' : '') },
-  environment: e => { board.setEnvironment(e); localStorage.setItem('environment', e) }
+  environment: e => { board.setEnvironment(e); localStorage.setItem('environment', e) },
+  pieces: p => { board.setPieceStyle(p); localStorage.setItem('pieceStyle', p) }
 }
 function setSettings(patch) {
   for (const [k, v] of Object.entries(patch)) {
@@ -59,8 +60,8 @@ function setSettings(patch) {
 // --- in-VR menu ---
 
 const seeking = () => seekAbort && !seekAbort.signal.aborted
-// except: label of the activity already showing (no button to start it again)
-function menu({ except } = {}) {
+// Full menu, shown on the idle panel.
+function menu() {
   const { time, increment, level } = settings(), tc = `${time}+${increment}`
   const acts = []
   if (username) {
@@ -70,9 +71,19 @@ function menu({ except } = {}) {
     else if (isRapid(time, increment)) acts.push({ label: `Seek human ${tc}`, run: seek }) // lichess: seeks rapid+
   }
   acts.push({ label: 'Puzzles', run: startPuzzles }, { label: 'Puzzle rush', run: startRush },
-    { label: 'Coordinates', run: startTrainer },
-    { label: 'Settings', run: openSettings })
-  return acts.filter(a => a.label !== except)
+    { label: 'Coordinates', run: startTrainer }, { label: 'Settings', run: openSettings })
+  return acts
+}
+
+// Appended to every activity's own buttons: a running seek stays cancellable, Menu leaves.
+function compactMenu() {
+  return [...seeking() ? [{ label: 'Cancel seek', run: cancelSeek }] : [], { label: 'Menu', run: toMenu }]
+}
+
+function toMenu() {
+  view?.stop()
+  view = null
+  refresh()
 }
 
 // Message on the 2D page and, where the current view can show one, on the VR panel.
@@ -143,7 +154,7 @@ function onEvent(ev) {
 function attach(gameId) {
   if (session?.gameId === gameId || gameRunning()) return // never drop a live game
   view?.stop()
-  session = view = new GameSession({ lichess, board, username, gameId, onStatus: t => msg(t), menu })
+  session = view = new GameSession({ lichess, board, username, gameId, onStatus: t => msg(t), menu: compactMenu })
   session.start().catch(e => { if (e.name !== 'AbortError') msg('Game stream lost: ' + e.message) })
 }
 
@@ -206,7 +217,7 @@ async function playMaia() {
 function startPuzzles() {
   startActivity(() => {
     // Anonymous on purpose: a board:play token lacks puzzle:read and would get 403.
-    const p = new PuzzleSession({ lichess: new Lichess(), board, onStatus: msg, menu: () => menu({ except: 'Puzzles' }),
+    const p = new PuzzleSession({ lichess: new Lichess(), board, onStatus: msg, menu: compactMenu,
       options: () => ({ difficulty: val('pdiff'), angle: val('ptheme') === 'mix' ? undefined : val('ptheme') }) })
     p.next()
     return p
@@ -215,14 +226,14 @@ function startPuzzles() {
 
 function openSettings() {
   startActivity(() => settingsView({
-    board, get: settings, set: setSettings, onBack: () => { view = null; refresh() }
+    board, get: settings, set: setSettings, onBack: toMenu
   }))
   refresh()
 }
 
 function startRush() {
   startActivity(() => {
-    const r = new RushSession({ lichess: new Lichess(), board, onStatus: msg, menu: () => menu({ except: 'Puzzle rush' }) })
+    const r = new RushSession({ lichess: new Lichess(), board, onStatus: msg, menu: compactMenu })
     r.start()
     return r
   })
@@ -230,7 +241,7 @@ function startRush() {
 
 function startTrainer() {
   startActivity(() => {
-    const t = new TrainerSession({ board, onStatus: msg, menu: () => menu({ except: 'Coordinates' }) })
+    const t = new TrainerSession({ board, onStatus: msg, menu: compactMenu })
     t.start()
     return t
   })
@@ -245,6 +256,7 @@ board.setHeight(+localStorage.getItem('tableHeight') || 0)
 board.setScale(+localStorage.getItem('boardScale') || 1)
 board.setFlipped(!!localStorage.getItem('flipped'))
 board.setEnvironment(localStorage.getItem('environment') || 'study')
+board.setPieceStyle(localStorage.getItem('pieceStyle') || 'solid')
 board.onHeightChange = h => localStorage.setItem('tableHeight', h.toFixed(3))
 
 $('handmode').value = localStorage.getItem('handMode') || 'ray'

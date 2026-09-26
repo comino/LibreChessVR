@@ -35,6 +35,8 @@ WebXR needs a secure context. Two options:
   counter (solved in a row without mistakes or hints; best is kept).
 - **Puzzle rush** (menu): 3 minutes, 3 lives — solve as many as you can; a wrong move costs a
   life, difficulty rises every 5 solved, best score kept.
+- **Blindfold training** (Settings → View → Pieces): ghost (see-through) or hidden pieces;
+  moves still work by square, and **Show pieces** reveals them for 2 s.
 - **Coordinates** (menu): a square name appears — point at that square. 30 s rounds,
   alternating white/black view; best score is kept. Trains 3D board vision directly.
 - Hands: "point & pinch" works like the trigger; "grab pieces" lets you pick up and drop pieces.

@@ -1,7 +1,7 @@
 // One lichess game: streams state, keeps chess.js in sync, relays board moves.
 
 import { Chess } from 'chess.js'
-import { bindBoard } from './bind.js'
+import { bindBoard, showPiecesAction } from './bind.js'
 
 const STATUS_TEXT = {
   mate: 'Checkmate', resign: 'Resignation', outoftime: 'Time out', timeout: 'Timeout',
@@ -165,7 +165,7 @@ export class GameSession {
     if (s[opp + 'takeback']) acts.push(
       { label: 'Accept takeback', run: call(() => li.takeback(id, true)) },
       { label: 'Decline takeback', run: call(() => li.takeback(id, false)) })
-    acts.push({ label: 'Flip board', run: () => this.board.togglePeek() })
+    acts.push({ label: 'Flip board', run: () => this.board.togglePeek() }, ...showPiecesAction(this.board))
     acts.push(this.applied < 2
       ? { label: 'Abort', run: call(() => li.abort(id)) }
       : { label: 'Resign', confirm: true, run: call(() => li.resign(id)) })

@@ -126,7 +126,7 @@ try {
   streams['/api/board/game/stream/g1'].push({ type: 'gameState', moves: 'f2f3 e7e5 g2g4 d8h4',
     wtime: 6e5, btime: 6e5, status: 'mate', winner: 'black' })
   await until(() => board.panel.status.text === 'Checkmate — you lose', 'game over text')
-  check(labels() === 'Rematch,Review game,Stockfish L2 10+0,Maia 5 10+0,Seek human 10+0,Puzzles,Puzzle rush,Coordinates,Settings', 'menu after game, got ' + labels())
+  check(labels() === 'Rematch,Review game,Menu', 'compact menu after game, got ' + labels())
   const aiBefore = requests.filter(r => r.path === '/api/challenge/ai').length
   const realPush = streams['/api/stream/event'].push
   press('Rematch')
@@ -139,6 +139,8 @@ try {
   await sleep(50)
 
   // Settings page: cycle values, persisted, reflected in the menu; table buttons; Back
+  press('Menu')
+  check(labels().startsWith('Stockfish L2 10+0') && labels().endsWith('Settings'), 'Menu leads to the full menu: ' + labels())
   press('Settings')
   check(board.panel.status.text === 'Settings · Play', 'settings shown')
   check(labels() === 'Stockfish L2,Maia 5,Time 10+0,Color random,Casual,Puzzle settings,View settings,Back', 'play page: ' + labels())
@@ -153,7 +155,11 @@ try {
   check(labels().includes('Maia 5'), 'maia cycles 9 -> 1 -> 5')
 
   press('View settings')
-  check(labels() === 'Scene study,Board 100%,Table up,Table down,Normal view,Play settings,Back', 'view page: ' + labels())
+  check(labels() === 'Scene study,Pieces solid,Board 100%,Table up,Table down,Normal view,Play settings,Back', 'view page: ' + labels())
+  press('Pieces solid')
+  check(board.pieceStyle === 'ghost' && localStorage.getItem('pieceStyle') === 'ghost', 'piece style cycled + saved')
+  press('Pieces ghost'); press('Pieces hidden')
+  check(board.pieceStyle === 'solid', 'piece style wraps')
   check(board.environment === 'study', 'default scene is study')
   press('Scene study')
   check(board.environment === 'sunset' && localStorage.getItem('environment') === 'sunset' && labels().startsWith('Scene sunset'), 'scene cycled + saved')
@@ -186,21 +192,23 @@ try {
   check(!streams['/api/board/game/stream/c1'], 'correspondence game ignored')
 
   press('Puzzles')
-  await until(() => labels() === 'Next puzzle,Flip board,Stockfish L3 10+0,Maia 5 10+0,Seek human 10+0,Puzzle rush,Coordinates,Settings', 'puzzle bar, got ' + labels())
+  await until(() => labels() === 'Next puzzle,Flip board,Menu', 'puzzle bar, got ' + labels())
   check(requests.filter(r => r.path.startsWith('/api/puzzle/next')).every(r => !r.auth), 'puzzles fetched anonymously')
   check(requests.some(r => r.path === '/api/puzzle/next?difficulty=harder&angle=mateIn2'), 'puzzle settings used in the fetch')
 
-  press('Coordinates')                               // trainer replaces puzzles
+  press('Menu'); press('Coordinates')                // trainer replaces puzzles
   await until(() => board.panel.status.big, 'trainer target shown')
-  check(labels() === 'New round,Stockfish L3 10+0,Maia 5 10+0,Seek human 10+0,Puzzles,Puzzle rush,Settings', 'trainer bar, got ' + labels())
+  check(labels() === 'New round,Menu', 'trainer bar, got ' + labels())
   board._select(board.panel.status.big)
   check(board.panel.status.sub.startsWith('Score 1'), 'trainer scored, got ' + board.panel.status.sub)
+  press('Menu')
+  check(!board.onSquarePick, 'Menu stops the trainer')
   press('Puzzles')
   await until(() => labels().startsWith('Next puzzle'), 'back to puzzles, got ' + labels())
   check(!board.onSquarePick && !board.panel.status.big, 'trainer unhooked from the board')
 
-  press('Seek human 10+0')                           // seek while solving puzzles
-  await until(() => labels().includes('Cancel seek'), 'cancel seek in puzzle view, got ' + labels())
+  press('Menu'); press('Seek human 10+0'); press('Puzzles') // seek while solving puzzles
+  await until(() => labels() === 'Next puzzle,Flip board,Cancel seek,Menu', 'cancel seek in puzzle view, got ' + labels())
   check(board.panel.status.puzzle, 'still in puzzle view')
   delete streams['/api/board/game/stream/g2']
   streams['/api/stream/event'].push({ type: 'gameStart', game: { gameId: 'g2' } })

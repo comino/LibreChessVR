@@ -2,7 +2,7 @@
 // Any mating move counts as solved (lichess rule). Wrong moves roll back, free retry.
 
 import { Chess } from 'chess.js'
-import { bindBoard } from './bind.js'
+import { bindBoard, showPiecesAction } from './bind.js'
 
 const HINT = 0x8a6a1a
 
@@ -98,7 +98,7 @@ export class PuzzleSession {
   _actions() {
     return [{ label: 'Next puzzle', run: () => this.next() },
       ...this._myTurn() ? [{ label: 'Hint', run: () => this.hint() }] : [],
-      { label: 'Flip board', run: () => this.board.togglePeek() }, ...this.menu?.() ?? []]
+      { label: 'Flip board', run: () => this.board.togglePeek() }, ...showPiecesAction(this.board), ...this.menu?.() ?? []]
   }
 
   _sub() {

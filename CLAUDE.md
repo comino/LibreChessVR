@@ -84,6 +84,11 @@ player who normally plays 2D. Static web app, no build step, no backend, no npm.
 - PuzzleSession hooks for subclasses: `_wrong()`, `_solved()`, `_actions()`, `_sub()`, `_miss()`;
   `next()` uses `_halt()` (ends the puzzle) so a subclass's own timers survive; `stop()` is the
   public full stop. Rush keeps its clock in `stop()`-cleared `this.clock`.
+- Piece styles (`setPieceStyle`: solid/ghost/hidden) only change the shared `pieceMat`s; proxies
+  keep pieces pickable. `showPieces(ms)` reveals temporarily. The promotion picker swaps in
+  `solidMat` so it is always visible. Sessions add "Show pieces" via `showPiecesAction(board)`.
+- Menus: the idle panel shows the full `menu()`; every activity (game over, puzzles, rush,
+  trainer) appends only `compactMenu()` = [Cancel seek?] + Menu (→ `toMenu()` stops the view).
 - ButtonBar holds 9; it `console.warn`s when a screen passes more. Finished games show
   Rematch + "Review game" (sub-view: Prev/Next/Flip/Done) + menu = 9 max.
 - Puzzle **Hint** = `setMarks` on the from-square of the next solution move; any move,

@@ -2,6 +2,7 @@
 // every 5 solved puzzles. Best score kept in localStorage.rushBest.
 
 import { PuzzleSession } from './puzzle.js'
+import { showPiecesAction } from './bind.js'
 
 const RUSH_MS = 180000, LIVES = 3, PER_LEVEL = 5
 const LEVELS = ['easiest', 'easier', 'normal', 'harder', 'hardest']
@@ -67,7 +68,7 @@ export class RushSession extends PuzzleSession {
     const flip = { label: 'Flip board', run: () => this.board.togglePeek() }
     return this.over
       ? [{ label: 'New rush', run: () => this.start() }, flip, ...this.menu?.() ?? []]
-      : [flip, { label: 'End rush', run: () => this._end() }]
+      : [flip, ...showPiecesAction(this.board), { label: 'End rush', run: () => this._end() }]
   }
 
   _sub() {
