@@ -1,0 +1,10 @@
+# Parallax — appended to /etc/caddy/Caddyfile on fred (auto-HTTPS via Let's Encrypt).
+parallax.46-224-133-201.sslip.io {
+	root * /opt/parallax/web
+	encode gzip
+	header /sw.js Cache-Control "no-cache"
+	header /index.html Cache-Control "no-cache"
+	header /.well-known/assetlinks.json Content-Type application/json
+	header /manifest.webmanifest Content-Type application/manifest+json
+	file_server
+}

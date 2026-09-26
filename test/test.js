@@ -4,6 +4,7 @@ import { squareToXZ, xzToSquare, parseFen, captured } from '../src/coords.js'
 import { makeLineSplitter, isRapid, Lichess } from '../src/lichess.js'
 import { cycle, TIME_PRESETS } from '../src/settings.js'
 import { moveToSpeech } from '../src/speech.js'
+import { pkcePair, authorizeUrl, finishLogin, CLIENT_ID } from '../src/auth.js'
 
 // --- coords ---
 assert.deepEqual(squareToXZ('a1'), { x: -3.5, z: 3.5 })
@@ -109,6 +110,40 @@ setTimeout(() => ac.abort(), 20)
 await assert.rejects(li.stream('/x', () => {}, ac.signal, {}, 5000), e => e.name === 'AbortError')
 const pre = new AbortController(); pre.abort()
 await assert.rejects(li.stream('/x', () => {}, pre.signal, {}, 5000), e => e.name === 'AbortError')
+
+// --- lichess login (PKCE) ---
+{
+  const { verifier, challenge } = await pkcePair()
+  assert.match(verifier, /^[A-Za-z0-9_-]{43}$/)                      // 32 random bytes, base64url
+  const sha = Buffer.from(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))).toString('base64url')
+  assert.equal(challenge, sha)
+  const u = new URL(authorizeUrl({ challenge, state: 's1', redirect: 'https://x.test/' }))
+  assert.equal(u.origin + u.pathname, 'https://lichess.org/oauth')
+  assert.equal(u.searchParams.get('code_challenge_method'), 'S256')
+  assert.equal(u.searchParams.get('scope'), 'board:play challenge:write')
+  assert.equal(u.searchParams.get('client_id'), CLIENT_ID)
+  // return trip: fake browser bits
+  const store = {}
+  globalThis.sessionStorage = { getItem: k => store[k] ?? null, setItem: (k, v) => { store[k] = v }, removeItem: k => { delete store[k] } }
+  let cleaned = null
+  globalThis.history = { replaceState: (a, b, p) => { cleaned = p } }
+  assert.equal(await finishLogin('https://x.test/'), null)            // normal load: nothing to do
+  store.oauth = JSON.stringify({ verifier, state: 's1', redirect: 'https://x.test/' })
+  let sent = null
+  globalThis.fetch = async (url, opts) => { sent = { url, body: String(opts.body) }; return new Response(JSON.stringify({ access_token: 'lio_x' })) }
+  assert.equal(await finishLogin('https://x.test/?code=c1&state=s1'), 'lio_x')
+  assert.equal(sent.url, 'https://lichess.org/api/token')
+  assert.match(sent.body, /grant_type=authorization_code/)
+  assert.match(sent.body, new RegExp('code_verifier=' + verifier))
+  assert.equal(cleaned, '/', 'code removed from the URL')
+  assert.equal(store.oauth, undefined, 'verifier used once')
+  store.oauth = JSON.stringify({ verifier, state: 's1', redirect: 'https://x.test/' })
+  await assert.rejects(finishLogin('https://x.test/?code=c1&state=EVIL'), /expired/)   // CSRF guard
+  await assert.rejects(finishLogin('https://x.test/?error=access_denied'), /cancelled/)
+  globalThis.fetch = async () => new Response(JSON.stringify({ error: 'invalid_grant' }), { status: 400 })
+  store.oauth = JSON.stringify({ verifier, state: 's2', redirect: 'https://x.test/' })
+  await assert.rejects(finishLogin('https://x.test/?code=c2&state=s2'), /invalid_grant/)
+}
 
 // --- puzzleNext query ---
 const urls = []

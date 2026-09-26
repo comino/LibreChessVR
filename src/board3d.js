@@ -4,7 +4,6 @@
 
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
-import { VRButton } from 'three/addons/webxr/VRButton.js'
 import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
@@ -23,6 +22,7 @@ const _m = new THREE.Matrix4(), _tint = new THREE.Color()
 const HOVER = new THREE.Color(TINT.hover)   // added on top of the tile's tint
 const RAY_LEN = 1.5
 const BAR_X = 0.4
+const SESSION_INIT = { optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking', 'layers'] }
 const HEIGHT_RANGE = 0.45, HEIGHT_SPEED = 0.25 // table offset limit (m), m/s at full stick
 const PROXY_MAT = new THREE.MeshBasicMaterial({ visible: false })
 const DISC_GEO = new THREE.CircleGeometry(0.48 * SQUARE, 24)   // promotion picker slots
@@ -62,7 +62,6 @@ export class Board3D {
     this.renderer.shadowMap.autoUpdate = false // re-rendered via shadowsDirty (see _tick)
     this.renderer.xr.enabled = true
     document.body.appendChild(this.renderer.domElement)
-    document.body.appendChild(VRButton.createButton(this.renderer))
 
     this.scene = new THREE.Scene()
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
@@ -273,6 +272,22 @@ export class Board3D {
       visible: style !== 'hidden', transparent: style === 'ghost',
       opacity: style === 'ghost' ? 0.25 : 1, depthWrite: style !== 'ghost', needsUpdate: true
     })
+  }
+
+  // --- WebXR session (own launch UI instead of three's VRButton) ---
+
+  async xrSupported() {
+    return !!(await navigator.xr?.isSessionSupported('immersive-vr').catch(() => false))
+  }
+
+  async enterVR() {
+    await this.renderer.xr.setSession(await navigator.xr.requestSession('immersive-vr', SESSION_INIT))
+  }
+
+  // Quest Browser can offer VR itself (no click needed; an installed immersive app starts here).
+  async offerVR() {
+    const s = await navigator.xr?.offerSession?.('immersive-vr', SESSION_INIT).catch(() => null)
+    if (s) await this.renderer.xr.setSession(s)
   }
 
   // Desktop only: shift the rendered image right by px (e.g. a sidebar covering the left).

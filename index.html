@@ -6,6 +6,8 @@
 <title>Parallax — chess in depth</title>
 <meta name="description" content="Parallax: play lichess and train 3D board vision in VR.">
 <link rel="icon" href="assets/brand/mark.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0F1218">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@600&family=Space+Grotesk:wght@700&display=swap" rel="stylesheet">
@@ -52,17 +54,19 @@
   #msg { margin-top: 14px; padding: 10px 12px; min-height: 40px; border-radius: var(--r-btn);
     background: var(--ink); color: var(--ivory); font-size: 13px }
   .hint { color: var(--mist); font-size: 12px; margin: 6px 0 0 }
-  /* three.js VRButton, restyled as the primary call to action */
-  #VRButton {
-    font: 600 14px var(--ui) !important; letter-spacing: .08em !important; border-radius: 999px !important;
-    background: var(--brass) !important; color: var(--ink) !important; border: 0 !important;
-    padding: 14px 28px !important; bottom: 28px !important; opacity: 1 !important; width: auto !important;
-    left: calc(50% + 176px) !important; transform: translateX(-50%);
+  /* launch screen (headsets): brand + one big Enter VR */
+  #launch {
+    position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 28px; background: radial-gradient(ellipse at center, rgba(15,18,24,.72), rgba(15,18,24,.96));
   }
-  #VRButton[disabled], #VRButton:not([style*="cursor: pointer"]) { background: var(--steel) !important; color: var(--mist) !important }
+  #launch[hidden], #ui[hidden], [hidden] { display: none }
+  #launch img { width: min(520px, 80vw) }
+  #launch .big { font-size: 20px; padding: 18px 48px; border-radius: 999px; letter-spacing: .06em }
+  #launch .link { background: none; color: var(--mist) }
+  #launch .link:hover { color: var(--ivory) }
+  details summary { cursor: pointer; color: var(--mist); font-size: 12px; margin-top: 8px }
   @media (max-width: 720px) {
     #ui { width: auto; right: 16px; bottom: auto; max-height: 60vh }
-    #VRButton { left: 50% !important }
   }
 </style>
 <script type="importmap">
@@ -76,18 +80,28 @@
 </script>
 </head>
 <body>
+<div id="launch" hidden>
+  <img src="assets/brand/wordmark.svg" alt="Parallax — chess in depth">
+  <button id="enter" class="primary big">Enter VR</button>
+  <button id="setup" class="link">Account &amp; settings</button>
+</div>
 <div id="ui">
   <div class="brand"><img src="assets/brand/mark.svg" alt=""><h1>PARALLAX</h1></div>
   <p class="tagline">Chess in depth</p>
 
+  <button id="enterSide" class="primary" hidden>Enter VR</button>
   <div id="auth">
     <h2>Lichess account</h2>
-    <input id="token" type="password" placeholder="Paste your lichess API token" autocomplete="off">
-    <div class="row">
-      <button id="connect" class="primary">Connect</button>
-      <small><a href="https://lichess.org/account/oauth/token/create?scopes[]=board:play&scopes[]=challenge:write&description=Parallax" target="_blank">Create a token</a></small>
-    </div>
+    <button id="login" class="primary">Log in with lichess</button>
     <p class="hint">Training works without an account.</p>
+    <details>
+      <summary>Use an API token instead</summary>
+      <input id="token" type="password" placeholder="Paste your lichess API token" autocomplete="off">
+      <div class="row">
+        <button id="connect">Connect</button>
+        <small><a href="https://lichess.org/account/oauth/token/create?scopes[]=board:play&scopes[]=challenge:write&description=Parallax" target="_blank">Create a token</a></small>
+      </div>
+    </details>
   </div>
 
   <div id="play" style="display:none">
@@ -111,6 +125,7 @@
     <div class="row">
       <button id="seek">Seek human</button>
       <button id="resign" class="danger">Resign</button>
+      <button id="logout">Log out</button>
     </div>
   </div>
 

@@ -5,6 +5,7 @@ import { PuzzleSession } from './puzzle.js'
 import { TrainerSession } from './trainer.js'
 import { RushSession } from './rush.js'
 import { settingsView } from './settings.js'
+import { startLogin, finishLogin } from './auth.js'
 
 const $ = id => document.getElementById(id)
 const msg = t => { $('msg').textContent = t }
@@ -69,12 +70,13 @@ const seeking = () => seekAbort && !seekAbort.signal.aborted
 function menu() {
   const { time, increment, level } = settings(), tc = `${time}+${increment}`
   const acts = [] // time control / color live on the idle panel's sub line
+  if (!username) acts.push({ label: 'Log in', run: () => startLogin(), primary: true }) // leaves VR for lichess
   if (username) {
     acts.push({ label: `Stockfish L${level}`, run: playAi, primary: true })
     acts.push({ label: `Maia ${settings().maia}`, run: playMaia })
     acts.push(seeking() ? { label: 'Cancel seek', run: cancelSeek } : { label: `Seek ${tc}`, run: seek })
   }
-  acts.push({ label: 'Puzzles', run: startPuzzles, primary: !username }, { label: 'Puzzle rush', run: startRush },
+  acts.push({ label: 'Puzzles', run: startPuzzles }, { label: 'Puzzle rush', run: startRush },
     { label: 'Coordinates', run: startTrainer }, { label: 'Settings', run: openSettings })
   return acts
 }
@@ -320,11 +322,39 @@ $('resign').onclick = () => {
   lichess.resign(session.gameId).catch(e => msg(e.message))
 }
 
-refresh()
-const saved = localStorage.getItem('lichessToken')
-if (saved) {
-  $('token').value = saved
-  connect(saved)
-} else {
-  msg('Create a lichess token and connect')
+$('login').onclick = () => startLogin()
+$('logout').onclick = () => { localStorage.removeItem('lichessToken'); location.reload() }
+
+// --- launch: a headset gets a full-screen Enter VR screen (plus the browser's own VR offer) ---
+
+function showLaunch(on) {
+  if (!$('launch')) return
+  $('launch').hidden = !on
+  $('ui').hidden = on
 }
+board.renderer.xr.addEventListener('sessionstart', () => showLaunch(false))
+board.renderer.xr.addEventListener('sessionend', () => board.xrSupported().then(showLaunch))
+const enter = () => board.enterVR().catch(e => { showLaunch(false); msg('Enter VR failed: ' + e.message) })
+if ($('enter')) {
+  $('enter').onclick = enter
+  $('setup').onclick = () => showLaunch(false)
+}
+$('enterSide').onclick = enter
+board.xrSupported().then(ok => {
+  $('enterSide').hidden = !ok
+  if (!ok) return
+  showLaunch(true)
+  board.offerVR()
+})
+
+// Installed app: cache the shell for fast, offline starts (never on localhost: dev reloads stay fresh).
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js')
+
+refresh()
+finishLogin().then(token => {
+  const t = token || localStorage.getItem('lichessToken')
+  if (t) {
+    $('token').value = t
+    connect(t)
+  } else msg('Log in with lichess to play — training works without an account')
+}).catch(e => msg(e.message))
