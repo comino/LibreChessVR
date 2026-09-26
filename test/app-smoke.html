@@ -153,7 +153,10 @@ try {
   check(labels().includes('Maia 5'), 'maia cycles 9 -> 1 -> 5')
 
   press('View settings')
-  check(labels() === 'Board 100%,Table up,Table down,Normal view,Play settings,Back', 'view page: ' + labels())
+  check(labels() === 'Scene study,Board 100%,Table up,Table down,Normal view,Play settings,Back', 'view page: ' + labels())
+  check(board.environment === 'study', 'default scene is study')
+  press('Scene study')
+  check(board.environment === 'sunset' && localStorage.getItem('environment') === 'sunset' && labels().startsWith('Scene sunset'), 'scene cycled + saved')
   const h0 = board.stage.position.y
   press('Table up'); press('Table up')
   check(Math.abs(board.stage.position.y - h0 - 0.1) < 1e-9 && localStorage.getItem('tableHeight') === (h0 + 0.1).toFixed(3), 'table up saved')

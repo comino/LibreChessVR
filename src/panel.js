@@ -10,7 +10,7 @@ function canvasPlane(w, h, px) {
   const tex = new THREE.CanvasTexture(canvas)
   tex.colorSpace = THREE.SRGBColorSpace
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h),
-    new THREE.MeshBasicMaterial({ map: tex, transparent: true }))
+    new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false, fog: false }))
   return { canvas, ctx: canvas.getContext('2d'), tex, mesh }
 }
 

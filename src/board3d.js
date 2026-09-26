@@ -8,6 +8,7 @@ import { VRButton } from 'three/addons/webxr/VRButton.js'
 import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
+import { buildEnvironment, disposeGroup, woodTexture } from './environments.js'
 import { squareToXZ, xzToSquare, parseFen, captured } from './coords.js'
 import { StatusPanel, ButtonBar } from './panel.js'
 import { playCue, buzz } from './feedback.js'
@@ -42,6 +43,7 @@ export class Board3D {
 
   async init() {
     this._scene()
+    this.setEnvironment('minimal')
     this._board()
     await this._loadPieces()
     this._ui()
@@ -59,7 +61,7 @@ export class Board3D {
     document.body.appendChild(VRButton.createButton(this.renderer))
 
     this.scene = new THREE.Scene()
-    this.scene.background = new THREE.Color(0x1b2028)
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping
     this.camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.01, 50)
     this.camera.position.set(0, 1.35, 0.15)
 
@@ -69,21 +71,16 @@ export class Board3D {
 
     // Soft room reflections, used by the piece materials only (tiles stay matte).
     this.envMap = new THREE.PMREMGenerator(this.renderer).fromScene(new RoomEnvironment(), 0.04).texture
-    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x445566, 1.0))
-    const sun = new THREE.DirectionalLight(0xffffff, 2.0)
-    sun.position.set(0.8, 2.5, 0.5)
-    sun.castShadow = true
-    sun.shadow.camera.left = sun.shadow.camera.bottom = -0.6
-    sun.shadow.camera.right = sun.shadow.camera.top = 0.6
-    sun.shadow.mapSize.set(1024, 1024)
-    this.scene.add(sun)
-
-    const floor = new THREE.Mesh(
-      new THREE.CircleGeometry(3, 48),
-      new THREE.MeshStandardMaterial({ color: 0x2a3038, roughness: 0.9 }))
-    floor.rotation.x = -Math.PI / 2
-    floor.receiveShadow = true
-    this.scene.add(floor)
+    // Lights persist across environments (shadow map allocated once); setEnvironment tunes them.
+    this.hemi = new THREE.HemisphereLight()
+    this.sun = new THREE.DirectionalLight()
+    this.sun.castShadow = true
+    this.sun.shadow.camera.left = this.sun.shadow.camera.bottom = -0.7
+    this.sun.shadow.camera.right = this.sun.shadow.camera.top = 0.7
+    this.sun.shadow.mapSize.set(1024, 1024)
+    this.sun.shadow.bias = -0.0005
+    this.sun.target.position.copy(BOARD_POS) // shadow frustum centered on the board
+    this.scene.add(this.hemi, this.sun, this.sun.target)
 
     // Stage = table + board + panel + bar, raised/lowered together (setHeight).
     // The table reaches below the floor so it never floats when raised.
@@ -91,7 +88,7 @@ export class Board3D {
     this.scene.add(this.stage)
     const table = new THREE.Mesh(
       new THREE.BoxGeometry(0.75, 1.44, 0.75),
-      new THREE.MeshStandardMaterial({ color: 0x4a3628, roughness: 0.8 }))
+      new THREE.MeshStandardMaterial({ map: woodTexture('#4a3020', 'rgba(20,10,4,0.4)', 2), roughness: 0.7 }))
     table.position.set(BOARD_POS.x, 0, BOARD_POS.z)
     table.receiveShadow = true
     this.stage.add(table)
@@ -160,7 +157,7 @@ export class Board3D {
     ctx.fillText(text, 32, 34)
     const tex = new THREE.CanvasTexture(c)
     tex.colorSpace = THREE.SRGBColorSpace
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }))
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, toneMapped: false }))
     sp.scale.setScalar(0.035)
     sp.position.set(x, 0.02, z)
     return sp
@@ -231,6 +228,29 @@ export class Board3D {
       piece.position.set(side * (4.8 + col * 0.7) * SQUARE, 0.005, side * (3.5 - row * 0.7) * SQUARE)
       this.capturedGroup.add(piece)
     })
+  }
+
+  // Scenery + lighting preset (see environments.js); the previous one is disposed.
+  setEnvironment(name) {
+    if (this.envGroup) {
+      this.scene.remove(this.envGroup)
+      disposeGroup(this.envGroup)
+    }
+    const env = buildEnvironment(name)
+    this.environment = name
+    this.envGroup = env.group
+    this.scene.add(env.group)
+    this.scene.background = new THREE.Color(env.background)
+    this.scene.fog = env.fog ?? null
+    this.renderer.toneMappingExposure = env.exposure
+    const [sky, ground, hi] = env.hemi
+    this.hemi.color.set(sky)
+    this.hemi.groundColor.set(ground)
+    this.hemi.intensity = hi
+    const [color, si, offset] = env.sun
+    this.sun.color.set(color)
+    this.sun.intensity = si
+    this.sun.position.copy(BOARD_POS).add(new THREE.Vector3(...offset))
   }
 
   // Table height offset from the default (m), clamped.

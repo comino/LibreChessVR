@@ -36,14 +36,16 @@ function saveSettings() {
 const settings = () => ({
   time: +val('time'), increment: +val('inc'), color: val('color'), rated: val('rated'),
   level: +val('ailevel'), maia: +val('maia'),
-  height: board.stage.position.y, scale: board.boardScale, flipped: !!board.flipped
+  height: board.stage.position.y, scale: board.boardScale, flipped: !!board.flipped,
+  environment: board.environment
 })
 const FIELD_OF = { time: 'time', increment: 'inc', color: 'color', rated: 'rated', level: 'ailevel', maia: 'maia' }
 // View settings live on the board and persist in their own localStorage keys.
 const VIEW_SETTERS = {
   height: h => { board.setHeight(h); board.onHeightChange(board.stage.position.y) },
   scale: s => { board.setScale(s); localStorage.setItem('boardScale', s) },
-  flipped: f => { board.setFlipped(f); localStorage.setItem('flipped', f ? '1' : '') }
+  flipped: f => { board.setFlipped(f); localStorage.setItem('flipped', f ? '1' : '') },
+  environment: e => { board.setEnvironment(e); localStorage.setItem('environment', e) }
 }
 function setSettings(patch) {
   for (const [k, v] of Object.entries(patch)) {
@@ -231,6 +233,7 @@ for (const id of FIELDS) $(id).onchange = saveSettings
 board.setHeight(+localStorage.getItem('tableHeight') || 0)
 board.setScale(+localStorage.getItem('boardScale') || 1)
 board.setFlipped(!!localStorage.getItem('flipped'))
+board.setEnvironment(localStorage.getItem('environment') || 'study')
 board.onHeightChange = h => localStorage.setItem('tableHeight', h.toFixed(3))
 
 $('handmode').value = localStorage.getItem('handMode') || 'ray'

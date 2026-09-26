@@ -5,11 +5,12 @@ export const TIME_PRESETS = ['3+2', '5+3', '10+0', '10+5', '15+10', '30+0']
 export const COLORS = ['random', 'white', 'black']
 export const MAIA_LEVELS = [1, 5, 9]      // lichess bots maia1 / maia5 / maia9
 export const BOARD_SCALES = [0.8, 1, 1.25, 1.5]
+export const ENVIRONMENTS = ['minimal', 'study', 'sunset', 'night'] // builders in environments.js
 
 // Next entry after cur (first entry if cur isn't in the list).
 export const cycle = (list, cur) => list[(list.map(String).indexOf(String(cur)) + 1) % list.length]
 
-// get(): {time, increment, color, rated, level, maia, height, scale, flipped}
+// get(): {time, increment, color, rated, level, maia, height, scale, flipped, environment}
 export function settingsView({ board, get, set, onBack }) {
   let page = 'play'
   const view = {
@@ -45,6 +46,7 @@ export function settingsView({ board, get, set, onBack }) {
     return {
       puzzle: true, text: 'Settings · View', sub: `Table ${cm > 0 ? '+' : ''}${cm} cm`,
       actions: [
+        { label: `Scene ${s.environment}`, run: () => set({ environment: cycle(ENVIRONMENTS, s.environment) }) },
         { label: `Board ${Math.round(s.scale * 100)}%`, run: () => set({ scale: cycle(BOARD_SCALES, s.scale) }) },
         { label: 'Table up', run: () => set({ height: s.height + 0.05 }) },
         { label: 'Table down', run: () => set({ height: s.height - 0.05 }) },

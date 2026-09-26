@@ -28,7 +28,7 @@ WebXR needs a secure context. Two options:
 - Point at a target square, **trigger** to move. Select the piece again to cancel.
 - **Maia** (menu): play the human-like Maia bots (maia1/5/9) with one press.
 - **Settings** (menu): Play page (Stockfish level, Maia level, time control, color, rated) and
-  View page (board size 80–150%, table up/down, flipped view) — no need to take the headset off.
+  View page (scene: minimal / study / sunset / night, board size 80–150%, table up/down, flipped view) — no need to take the headset off.
 - **Flip board** (in games and puzzles): see the position from your opponent's side. After a game, **Rematch** swaps colors (humans get a challenge), and
   **Prev/Next move** replay the game on the board. Puzzles have a **Hint** button.
 - **Coordinates** (menu): a square name appears — point at that square. 30 s rounds,

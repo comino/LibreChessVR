@@ -22,6 +22,7 @@ player who normally plays 2D. Static web app, no build step, no backend, no npm.
 | `src/game.js` | `GameSession`: one game stream ↔ chess.js ↔ board. Optimistic local moves, rollback on server reject, offers → button bar. |
 | `src/puzzle.js` | `PuzzleSession`: fetches `/api/puzzle/next`, replays game PGN, validates solution moves, auto-plays replies, auto-advances. |
 | `src/trainer.js` | `TrainerSession`: coordinate drill — big target square on the panel, point at it; 30 s rounds alternating white/black view; best in `localStorage.coordBest`. |
+| `src/environments.js` | Procedural scenes (minimal, study, sunset, night): builders return a group + background/fog/exposure/light params; `woodTexture()` canvas grain; `disposeGroup()`. |
 | `src/settings.js` | In-VR settings, two pages: Play (Stockfish level, Maia 1/5/9, time, color, rated) and View (board scale, table ↑/↓, flipped view). `cycle()` unit-tested. main.js maps Play values onto the 2D form fields; View values live on the board (`VIEW_SETTERS`, own localStorage keys). |
 | `src/main.js` | 2D page + in-VR menu (`menu()`: Stockfish/seek/cancel/puzzles, from persisted `settings`), event stream, resumes ongoing game. `view` = what the panel shows; `refresh()` re-renders it. `window.chessvr.board` = debug handle. |
 | `assets/chess.glb` | Piece models (from old prototype). Node names `Pawn/Knight/...`; each piece has `*_Plastic_0` (shown, recolored) and `*_Velvet_0` (hidden) meshes. |
@@ -50,6 +51,11 @@ player who normally plays 2D. Static web app, no build step, no backend, no npm.
   straight at a piece's axis) can miss both triangles.
 - Maia = lichess bots `maia1/5/9`, challenged via `POST /api/challenge/{bot}`; they accept
   on their own and the normal `gameStart` path attaches the game.
+- Environments: `board.setEnvironment(name)` disposes the old group (leak-tested via
+  `renderer.info.memory`), sets background/fog/exposure and re-tunes the persistent `hemi` +
+  `sun` lights (sun targets the board so its shadow frustum stays on it). ACES tone mapping
+  is global; panel/bar/label materials are `toneMapped: false` to keep text colors exact.
+  The env list lives in settings.js (pure, Node-testable); names must match `BUILDERS`.
 - `board.stage` holds table + board + panel + bar; `setHeight(offset)` (±0.45 m) moves it.
   Thumbstick Y on either controller adjusts it; `onHeightChange` fires once on release and
   main.js persists `localStorage.tableHeight`. The table box reaches below the floor.
