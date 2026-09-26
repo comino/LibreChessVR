@@ -3,27 +3,66 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ChessVR — Lichess</title>
+<title>Parallax — chess in depth</title>
+<meta name="description" content="Parallax: play lichess and train 3D board vision in VR.">
+<link rel="icon" href="assets/brand/mark.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@600&family=Space+Grotesk:wght@700&display=swap" rel="stylesheet">
 <style>
-  body { margin: 0; overflow: hidden; font-family: system-ui, sans-serif; background: #1b2028; }
+  /* Tokens mirror src/theme.js (see BRAND.md) */
+  :root {
+    --ink: #0F1218; --slate: #1A1F28; --steel: #2A313D; --steel-hi: #3A4456;
+    --ivory: #ECE6D6; --mist: #9AA3B2; --brass: #D9A441; --moss: #3F9D6A; --ember: #D5543F;
+    --r-btn: 12px; --r-card: 20px;
+    --ui: Inter, system-ui, 'Helvetica Neue', Arial, sans-serif;
+    --display: 'Space Grotesk', 'Helvetica Neue', Arial, sans-serif;
+  }
+  * { box-sizing: border-box }
+  body { margin: 0; overflow: hidden; background: var(--ink); color: var(--ivory); font: 14px/1.45 var(--ui) }
+  canvas { display: block }
   #ui {
-    position: fixed; top: 12px; left: 12px; z-index: 10; width: 250px;
-    background: rgba(15,18,24,.88); color: #c8ccd4; border-radius: 10px;
-    padding: 12px 14px; font-size: 14px;
+    position: fixed; top: 16px; left: 16px; bottom: 16px; z-index: 10; width: 320px; overflow-y: auto;
+    background: rgba(26, 31, 40, .92); border: 1px solid var(--steel); border-radius: var(--r-card);
+    padding: 22px 22px 18px; backdrop-filter: blur(8px); box-shadow: 0 20px 60px rgba(0,0,0,.45);
   }
-  #ui h1 { font-size: 16px; margin: 0 0 8px; color: #e8e2d0; }
-  #ui input, #ui select, #ui button {
-    font: inherit; background: #2a3038; color: #e0e4ea; border: 1px solid #444c58;
-    border-radius: 6px; padding: 5px 8px; margin: 2px 0; box-sizing: border-box;
+  .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 4px }
+  .brand img { width: 40px; height: 40px }
+  .brand h1 { margin: 0; font: 700 22px var(--display); letter-spacing: .15em }
+  .tagline { margin: 0 0 18px; color: var(--mist); font-size: 12px; letter-spacing: .2em; text-transform: uppercase }
+  h2 { margin: 18px 0 8px; font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--mist) }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0 }
+  input, select, button {
+    font: 500 13px var(--ui); color: var(--ivory); background: var(--steel); border: 1px solid transparent;
+    border-radius: var(--r-btn); padding: 8px 12px; outline: none;
   }
-  #ui input[type=text], #ui input[type=password] { width: 100%; }
-  #ui input[type=number] { width: 52px; }
-  #ui button { cursor: pointer; }
-  #ui button:hover { background: #3a4250; }
-  #msg { margin-top: 8px; color: #e8d44a; min-height: 18px; }
-  .row { margin: 6px 0; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-  a { color: #7aa2d4; }
-  small { color: #8899aa; }
+  input:focus, select:focus { border-color: var(--brass) }
+  input[type=password] { width: 100% }
+  input[type=number] { width: 60px }
+  button { cursor: pointer; transition: background .15s }
+  button:hover { background: var(--steel-hi) }
+  button.primary { background: var(--brass); color: var(--ink); font-weight: 600 }
+  button.primary:hover { filter: brightness(1.08) }
+  button.danger { color: var(--ember) }
+  label { color: var(--mist); display: flex; gap: 6px; align-items: center }
+  a { color: var(--brass); text-decoration: none }
+  a:hover { text-decoration: underline }
+  small { color: var(--mist) }
+  #msg { margin-top: 14px; padding: 10px 12px; min-height: 40px; border-radius: var(--r-btn);
+    background: var(--ink); color: var(--ivory); font-size: 13px }
+  .hint { color: var(--mist); font-size: 12px; margin: 6px 0 0 }
+  /* three.js VRButton, restyled as the primary call to action */
+  #VRButton {
+    font: 600 14px var(--ui) !important; letter-spacing: .08em !important; border-radius: 999px !important;
+    background: var(--brass) !important; color: var(--ink) !important; border: 0 !important;
+    padding: 14px 28px !important; bottom: 28px !important; opacity: 1 !important; width: auto !important;
+    left: calc(50% + 176px) !important; transform: translateX(-50%);
+  }
+  #VRButton[disabled], #VRButton:not([style*="cursor: pointer"]) { background: var(--steel) !important; color: var(--mist) !important }
+  @media (max-width: 720px) {
+    #ui { width: auto; right: 16px; bottom: auto; max-height: 60vh }
+    #VRButton { left: 50% !important }
+  }
 </style>
 <script type="importmap">
 {
@@ -37,47 +76,45 @@
 </head>
 <body>
 <div id="ui">
-  <h1>ChessVR</h1>
+  <div class="brand"><img src="assets/brand/mark.svg" alt=""><h1>PARALLAX</h1></div>
+  <p class="tagline">Chess in depth</p>
+
   <div id="auth">
-    <input id="token" type="password" placeholder="lichess API token">
+    <h2>Lichess account</h2>
+    <input id="token" type="password" placeholder="Paste your lichess API token" autocomplete="off">
     <div class="row">
-      <button id="connect">Connect</button>
-      <small><a href="https://lichess.org/account/oauth/token/create?scopes[]=board:play&scopes[]=challenge:write&description=ChessVR" target="_blank">create token</a></small>
+      <button id="connect" class="primary">Connect</button>
+      <small><a href="https://lichess.org/account/oauth/token/create?scopes[]=board:play&scopes[]=challenge:write&description=Parallax" target="_blank">Create a token</a></small>
     </div>
+    <p class="hint">Puzzles, rush and coordinates work without an account.</p>
   </div>
+
   <div id="play" style="display:none">
+    <h2>Play</h2>
     <div class="row">
-      <input id="time" type="number" value="10" min="3"> +
-      <input id="inc" type="number" value="5" min="0">
+      <input id="time" type="number" value="10" min="3" title="minutes"> +
+      <input id="inc" type="number" value="5" min="0" title="increment (s)">
       <select id="color"><option value="random">random</option><option value="white">white</option><option value="black">black</option></select>
-    </div>
-    <div class="row">
-      <button id="seek">Seek human</button>
       <label><input id="rated" type="checkbox"> rated</label>
     </div>
     <div class="row">
-      <button id="ai">Play Stockfish</button>
-      lvl <input id="ailevel" type="number" value="3" min="1" max="8">
-      <button id="resign">Resign</button>
-    </div>
-    <div class="row">
-      <button id="maiaBtn">Play Maia</button>
+      <button id="ai">Stockfish</button>
+      <input id="ailevel" type="number" value="3" min="1" max="8" title="level 1–8">
+      <button id="maiaBtn">Maia</button>
       <select id="maia"><option value="1">maia1</option><option value="5" selected>maia5</option><option value="9">maia9</option></select>
     </div>
+    <div class="row">
+      <button id="seek">Seek human</button>
+      <button id="resign" class="danger">Resign</button>
+    </div>
   </div>
-  <div class="row">
-    hands <select id="handmode">
-      <option value="ray" selected>point &amp; pinch</option>
-      <option value="grab">grab pieces</option>
-    </select>
-  </div>
+
+  <h2>Train</h2>
   <div class="row">
     <button id="puzzle">Puzzles</button>
     <select id="pdiff">
-      <option value="easiest">easiest</option>
-      <option value="easier">easier</option>
-      <option value="normal" selected>normal</option>
-      <option value="harder">harder</option>
+      <option value="easiest">easiest</option><option value="easier">easier</option>
+      <option value="normal" selected>normal</option><option value="harder">harder</option>
       <option value="hardest">hardest</option>
     </select>
     <select id="ptheme">
@@ -85,10 +122,22 @@
       <option value="mateIn3">mate in 3</option><option value="fork">forks</option><option value="pin">pins</option>
       <option value="skewer">skewers</option><option value="endgame">endgames</option><option value="opening">openings</option>
     </select>
-    <button id="coords">Coordinates</button>
-    <button id="rush">Puzzle rush</button>
   </div>
+  <div class="row">
+    <button id="rush">Puzzle rush</button>
+    <button id="coords">Coordinates</button>
+  </div>
+
+  <h2>Hands</h2>
+  <div class="row">
+    <select id="handmode">
+      <option value="ray" selected>Point &amp; pinch</option>
+      <option value="grab">Grab pieces</option>
+    </select>
+  </div>
+
   <div id="msg">Loading…</div>
+  <p class="hint">Everything is also on the button bar next to the board — put on the headset and press <b>Enter VR</b>.</p>
 </div>
 <script type="module" src="src/main.js"></script>
 </body>

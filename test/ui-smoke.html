@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <base href="/">
-<title>ChessVR ui smoke test</title>
+<title>Parallax ui smoke test</title>
 <style>body { margin: 0 }</style>
 <script type="importmap">
 {
@@ -18,6 +18,7 @@
 <body>
 <div id="result" style="position:fixed;top:0;right:0;z-index:10;color:#0f0;font-family:monospace"></div>
 <script type="module">
+import { TINT } from './src/theme.js'
 import * as THREE from 'three'
 import { Board3D } from './src/board3d.js'
 import { squareToXZ } from './src/coords.js'
@@ -159,7 +160,7 @@ try {
 
   // --- pointing feedback ---
   const local = (x, y, z) => board.boardGroup.localToWorld(new THREE.Vector3(x, y, z))
-  const emissive = sq => board.tiles[sq].material.emissive.getHex()
+  const emissive = sq => board.tiles[sq].userData.tint
   board.setOrientation('white')
   board.setPosition('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1')
   board.scene.updateMatrixWorld(true)
@@ -186,11 +187,11 @@ try {
   check(board.hover.c0 === 'd4', 'controller hovers d4, got ' + board.hover.c0)
   const expect = ctrl.position.distanceTo(aimAt)
   check(Math.abs(line.scale.z - expect) < 0.005 && dot.visible, `ray ends at tile: ${line.scale.z} vs ${expect}`)
-  check(emissive('d4') === 0x303030, 'hover tint on d4, got ' + emissive('d4').toString(16))
+  check(board.tiles.d4.material.emissive.getHex() === TINT.hover, 'hover brightens d4')
   aim(local(d4.x, 5, d4.z - 3))
   board._controllerHover()
   check(!board.hover.c0 && line.scale.z === 1.5 && !dot.visible, 'sky: default ray, no hover')
-  check(emissive('d4') === 0, 'hover tint cleared')
+  check(board.tiles.d4.material.emissive.getHex() === 0, 'hover cleared')
 
   // Hover over a bar button highlights it
   board.setStatus({ puzzle: true, text: 't', actions: [{ label: 'A', run() {} }, { label: 'B', run() {} }] })
@@ -206,7 +207,7 @@ try {
   const chess = new Chess('rnbqkbnr/ppp2ppp/3p4/1B2p3/4P3/8/PPPP1PPP/RNBQK1NR b KQkq - 1 3')
   bindBoard(board, { chess, color: 'black', active: () => true, tryMove() {} })
   board.setPosition(chess.fen())
-  check(emissive('e8') === 0x9a1a1a, 'king in check tinted, got ' + emissive('e8').toString(16))
+  check(emissive('e8') === TINT.check, 'king in check tinted, got ' + emissive('e8').toString(16))
   chess.move('c6')
   board.setPosition(chess.fen(), { from: 'c7', to: 'c6' })
   check(emissive('e8') === 0, 'check tint cleared')
@@ -247,16 +248,11 @@ try {
   check(saved.at(-1) === -0.45, 'disconnect ends adjustment')
   board.setHeight(0)
 
-  // --- low-time clock turns red ---
-  const drawn = []
-  const realText = board.panel._text.bind(board.panel)
-  board.panel._text = (t, color, ...r) => { drawn.push([t, color]); realText(t, color, ...r) }
+  // --- low-time clock turns ember, running clock brass ---
   board.setStatus({ names: { white: 'me', black: 'op' }, myColor: 'white', wtime: 15000, btime: 90000,
     turn: 'b', running: true, text: 'Waiting…' })
-  const colorOf = t => drawn.find(d => d[0] === t)?.[1]
-  check(colorOf('0:15') === '#ff5a4a', 'my low clock red, got ' + colorOf('0:15'))
-  check(colorOf('1:30') === '#e8d44a', 'opponent running clock yellow, got ' + colorOf('1:30'))
-  board.panel._text = realText
+  check(board.panel.pills.w === '#D5543F', 'my low clock ember, got ' + board.panel.pills.w)
+  check(board.panel.pills.b === '#D9A441', 'running clock brass, got ' + board.panel.pills.b)
 
   // --- captured pieces beside the board; shared materials/geometry ---
   board.setOrientation('white')

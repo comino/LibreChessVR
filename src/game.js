@@ -2,13 +2,14 @@
 
 import { Chess } from 'chess.js'
 import { bindBoard, showPiecesAction } from './bind.js'
+import { TINT } from './theme.js'
 
 const STATUS_TEXT = {
   mate: 'Checkmate', resign: 'Resignation', outoftime: 'Time out', timeout: 'Timeout',
   draw: 'Draw', stalemate: 'Stalemate', aborted: 'Aborted'
 }
 const lower = s => (s || '').toLowerCase()
-const PREMOVE = 0x5a2a8a
+const PREMOVE = TINT.premove
 
 // Same position with the other side to move (en passant dropped): premove candidates.
 function flipTurn(fen) {
@@ -174,7 +175,7 @@ export class GameSession {
       { label: 'Flip board', run: () => this.board.togglePeek() },
       { label: 'Done', run: () => { this.reviewing = false; this._step(Infinity) } }]
     if (this.finished) return [
-      ...this._canRematch() ? [{ label: 'Rematch', run: () => this._rematch() }] : [],
+      ...this._canRematch() ? [{ label: 'Rematch', run: () => this._rematch(), primary: true }] : [],
       ...this.applied ? [{ label: 'Review game', run: () => { this.reviewing = true; this._render() } }] : [],
       ...this.menu?.() ?? []]
     const s = this.state, me = this.color[0], opp = me === 'w' ? 'b' : 'w'

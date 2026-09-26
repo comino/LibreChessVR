@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <base href="/">
-<title>ChessVR app smoke test</title>
+<title>Parallax app smoke test</title>
 <style>body { margin: 0 }</style>
 <script type="importmap">
 {
@@ -74,7 +74,7 @@ try {
   localStorage.setItem('settings', JSON.stringify({ time: '5', inc: '0', ailevel: '2' }))
   localStorage.setItem('tableHeight', '0.2')
   await import('/src/main.js')
-  const board = window.chessvr.board, $ = id => document.getElementById(id)
+  const board = window.parallax.board, $ = id => document.getElementById(id)
   const labels = () => board.bar.mesh.visible ? board.bar.buttons.map(b => b.label).join() : ''
   const press = label => {
     const b = board.bar.buttons.find(b => b.label === label)

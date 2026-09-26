@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <base href="/">
-<title>ChessVR app bug hunt</title>
+<title>Parallax app bug hunt</title>
 <style>body { margin: 0 } iframe { width: 400px; height: 300px }</style>
 <script type="importmap">
 {
@@ -101,7 +101,7 @@ async function runScenario(name) {
 
   let loaded = true
   try { await import('/src/main.js') } catch { loaded = false }
-  const board = window.chessvr?.board, $ = id => document.getElementById(id)
+  const board = window.parallax?.board, $ = id => document.getElementById(id)
   const labels = () => board?.bar.mesh.visible ? board.bar.buttons.map(b => b.label).join() : ''
   const text = () => board?.panel.status.text
   const press = label => board.bar.buttons.find(b => b.label === label)?.run()

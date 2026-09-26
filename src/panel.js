@@ -2,6 +2,7 @@
 // pressed by controller ray, mouse click or fingertip poke.
 
 import * as THREE from 'three'
+import { COLOR, FONT } from './theme.js'
 
 function canvasPlane(w, h, px) {
   const canvas = document.createElement('canvas')
@@ -14,22 +15,52 @@ function canvasPlane(w, h, px) {
   return { canvas, ctx: canvas.getContext('2d'), tex, mesh }
 }
 
-const LOW_TIME = 20000 // ms: clock turns red
+const LOW_TIME = 20000 // ms: clock turns ember
 
 const fmt = ms => {
   const t = Math.ceil(ms / 1000)
   return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0')
 }
 
+// Canvas text doesn't trigger web-font downloads: load the brand fonts explicitly, then redraw.
+const fontsReady = globalThis.document?.fonts
+  ? Promise.all([`600 30px Inter`, `500 30px Inter`, `700 40px 'Space Grotesk'`, `600 40px 'JetBrains Mono'`]
+    .map(f => document.fonts.load(f).catch(() => {})))
+  : Promise.resolve()
+
+function roundRect(ctx, x, y, w, h, r, fill, stroke) {
+  ctx.beginPath()
+  ctx.roundRect(x, y, w, h, r)
+  if (fill) { ctx.fillStyle = fill; ctx.fill() }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 2; ctx.stroke() }
+}
+
+// The logo mark (assets/brand/mark.svg) drawn at x,y with size s.
+function drawMark(ctx, x, y, s) {
+  const u = s / 64
+  roundRect(ctx, x, y, s, s, 14 * u, COLOR.ink)
+  ctx.strokeStyle = COLOR.brass
+  ctx.lineWidth = 3 * u
+  ctx.beginPath(); ctx.roundRect(x + 23 * u, y + 11 * u, 30 * u, 30 * u, 3 * u); ctx.stroke()
+  const q = 15 * u
+  for (const [i, j, c] of [[0, 0, COLOR.ivory], [1, 0, '#3A4150'], [0, 1, '#3A4150'], [1, 1, COLOR.ivory]]) {
+    ctx.fillStyle = c
+    ctx.fillRect(x + 11 * u + i * q, y + 23 * u + j * q, q, q)
+  }
+}
+
 export class StatusPanel {
   constructor() {
     Object.assign(this, canvasPlane(0.5, 0.25, 512))
     this.status = null
+    this.pills = {} // last clock pill color per side (inspectable)
     this.draw()
+    fontsReady.then(() => this.draw())
   }
 
   // status: {names:{white,black}, myColor, wtime, btime, turn, running, text, ts?}
-  //      or {puzzle: true, text, sub, big?} — big: one large word (trainer target)
+  //      or {puzzle: true, text, sub, big?, brand?} — big: one large word (trainer target),
+  //         brand: show the logo + wordmark (idle menu)
   set(status) {
     this.status = { ...status, ts: status.ts ?? performance.now() }
     this.draw()
@@ -43,35 +74,54 @@ export class StatusPanel {
     const { ctx } = this, s = this.status
     this.drawn = performance.now()
     ctx.clearRect(0, 0, 512, 256)
-    ctx.fillStyle = 'rgba(15,18,24,0.85)'
-    ctx.beginPath()
-    ctx.roundRect(0, 0, 512, 256, 24)
-    ctx.fill()
+    roundRect(ctx, 2, 2, 508, 252, 28, 'rgba(26,31,40,0.94)', COLOR.steel)
     ctx.textAlign = 'center'
+    ctx.textBaseline = 'alphabetic'
+    ctx.letterSpacing = '0px'
     if (s?.big) {
-      this._text(s.big, '#e8e2d0', 'bold 110px sans-serif', 256, 120)
-      this._text(s.text, '#c8ccd4', '28px sans-serif', 256, 180)
-      this._text(s.sub, '#8899aa', '24px sans-serif', 256, 225)
-    } else if (!s || s.puzzle) {
-      this._text(s ? s.text : 'No game', '#c8ccd4', '32px sans-serif', 256, s ? 118 : 140)
-      this._text(s?.sub, '#8899aa', '24px sans-serif', 256, 168)
+      this._text(s.big, COLOR.ivory, `700 112px ${FONT.display}`, 256, 124)
+      roundRect(ctx, 226, 140, 60, 5, 2.5, COLOR.brass)
+      this._text(s.text, COLOR.ivory, `600 28px ${FONT.ui}`, 256, 190)
+      this._text(s.sub, COLOR.mist, `500 20px ${FONT.ui}`, 256, 226)
+    } else if (s?.brand || !s) {
+      drawMark(ctx, 150, 34, 64)
+      ctx.textAlign = 'left'
+      ctx.letterSpacing = '5px'
+      this._text('PARALLAX', COLOR.ivory, `700 34px ${FONT.display}`, 230, 72)
+      ctx.letterSpacing = '3px'
+      this._text('CHESS IN DEPTH', COLOR.mist, `500 13px ${FONT.ui}`, 232, 94)
+      ctx.letterSpacing = '0px'
+      ctx.textAlign = 'center'
+      this._text(s?.text, COLOR.ivory, `600 26px ${FONT.ui}`, 256, 170)
+      this._text(s?.sub, COLOR.mist, `500 19px ${FONT.ui}`, 256, 206)
+    } else if (s.puzzle) {
+      this._text(s.text, COLOR.ivory, `600 30px ${FONT.ui}`, 256, 118)
+      this._text(s.sub, COLOR.mist, `500 20px ${FONT.ui}`, 256, 164)
     } else {
       const opp = s.myColor === 'white' ? 'b' : 'w'
-      this._clockRow(60, opp)
-      this._clockRow(225, s.myColor[0])
-      this._text(s.text, '#8899aa', '26px sans-serif', 256, 143)
+      this._clockRow(28, opp)
+      this._clockRow(168, s.myColor[0])
+      this._text(s.text, COLOR.mist, `500 22px ${FONT.ui}`, 256, 138)
     }
     this.tex.needsUpdate = true
   }
 
+  // One player row (top y): color dot, name, clock pill (brass = running, ember = low).
   _clockRow(y, c) {
-    const s = this.status, active = s.turn === c && s.running
+    const s = this.status, ctx = this.ctx, active = s.turn === c && s.running
     const left = Math.max(0, (c === 'w' ? s.wtime : s.btime) - (active ? performance.now() - s.ts : 0))
-    const color = left < LOW_TIME ? '#ff5a4a' : active ? '#e8d44a' : '#c8ccd4'
-    this.ctx.textAlign = 'left'
-    this._text(s.names[c === 'w' ? 'white' : 'black'], color, '34px sans-serif', 30, y)
-    this.ctx.textAlign = 'right'
-    this._text(fmt(left), color, 'bold 40px monospace', 482, y)
+    const low = left < LOW_TIME
+    ctx.beginPath()
+    ctx.arc(46, y + 30, 11, 0, Math.PI * 2)
+    ctx.fillStyle = c === 'w' ? COLOR.ivory : '#2F2B27'
+    ctx.fill()
+    ctx.strokeStyle = COLOR.mist; ctx.lineWidth = 1.5; ctx.stroke()
+    ctx.textAlign = 'left'
+    this._text(s.names[c === 'w' ? 'white' : 'black'], COLOR.ivory, `500 28px ${FONT.ui}`, 70, y + 40)
+    const pill = this.pills[c] = low ? COLOR.ember : active ? COLOR.brass : COLOR.steel
+    roundRect(ctx, 330, y + 4, 156, 52, 14, pill)
+    ctx.textAlign = 'center'
+    this._text(fmt(left), active || low ? COLOR.ink : COLOR.ivory, `600 34px ${FONT.mono}`, 408, y + 43)
   }
 
   _text(text, color, font, x, y) {
@@ -91,9 +141,11 @@ export class ButtonBar {
     this.armedPoke = {} // pointer key -> tip was seen in front of the bar
     this.hovered = {} // pointer key -> button index
     this.draw()
+    fontsReady.then(() => this.draw())
   }
 
-  // buttons: [{label, run, confirm?}] — confirm buttons need a second press within 3 s.
+  // buttons: [{label, run, confirm?, primary?}] — confirm buttons need a second press within 3 s;
+  // primary = the screen's main action (brass).
   set(buttons = []) {
     if (buttons.length > COLS * ROWS) console.warn('ButtonBar: dropping', buttons.slice(COLS * ROWS).map(b => b.label))
     this.buttons = buttons.slice(0, COLS * ROWS)
@@ -153,17 +205,15 @@ export class ButtonBar {
     ctx.clearRect(0, 0, w, h)
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    ctx.font = '30px sans-serif'
+    ctx.font = `600 27px ${FONT.ui}`
     this.buttons.forEach((b, i) => {
       const x = (i % COLS) * bw, y = Math.floor(i / COLS) * bh
-      const hot = Object.values(this.hovered).includes(i)
-      ctx.fillStyle = b === this.armed ? '#8a2a1a' : hot ? 'rgba(70,82,100,0.95)' : 'rgba(42,48,56,0.92)'
-      ctx.beginPath()
-      ctx.roundRect(x + 6, y + 6, bw - 12, bh - 12, 16)
-      ctx.fill()
-      ctx.fillStyle = '#e0e4ea'
-      const lines = b === this.armed ? ['Confirm?'] : b.label.split(' ')
-      lines.forEach((l, j) => ctx.fillText(l, x + bw / 2, y + bh / 2 + (j - (lines.length - 1) / 2) * 34))
+      const hot = Object.values(this.hovered).includes(i), armed = b === this.armed
+      const fill = armed ? COLOR.ember : b.primary ? COLOR.brass : hot ? COLOR.steelHi : COLOR.steel
+      roundRect(ctx, x + 6, y + 6, bw - 12, bh - 12, 18, fill, hot && !armed ? COLOR.brass : null)
+      ctx.fillStyle = b.primary && !armed ? COLOR.ink : COLOR.ivory
+      const lines = armed ? ['Confirm?'] : b.label.split(' ')
+      lines.forEach((l, j) => ctx.fillText(l, x + bw / 2, y + bh / 2 + (j - (lines.length - 1) / 2) * 32))
     })
     this.mesh.visible = this.buttons.length > 0
     this.tex.needsUpdate = true

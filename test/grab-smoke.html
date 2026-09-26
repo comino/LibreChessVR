@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <base href="/">
-<title>ChessVR grab smoke test</title>
+<title>Parallax grab smoke test</title>
 <style>body { margin: 0 }</style>
 <script type="importmap">
 {
@@ -17,6 +17,7 @@
 <body>
 <div id="result" style="position:fixed;top:0;right:0;z-index:10;color:#0f0;font-family:monospace"></div>
 <script type="module">
+import { TINT } from './src/theme.js'
 import * as THREE from 'three'
 import { Board3D } from './src/board3d.js'
 import { squareToXZ } from './src/coords.js'
@@ -49,8 +50,8 @@ try {
   at('e2')
   board._grabStart(hand)
   check(board.grab?.from === 'e2', 'grabbed e2 pawn')
-  check(board.tiles.e2.material.emissive.getHex() === 0x8a7a1a, 'origin tinted')
-  check(board.tiles.e4.material.emissive.getHex() === 0x1a6a2a, 'target tinted')
+  check(board.tiles.e2.userData.tint === TINT.select, 'origin tinted')
+  check(board.tiles.e4.userData.tint === TINT.target, 'target tinted')
   const pawn = board.grab.piece
   at('e4', 0.08)
   board._tick()
@@ -58,7 +59,7 @@ try {
   board._grabEnd(hand)
   check(moves.join() === 'e2e4', 'move emitted, got: ' + moves.join())
   check(pawn.position.z === squareToXZ('e4', S).z && pawn.position.y === 0.005, 'snapped to e4')
-  check(!board.grab && board.tiles.e2.material.emissive.getHex() === 0, 'tints cleared')
+  check(!board.grab && board.tiles.e2.userData.tint === 0, 'tints cleared')
 
   // Illegal drop: a2 pawn released on d5 returns home, no move
   board.setPosition('rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1')

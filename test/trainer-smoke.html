@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <base href="/">
-<title>ChessVR trainer smoke test</title>
+<title>Parallax trainer smoke test</title>
 <style>body { margin: 0 }</style>
 <script type="importmap">
 {
@@ -18,6 +18,7 @@
 <body>
 <div id="result" style="position:fixed;top:0;right:0;z-index:10;color:#0f0;font-family:monospace"></div>
 <script type="module">
+import { TINT } from './src/theme.js'
 import * as THREE from 'three'
 import { Board3D } from './src/board3d.js'
 import { TrainerSession } from './src/trainer.js'
@@ -32,7 +33,7 @@ try {
   const board = new Board3D()
   await board.init()
   const t = new TrainerSession({ board, menu: () => [{ label: 'Menu', run() {} }] })
-  const emissive = sq => board.tiles[sq].material.emissive.getHex()
+  const emissive = sq => board.tiles[sq].userData.tint
   const other = sq => sq === 'a1' ? 'h8' : 'a1'
 
   board.checkSquare = () => 'e1'                       // left over from a game that ended in check
@@ -47,14 +48,14 @@ try {
   let target = t.target
   board._select(target)
   check(t.score === 1 && t.misses === 0, 'correct pick scored')
-  check(emissive(target) === 0x1a6a2a, 'correct square flashed green')
+  check(emissive(target) === TINT.target, 'correct square flashed green')
   check(t.target !== target, 'new target after a pick')
 
   // Wrong pick: picked red, real target green, then cleared
   target = t.target
   board._select(other(target))
   check(t.misses === 1 && t.score === 1, 'wrong pick counted')
-  check(emissive(other(target)) === 0x9a1a1a && emissive(target) === 0x1a6a2a, 'wrong red, answer green')
+  check(emissive(other(target)) === TINT.check && emissive(target) === TINT.target, 'wrong red, answer green')
   await sleep(500)
   check(emissive(target) === 0 && emissive(other(target)) === 0, 'flash cleared')
 

@@ -1,7 +1,15 @@
-# CLAUDE.md — ChessVR
+# CLAUDE.md — Parallax
 
-VR chess client for lichess (WebXR, Meta Quest). Goal: train 3D board vision for a
-player who normally plays 2D. Static web app, no build step, no backend, no npm.
+**Parallax** (*chess in depth*) — VR chess client for lichess (WebXR, Meta Quest). Goal: train
+3D board vision for a player who normally plays 2D. Static web app, no build step, no backend,
+no npm. GitHub: `comino/parallax` (local folder still `chessvr/`).
+
+## Design system (read before touching any UI)
+
+`BRAND.md` is the design guide (name, voice, colors, type, shapes, scenes). All colors and
+fonts come from `src/theme.js` (3D + canvas UI) and its mirror of CSS variables in `index.html`.
+Never hardcode a color: add a token. Button labels: 1–2 words, sentence case; values as
+"Name value". The product name is Parallax everywhere users can see it.
 
 ## Stack
 
@@ -26,13 +34,15 @@ player who normally plays 2D. Static web app, no build step, no backend, no npm.
 | `src/trainer.js` | `TrainerSession`: coordinate drill — big target square on the panel, point at it; 30 s rounds alternating white/black view; best in `localStorage.coordBest`. |
 | `src/environments.js` | Procedural scenes (minimal, study, sunset, night): builders return a group + background/fog/exposure/light params; `woodTexture()` canvas grain; `disposeGroup()`. |
 | `src/settings.js` | In-VR settings, three pages: Play (Stockfish level, Maia 1/5/9, time, color, rated) View (scene, board scale, table ↑/↓, flipped view) and Puzzles (difficulty, theme). `cycle()` unit-tested. main.js maps Play values onto the 2D form fields; View values live on the board (`VIEW_SETTERS`, own localStorage keys). |
-| `src/main.js` | 2D page + in-VR menu (`menu()`: Stockfish/seek/cancel/puzzles, from persisted `settings`), event stream, resumes ongoing game. `view` = what the panel shows; `refresh()` re-renders it. `window.chessvr.board` = debug handle. |
-| `assets/chess.glb` | Piece models (from old prototype). Node names `Pawn/Knight/...`; each piece has `*_Plastic_0` (shown, recolored) and `*_Velvet_0` (hidden) meshes. |
+| `src/main.js` | 2D page + in-VR menu (`menu()`: Stockfish/seek/cancel/puzzles, from persisted `settings`), event stream, resumes ongoing game. `view` = what the panel shows; `refresh()` re-renders it. `window.parallax.board` = debug handle. |
+| `src/theme.js` | Design tokens: `COLOR`, `TINT` (+`TINT_MIX`), `BOARD`, `PIECES`, `FONT`. |
+| `assets/brand/` | Logo mark + wordmark SVGs. `docs/img/` = README screenshots. |
+| `assets/chess.glb` | Piece models. Node names `Pawn/Knight/...`; each piece has `*_Plastic_0` (shown, recolored) and `*_Velvet_0` (hidden) meshes. |
 
 ## Key invariants & gotchas
 
 - Board frame is ALWAYS white's perspective (a1 = −x,+z local). Black view = rotate
-  `boardGroup` 180°; never remap coordinates (the old prototype died on this).
+  `boardGroup` 180°; never remap coordinates (an earlier prototype died on this).
 - GLB piece nodes carry ancestor transforms → templates bake `matrixWorld` via
   decompose at load; recentering must SUBTRACT the bbox offset, not set it.
 - Piece scale is derived from the king's bbox (king = 1.7 × square size), not hardcoded.
@@ -135,23 +145,18 @@ player who normally plays 2D. Static web app, no build step, no backend, no npm.
 
 ## Testing (do this after changes)
 
-1. `node test/test.js` — pure logic.
-2. Syntax check: `node --input-type=module --check < src/foo.js`.
-3. Visual smoke test without a lichess account:
-   `python3 -m http.server 8123` then headless Chrome screenshot of
-   `http://localhost:8123/test/smoke.html` with
-   `--headless=new --use-angle=swiftshader --enable-unsafe-swiftshader --virtual-time-budget=25000 --screenshot=...`
-   — page shows `SMOKE-OK 32 pieces` plus scale/bbox diagnostics in `#result`.
-4. `test/run-smoke.sh` runs every smoke page headless (`--dump-dom`) and exits non-zero
-   unless each prints `*-OK`: `puzzle-smoke` (stubbed puzzles, fetch race, underpromotion),
-   `grab-smoke` (fake hand joints), `game-smoke` (fake lichess stream: optimistic moves,
-   rejects, draw/takeback offers, resign confirm, promotion via picker, results),
-   `trainer-smoke` (scoring, flashes, grab pinch, round end/best, color flip, unhook),
-   `ui-smoke` (button bar ray/poke/confirm, drag-click, picker grab/ray/cancel/edges),
-   `app-smoke` (real index.html + main.js vs stubbed `fetch`: menu, settings, seek/cancel,
-   AI challenge, game over → menu, puzzles, seek-while-puzzling → game takes over).
-   Tests that ray-pick freshly created objects must `board._tick()` first (world matrices).
-5. Real-game test needs a lichess token (play Stockfish level 1).
+    node test/test.js && node test/hunt-unit.js     # pure logic (Node)
+    test/run-smoke.sh                               # every test/*-smoke.html headless; all must print *-OK
+
+`PORT=… test/run-smoke.sh page…` runs a subset on another port (parallel agents). Suites:
+`smoke` (render), `ui` (bar/poke/picker/hover/scale/envs/styles), `grab`, `game` (fake lichess
+stream: optimistic moves, offers, premoves, promotion, replay…), `puzzle`, `rush`, `trainer`,
+`app` (real index.html + main.js vs stubbed `fetch`), and `hunt-*` — regression suites written by
+adversarial bug-hunter agents (each check encodes a bug that was real). New bugs: write the
+failing check first, then fix. Gotchas: ray-picking freshly created objects needs a rendered
+frame (`board._tick()`); XR controllers need `updateMatrix()`; tints are `tile.userData.tint`
+(hover is emissive). Visual changes: screenshot headless Chrome (`--use-angle=swiftshader
+--enable-unsafe-swiftshader --virtual-time-budget=…`) and look at it. Real games need a token.
 
 ## Testing on the Quest
 

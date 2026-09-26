@@ -12,22 +12,21 @@ import { buildEnvironment, disposeGroup, woodTexture } from './environments.js'
 import { squareToXZ, xzToSquare, parseFen, captured } from './coords.js'
 import { StatusPanel, ButtonBar } from './panel.js'
 import { playCue, buzz } from './feedback.js'
+import { TINT, TINT_MIX, BOARD, PIECES } from './theme.js'
 import { moveToSpeech, speak } from './speech.js'
 
 const SQUARE = 0.06                      // 6cm squares -> 48cm board, tournament-ish size
 const BOARD_POS = new THREE.Vector3(0, 0.73, -0.45)
 const NODE_MAP = { Pawn: 'p', Queen: 'q', King: 'k', Rook: 'r', Knight: 'n', Bishop: 'b' }
-const TILE = { light: 0xd9c49a, dark: 0x77502e }
 const _vA = new THREE.Vector3(), _vB = new THREE.Vector3(), _vC = new THREE.Vector3()
-const _m = new THREE.Matrix4()
-const TINT = { select: 0x8a7a1a, target: 0x1a6a2a, last: 0x1a3a6a, check: 0x9a1a1a }
-const HOVER = new THREE.Color(0x303030)   // added on top of the tile's tint
+const _m = new THREE.Matrix4(), _tint = new THREE.Color()
+const HOVER = new THREE.Color(TINT.hover)   // added on top of the tile's tint
 const RAY_LEN = 1.5
 const BAR_X = 0.4
 const HEIGHT_RANGE = 0.45, HEIGHT_SPEED = 0.25 // table offset limit (m), m/s at full stick
 const PROXY_MAT = new THREE.MeshBasicMaterial({ visible: false })
 const DISC_GEO = new THREE.CircleGeometry(0.48 * SQUARE, 24)   // promotion picker slots
-const DISC_MAT = new THREE.MeshBasicMaterial({ color: 0x1a6a2a, transparent: true, opacity: 0.85 })
+const DISC_MAT = new THREE.MeshBasicMaterial({ color: TINT.target, transparent: true, opacity: 0.85 })
 const PICKER_Y = 0.115   // promotion picker floats above the tallest piece (king ≈ 0.10)
 
 export class Board3D {
@@ -66,10 +65,10 @@ export class Board3D {
     this.scene = new THREE.Scene()
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
     this.camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.01, 50)
-    this.camera.position.set(0, 1.35, 0.15)
+    this.camera.position.set(0.1, 1.45, 0.45) // desktop: board, panel and bar in view
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement)
-    this.controls.target.copy(BOARD_POS)
+    this.controls.target.set(0.1, 0.88, -0.55)
     this.controls.enableDamping = true
 
     // Soft room reflections, used by the piece materials only (tiles stay matte).
@@ -100,11 +99,7 @@ export class Board3D {
     this.table = table
     this.stage.add(this.sun, this.sun.target) // shadows follow the table height
 
-    addEventListener('resize', () => {
-      this.camera.aspect = innerWidth / innerHeight
-      this.camera.updateProjectionMatrix()
-      this.renderer.setSize(innerWidth, innerHeight)
-    })
+    addEventListener('resize', () => this._resize())
   }
 
   _board() {
@@ -114,7 +109,7 @@ export class Board3D {
 
     const base = new THREE.Mesh(
       new THREE.BoxGeometry(8 * SQUARE + 0.05, 0.015, 8 * SQUARE + 0.05),
-      new THREE.MeshStandardMaterial({ color: 0x33241a, roughness: 0.7 }))
+      new THREE.MeshStandardMaterial({ color: BOARD.frame, roughness: 0.7 }))
     base.position.y = -0.008
     base.receiveShadow = true
     this.boardGroup.add(base)
@@ -125,12 +120,13 @@ export class Board3D {
       const sq = f + r
       const light = ('abcdefgh'.indexOf(f) + r) % 2 === 0  // a1 (0+1) is dark
       const tile = new THREE.Mesh(tileGeo, new THREE.MeshStandardMaterial({
-        color: light ? TILE.light : TILE.dark, roughness: 0.5
+        color: light ? BOARD.light : BOARD.dark, roughness: 0.5
       }))
       const { x, z } = squareToXZ(sq, SQUARE)
       tile.position.set(x, 0, z)
       tile.receiveShadow = true
       tile.userData.square = sq
+      tile.userData.base = tile.material.color.clone()
       this.tiles[sq] = tile
       this.boardGroup.add(tile)
     }
@@ -156,7 +152,7 @@ export class Board3D {
     const c = document.createElement('canvas')
     c.width = c.height = 64
     const ctx = c.getContext('2d')
-    ctx.fillStyle = '#cbb894'
+    ctx.fillStyle = BOARD.label
     ctx.font = 'bold 44px sans-serif'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
@@ -188,8 +184,8 @@ export class Board3D {
       color, roughness: 0.35, metalness: 0.05, envMap: this.envMap, envMapIntensity: 0.6,
       side: THREE.DoubleSide // piece shells are open at the base (felt mesh is hidden)
     })
-    this.pieceMat = { w: mat(0xf2ead8), b: mat(0x3b3630) }     // follows pieceStyle
-    this.solidMat = { w: mat(0xf2ead8), b: mat(0x3b3630) }     // promotion picker: always solid
+    this.pieceMat = { w: mat(PIECES.white), b: mat(PIECES.black) }  // follows pieceStyle
+    this.solidMat = { w: mat(PIECES.white), b: mat(PIECES.black) }  // promotion picker: always solid
     this.proxyGeo = {}
   }
 
@@ -272,6 +268,20 @@ export class Board3D {
       visible: style !== 'hidden', transparent: style === 'ghost',
       opacity: style === 'ghost' ? 0.25 : 1, depthWrite: style !== 'ghost', needsUpdate: true
     })
+  }
+
+  // Desktop only: shift the rendered image right by px (e.g. a sidebar covering the left).
+  setViewShift(px) {
+    this.viewShift = px
+    this._resize()
+  }
+
+  _resize() {
+    this.camera.aspect = innerWidth / innerHeight
+    if (this.viewShift) this.camera.setViewOffset(innerWidth, innerHeight, -this.viewShift / 2, 0, innerWidth, innerHeight)
+    else this.camera.clearViewOffset()
+    this.camera.updateProjectionMatrix()
+    this.renderer.setSize(innerWidth, innerHeight)
   }
 
   // Scenery + lighting preset (see environments.js); the previous one is disposed.
@@ -402,7 +412,7 @@ export class Board3D {
   // --- selection & tints ---
 
   _applyTints() {
-    const tint = (sq, hex) => this.tiles[sq]?.material.emissive.setHex(hex)
+    const tint = (sq, hex) => { if (this.tiles[sq]) this.tiles[sq].userData.tint = hex }
     for (const sq in this.tiles) tint(sq, 0)
     if (this.lastMove) for (const sq of [this.lastMove.from, this.lastMove.to]) tint(sq, TINT.last)
     if (this.check) tint(this.check, TINT.check)
@@ -410,6 +420,11 @@ export class Board3D {
     if (this.selected) {
       tint(this.selected, TINT.select)
       for (const sq of this.targets) tint(sq, TINT.target)
+    }
+    for (const t of Object.values(this.tiles)) {
+      t.material.color.copy(t.userData.base)
+      if (t.userData.tint) t.material.color.lerp(_tint.setHex(t.userData.tint), TINT_MIX)
+      t.material.emissive.setHex(0)
     }
     for (const sq of new Set(Object.values(this.hover)))
       this.tiles[sq]?.material.emissive.add(HOVER)

@@ -3,8 +3,9 @@
 
 import { Chess } from 'chess.js'
 import { bindBoard, showPiecesAction } from './bind.js'
+import { TINT } from './theme.js'
 
-const HINT = 0x8a6a1a
+const HINT = TINT.hint
 
 // Streak = puzzles solved in a row without a mistake or hint; kept across sessions.
 function loadStats() {

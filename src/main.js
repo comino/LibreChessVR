@@ -19,7 +19,7 @@ try {
   msg('3D init failed: ' + e.message)
   throw e
 }
-window.chessvr = { board } // debug handle (chrome://inspect, app-smoke test)
+window.parallax = { board } // debug handle (chrome://inspect, app tests)
 
 // --- settings: 2D form fields, persisted so the in-VR menu uses the same values ---
 
@@ -68,12 +68,12 @@ function menu() {
   const { time, increment, level } = settings(), tc = `${time}+${increment}`
   const acts = []
   if (username) {
-    acts.push({ label: `Stockfish L${level} ${tc}`, run: playAi })
+    acts.push({ label: `Stockfish L${level} ${tc}`, run: playAi, primary: true })
     acts.push({ label: `Maia ${settings().maia} ${tc}`, run: playMaia })
     if (seeking()) acts.push({ label: 'Cancel seek', run: cancelSeek })
     else if (isRapid(time, increment)) acts.push({ label: `Seek human ${tc}`, run: seek }) // lichess: seeks rapid+
   }
-  acts.push({ label: 'Puzzles', run: startPuzzles }, { label: 'Puzzle rush', run: startRush },
+  acts.push({ label: 'Puzzles', run: startPuzzles, primary: !username }, { label: 'Puzzle rush', run: startRush },
     { label: 'Coordinates', run: startTrainer }, { label: 'Settings', run: openSettings })
   return acts
 }
@@ -100,7 +100,7 @@ function notify(text) {
 function refresh() {
   $('seek').textContent = seeking() ? 'Cancel seek' : 'Seek human'
   if (view) view.render()
-  else board.setStatus({ puzzle: true, text: seeking() ? 'Seeking opponent…' : note || 'ChessVR',
+  else board.setStatus({ puzzle: true, brand: true, text: seeking() ? 'Seeking opponent…' : note || 'Choose how to play',
     sub: username ? 'Connected as ' + username : 'Puzzles work without login', actions: menu() })
 }
 
@@ -265,6 +265,10 @@ function startTrainer() {
 loadSettings()
 for (const id of FIELDS) $(id).onchange = saveSettings
 
+board.setPosition('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1') // idle: the start position
+const sidebar = () => board.setViewShift(innerWidth > 720 ? $('ui').offsetWidth + 16 : 0)
+sidebar()
+addEventListener('resize', sidebar)
 board.setHeight(+localStorage.getItem('tableHeight') || 0)
 board.setScale(+localStorage.getItem('boardScale') || 1)
 board.setFlipped(!!localStorage.getItem('flipped'))

@@ -1,8 +1,10 @@
 // Coordinate trainer: a square name is shown, point at that square. 30 s rounds,
 // alternating white/black view — drills 3D board vision directly.
 
+import { TINT } from './theme.js'
+
 const ROUND_MS = 30000, FLASH_MS = 400
-const GOOD = 0x1a6a2a, BAD = 0x9a1a1a
+const { good: GOOD, bad: BAD } = TINT
 const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 const randomSquare = () => 'abcdefgh'[Math.floor(Math.random() * 8)] + (1 + Math.floor(Math.random() * 8))
 
@@ -79,7 +81,7 @@ export class TrainerSession {
   }
 
   _show() {
-    const again = { label: 'New round', run: () => this.start() }
+    const again = { label: 'New round', run: () => this.start(), primary: !this.running }
     const status = this.running
       ? { big: this.target, text: `${this.shownSec = this._left()} s`,
           sub: `Score ${this.score} • ${this.board.viewSide()}'s view` }

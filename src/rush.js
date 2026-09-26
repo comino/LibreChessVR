@@ -80,7 +80,7 @@ export class RushSession extends PuzzleSession {
   _actions() {
     const flip = { label: 'Flip board', run: () => this.board.togglePeek() }
     return this.over
-      ? [{ label: 'New rush', run: () => this.start() }, flip, ...this.menu?.() ?? []]
+      ? [{ label: 'New rush', run: () => this.start(), primary: true }, flip, ...this.menu?.() ?? []]
       : [flip, ...showPiecesAction(this.board), { label: 'End rush', run: () => this._end() }]
   }
 
