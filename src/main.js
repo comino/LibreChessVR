@@ -2,13 +2,13 @@ import { Board3D } from './board3d.js'
 import { Lichess, isRapid } from './lichess.js'
 import { GameSession } from './game.js'
 import { PuzzleSession } from './puzzle.js'
+import { TrainerSession } from './trainer.js'
 
 const $ = id => document.getElementById(id)
 const msg = t => { $('msg').textContent = t }
 
 let lichess = null, session = null, username = null, seekAbort = null, connecting = false
-let puzzles = null
-let view = null // what the VR panel shows: session, puzzles, or null (idle menu)
+let view = null // what the VR panel shows: game session, puzzles, trainer, or null (idle menu)
 
 const board = new Board3D()
 try {
@@ -39,15 +39,16 @@ const settings = () => ({
 // --- in-VR menu ---
 
 const seeking = () => seekAbort && !seekAbort.signal.aborted
-function menu({ withPuzzles = true } = {}) {
+// except: label of the activity already showing (no button to start it again)
+function menu({ except } = {}) {
   const { time, increment, level } = settings(), tc = `${time}+${increment}`
   const acts = []
   if (username) {
     acts.push({ label: `Stockfish L${level} ${tc}`, run: playAi })
     acts.push(seeking() ? { label: 'Cancel seek', run: cancelSeek } : { label: `Seek human ${tc}`, run: seek })
   }
-  if (withPuzzles) acts.push({ label: 'Puzzles', run: startPuzzles })
-  return acts
+  acts.push({ label: 'Puzzles', run: startPuzzles }, { label: 'Coordinates', run: startTrainer })
+  return acts.filter(a => a.label !== except)
 }
 
 function refresh() {
@@ -102,8 +103,7 @@ function onEvent(ev) {
 
 function attach(gameId) {
   if (session?.gameId === gameId) return
-  puzzles?.stop()
-  session?.stop()
+  view?.stop()
   session = view = new GameSession({ lichess, board, username, gameId, onStatus: t => msg(t), menu })
   session.start().catch(e => { if (e.name !== 'AbortError') msg('Game stream lost: ' + e.message) })
 }
@@ -143,14 +143,29 @@ async function playAi() {
   }
 }
 
-function startPuzzles() {
+// Puzzles and the trainer need no login; they replace whatever the board shows.
+function startActivity(make) {
   if (gameRunning()) return msg('Finish or resign the game first')
-  session?.stop()
+  view?.stop()
   session = null
-  lichess ??= new Lichess() // puzzles work without a token
-  puzzles ??= new PuzzleSession({ lichess, board, onStatus: msg, menu: () => menu({ withPuzzles: false }) })
-  view = puzzles
-  puzzles.next(val('pdiff'))
+  view = make()
+}
+
+function startPuzzles() {
+  startActivity(() => {
+    lichess ??= new Lichess()
+    const p = new PuzzleSession({ lichess, board, onStatus: msg, menu: () => menu({ except: 'Puzzles' }) })
+    p.next(val('pdiff'))
+    return p
+  })
+}
+
+function startTrainer() {
+  startActivity(() => {
+    const t = new TrainerSession({ board, onStatus: msg, menu: () => menu({ except: 'Coordinates' }) })
+    t.start()
+    return t
+  })
 }
 
 // --- 2D page wiring ---
@@ -175,6 +190,7 @@ $('connect').onclick = () => {
 $('seek').onclick = seek
 $('ai').onclick = playAi
 $('puzzle').onclick = startPuzzles
+$('coords').onclick = startTrainer
 $('resign').onclick = () => {
   if (gameRunning()) lichess.resign(session.gameId).catch(e => msg(e.message))
 }

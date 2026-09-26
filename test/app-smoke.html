@@ -81,7 +81,7 @@ try {
     b.run()
   }
 
-  await until(() => labels() === 'Stockfish L2 5+0,Seek human 5+0,Puzzles', 'idle menu, got ' + labels())
+  await until(() => labels() === 'Stockfish L2 5+0,Seek human 5+0,Puzzles,Coordinates', 'idle menu, got ' + labels())
   check($('time').value === '5' && $('ailevel').value === '2', 'settings restored into the form')
   check(board.stage.position.y === 0.2, 'table height restored')
   board.onHeightChange(-0.1)
@@ -92,7 +92,7 @@ try {
   check($('msg').textContent.startsWith('Seeks must be rapid'), 'blitz seek explained')
 
   $('time').value = '10'; $('time').dispatchEvent(new Event('change'))
-  check(labels() === 'Stockfish L2 10+0,Seek human 10+0,Puzzles', 'menu follows settings, got ' + labels())
+  check(labels() === 'Stockfish L2 10+0,Seek human 10+0,Puzzles,Coordinates', 'menu follows settings, got ' + labels())
   check(JSON.parse(localStorage.getItem('settings')).time === '10', 'settings persisted')
 
   press('Seek human 10+0')
@@ -111,10 +111,19 @@ try {
   streams['/api/board/game/stream/g1'].push({ type: 'gameState', moves: 'f2f3 e7e5 g2g4 d8h4',
     wtime: 6e5, btime: 6e5, status: 'mate', winner: 'black' })
   await until(() => board.panel.status.text === 'Checkmate — you lose', 'game over text')
-  check(labels() === 'Stockfish L2 10+0,Seek human 10+0,Puzzles', 'menu after game, got ' + labels())
+  check(labels() === 'Stockfish L2 10+0,Seek human 10+0,Puzzles,Coordinates', 'menu after game, got ' + labels())
 
   press('Puzzles')
-  await until(() => labels() === 'Next puzzle,Stockfish L2 10+0,Seek human 10+0', 'puzzle bar, got ' + labels())
+  await until(() => labels() === 'Next puzzle,Stockfish L2 10+0,Seek human 10+0,Coordinates', 'puzzle bar, got ' + labels())
+
+  press('Coordinates')                               // trainer replaces puzzles
+  await until(() => board.panel.status.big, 'trainer target shown')
+  check(labels() === 'New round,Stockfish L2 10+0,Seek human 10+0,Puzzles', 'trainer bar, got ' + labels())
+  board._select(board.panel.status.big)
+  check(board.panel.status.sub.startsWith('Score 1'), 'trainer scored, got ' + board.panel.status.sub)
+  press('Puzzles')
+  await until(() => labels().startsWith('Next puzzle'), 'back to puzzles, got ' + labels())
+  check(!board.onSquarePick && !board.panel.status.big, 'trainer unhooked from the board')
 
   press('Seek human 10+0')                           // seek while solving puzzles
   await until(() => labels().includes('Cancel seek'), 'cancel seek in puzzle view, got ' + labels())

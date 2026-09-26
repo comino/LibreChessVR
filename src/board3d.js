@@ -29,6 +29,8 @@ export class Board3D {
   getTargets = () => []      // square => [squares], set by game logic
   canPick = () => false      // square => bool, set by game logic
   checkSquare = () => null   // () => square of the king in check, set by game logic
+  onSquarePick = null        // square => ; when set, any square pick goes here (trainer)
+  marks = {}                 // square -> tint hex, see setMarks
   handMode = 'ray'           // 'ray' = point & pinch, 'grab' = pinch-grab pieces
   onHeightChange = null      // (offset) => after a thumbstick height adjustment ends
 
@@ -248,6 +250,12 @@ export class Board3D {
 
   cue(kind) { playCue(kind) }
 
+  // Extra square tints owned by a session, e.g. {e4: 0x1a6a2a}; {} clears.
+  setMarks(marks) {
+    this.marks = marks
+    this._applyTints()
+  }
+
   // --- selection & tints ---
 
   _applyTints() {
@@ -255,6 +263,7 @@ export class Board3D {
     for (const sq in this.tiles) tint(sq, 0)
     if (this.lastMove) for (const sq of [this.lastMove.from, this.lastMove.to]) tint(sq, TINT.last)
     if (this.check) tint(this.check, TINT.check)
+    for (const sq in this.marks) tint(sq, this.marks[sq])
     if (this.selected) {
       tint(this.selected, TINT.select)
       for (const sq of this.targets) tint(sq, TINT.target)
@@ -272,6 +281,11 @@ export class Board3D {
   }
 
   _select(square) {
+    if (this.onSquarePick) {
+      if (!square) return
+      buzz(this.source)
+      return this.onSquarePick(square)
+    }
     const from = this.selected
     const move = from && this.targets.includes(square)
     this.selected = !move && square && square !== from && this.canPick(square) ? square : null
@@ -451,6 +465,10 @@ export class Board3D {
     const local = this.boardGroup.worldToLocal(p.clone())
     if (this.picker) return this._closePicker(this._nearestPromo(local))
     if (local.y < -0.02 || local.y > 0.18) return
+    if (this.onSquarePick) {
+      const sq = xzToSquare(local.x, local.z, SQUARE)
+      return sq && this.onSquarePick(sq)
+    }
     let best = null
     for (const sq in this.pieceAt) {
       if (!this.canPick(sq)) continue

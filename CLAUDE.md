@@ -21,6 +21,7 @@ player who normally plays 2D. Static web app, no build step, no backend, no npm.
 | `src/lichess.js` | Board API client: NDJSON streams, seek (connection must stay open!), moves, draw/takeback/abort/resign. |
 | `src/game.js` | `GameSession`: one game stream ↔ chess.js ↔ board. Optimistic local moves, rollback on server reject, offers → button bar. |
 | `src/puzzle.js` | `PuzzleSession`: fetches `/api/puzzle/next`, replays game PGN, validates solution moves, auto-plays replies, auto-advances. |
+| `src/trainer.js` | `TrainerSession`: coordinate drill — big target square on the panel, point at it; 30 s rounds alternating white/black view; best in `localStorage.coordBest`. |
 | `src/main.js` | 2D page + in-VR menu (`menu()`: Stockfish/seek/cancel/puzzles, from persisted `settings`), event stream, resumes ongoing game. `view` = what the panel shows; `refresh()` re-renders it. `window.chessvr.board` = debug handle. |
 | `assets/chess.glb` | Piece models (from old prototype). Node names `Pawn/Knight/...`; each piece has `*_Plastic_0` (shown, recolored) and `*_Velvet_0` (hidden) meshes. |
 
@@ -56,6 +57,10 @@ player who normally plays 2D. Static web app, no build step, no backend, no npm.
   clocks from jumping when a transient message (`_say`) is shown.
 - Promotion: board detects pawn→last rank from `userData.type` and opens the picker;
   sessions just receive the promo letter. `setPosition` always closes the picker.
+- `board.onSquarePick` (trainer) takes over every square pick incl. grab-mode pinches;
+  `bindBoard` and `TrainerSession.stop()` clear it. `board.setMarks({sq: hex})` = session tints.
+- main.js: puzzles/trainer are "activities" started via `startActivity` (stops `view` first);
+  `menu({except})` hides the button of the activity already showing.
 - `PuzzleSession.stop()` bumps `run`, so an in-flight fetch can't take over the board
   after a game starts.
 - Hand tracking: hand meshes via `XRHandModelFactory`; two modes, persisted as
@@ -86,6 +91,7 @@ player who normally plays 2D. Static web app, no build step, no backend, no npm.
    unless each prints `*-OK`: `puzzle-smoke` (stubbed puzzles, fetch race, underpromotion),
    `grab-smoke` (fake hand joints), `game-smoke` (fake lichess stream: optimistic moves,
    rejects, draw/takeback offers, resign confirm, promotion via picker, results),
+   `trainer-smoke` (scoring, flashes, grab pinch, round end/best, color flip, unhook),
    `ui-smoke` (button bar ray/poke/confirm, drag-click, picker grab/ray/cancel/edges),
    `app-smoke` (real index.html + main.js vs stubbed `fetch`: menu, settings, seek/cancel,
    AI challenge, game over → menu, puzzles, seek-while-puzzling → game takes over).

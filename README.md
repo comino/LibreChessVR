@@ -26,6 +26,8 @@ WebXR needs a secure context. Two options:
 - The ray stops where it hits; the square or button under it lights up. A king in check glows red.
 - Point at a piece, **trigger** to select — legal targets light up green.
 - Point at a target square, **trigger** to move. Select the piece again to cancel.
+- **Coordinates** (menu): a square name appears — point at that square. 30 s rounds,
+  alternating white/black view; best score is kept. Trains 3D board vision directly.
 - Hands: "point & pinch" works like the trigger; "grab pieces" lets you pick up and drop pieces.
 - Promotion: a Q/R/B/N row floats over the last rank — pick one; anywhere else cancels.
 - Button bar right of the board (trigger, or poke it with a fingertip): offer/accept/decline

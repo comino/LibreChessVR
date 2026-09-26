@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<base href="/">
+<title>ChessVR trainer smoke test</title>
+<style>body { margin: 0 }</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+    "chess.js": "https://cdn.jsdelivr.net/npm/chess.js@1.0.0/+esm"
+  }
+}
+</script>
+</head>
+<body>
+<div id="result" style="position:fixed;top:0;right:0;z-index:10;color:#0f0;font-family:monospace"></div>
+<script type="module">
+import * as THREE from 'three'
+import { Board3D } from './src/board3d.js'
+import { TrainerSession } from './src/trainer.js'
+import { bindBoard } from './src/bind.js'
+import { squareToXZ } from './src/coords.js'
+const out = document.getElementById('result')
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+const check = (cond, what) => { if (!cond) throw new Error('check failed: ' + what) }
+
+try {
+  localStorage.removeItem('coordBest')
+  const board = new Board3D()
+  await board.init()
+  const t = new TrainerSession({ board, menu: () => [{ label: 'Menu', run() {} }] })
+  const emissive = sq => board.tiles[sq].material.emissive.getHex()
+  const other = sq => sq === 'a1' ? 'h8' : 'a1'
+
+  t.start()
+  check(t.color === 'white' && board.boardGroup.rotation.y === 0, 'first round: white view')
+  check(/^[a-h][1-8]$/.test(board.panel.status.big), 'target shown: ' + board.panel.status.big)
+  check(board.bar.buttons.map(b => b.label).join() === 'New round,Menu', 'bar: ' + board.bar.buttons.map(b => b.label))
+  check(!board.canPick('e2'), 'pieces not pickable in trainer')
+
+  // Correct pick via the normal select path (ray/mouse)
+  let target = t.target
+  board._select(target)
+  check(t.score === 1 && t.misses === 0, 'correct pick scored')
+  check(emissive(target) === 0x1a6a2a, 'correct square flashed green')
+  check(t.target !== target, 'new target after a pick')
+
+  // Wrong pick: picked red, real target green, then cleared
+  target = t.target
+  board._select(other(target))
+  check(t.misses === 1 && t.score === 1, 'wrong pick counted')
+  check(emissive(other(target)) === 0x9a1a1a && emissive(target) === 0x1a6a2a, 'wrong red, answer green')
+  await sleep(500)
+  check(emissive(target) === 0 && emissive(other(target)) === 0, 'flash cleared')
+
+  // Grab mode: pinching over the target square counts
+  board.setHandMode('grab')
+  const j = new THREE.Object3D()
+  const hand = { joints: { 'index-finger-tip': j, 'thumb-tip': j } }
+  const { x, z } = squareToXZ(t.target, 0.06)
+  board.scene.updateMatrixWorld(true)
+  j.position.copy(board.boardGroup.localToWorld(new THREE.Vector3(x, 0.03, z)))
+  board._grabStart(hand)
+  check(t.score === 2 && !board.grab, 'grab pinch scored, nothing grabbed')
+  board.setHandMode('ray')
+
+  // Round ends: picks ignored, best saved, New round flips to black
+  t.endAt = performance.now() - 1
+  t._tick()
+  check(!t.running && board.panel.status.text === 'Time!', 'round over')
+  check(board.panel.status.sub === '2 right • 1 wrong • best 2', 'result: ' + board.panel.status.sub)
+  check(localStorage.getItem('coordBest') === '2', 'best saved')
+  board._select(t.target)
+  check(t.score === 2, 'no scoring after time')
+  board.bar.buttons[0].run()
+  check(t.running && t.color === 'black' && Math.abs(board.boardGroup.rotation.y - Math.PI) < 1e-9, 'round 2: black view')
+  check(t.score === 0, 'score reset')
+  t.endAt = performance.now() - 1; t._tick()
+  check(localStorage.getItem('coordBest') === '2', 'lower score keeps best')
+
+  // Timer text counts down
+  t.start()
+  check(/^(30|29) s$/.test(board.panel.status.text), 'countdown: ' + board.panel.status.text)
+
+  // Switching to a game session unhooks the trainer
+  t.stop()
+  bindBoard(board, { chess: { moves: () => [], get: () => null, turn: () => 'w', inCheck: () => false }, color: 'white', active: () => true, tryMove() {} })
+  check(board.onSquarePick === null, 'bindBoard clears onSquarePick')
+  const marksBefore = Object.keys(board.marks).length
+  check(marksBefore === 0, 'stop clears marks')
+
+  out.textContent = 'TRAINER-OK'
+} catch (e) {
+  out.textContent = 'TRAINER-FAIL ' + e.message
+}
+</script>
+</body>
+</html>

@@ -29,7 +29,7 @@ export class StatusPanel {
   }
 
   // status: {names:{white,black}, myColor, wtime, btime, turn, running, text, ts?}
-  //      or {puzzle: true, text, sub}
+  //      or {puzzle: true, text, sub, big?} — big: one large word (trainer target)
   set(status) {
     this.status = { ...status, ts: status.ts ?? performance.now() }
     this.draw()
@@ -48,7 +48,11 @@ export class StatusPanel {
     ctx.roundRect(0, 0, 512, 256, 24)
     ctx.fill()
     ctx.textAlign = 'center'
-    if (!s || s.puzzle) {
+    if (s?.big) {
+      this._text(s.big, '#e8e2d0', 'bold 110px sans-serif', 256, 120)
+      this._text(s.text, '#c8ccd4', '28px sans-serif', 256, 180)
+      this._text(s.sub, '#8899aa', '24px sans-serif', 256, 225)
+    } else if (!s || s.puzzle) {
       this._text(s ? s.text : 'No game', '#c8ccd4', '32px sans-serif', 256, s ? 118 : 140)
       this._text(s?.sub, '#8899aa', '24px sans-serif', 256, 168)
     } else {

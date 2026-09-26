@@ -2,6 +2,7 @@
 // Session needs: chess (chess.js), color ('white'|'black'), active(), tryMove(from, to, promo).
 export function bindBoard(board, s) {
   board.onMove = (from, to, promo) => s.tryMove(from, to, promo)
+  board.onSquarePick = null
   board.getTargets = sq => s.chess.moves({ square: sq, verbose: true }).map(m => m.to)
   board.checkSquare = () => s.chess.inCheck()
     ? s.chess.board().flat().find(p => p?.type === 'k' && p.color === s.chess.turn()).square : null
