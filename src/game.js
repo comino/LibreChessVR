@@ -5,7 +5,7 @@ import { bindBoard, showPiecesAction } from './bind.js'
 import { TINT } from './theme.js'
 
 const STATUS_TEXT = {
-  mate: 'Checkmate', resign: 'Resignation', outoftime: 'Time out', timeout: 'Timeout',
+  mate: 'Checkmate', resign: 'Resignation', outoftime: 'Time out', timeout: 'Player left',
   draw: 'Draw', stalemate: 'Stalemate', aborted: 'Aborted'
 }
 const lower = s => (s || '').toLowerCase()
@@ -46,7 +46,7 @@ export class GameSession {
         await this.lichess.streamGame(this.gameId, m => { failures = 0; this._onMsg(m) }, this.abort.signal)
       } catch (e) {
         if (e.name === 'AbortError') return
-        if (++failures >= 10) return this._fail('Lost the game stream: ' + e.message)
+        if (++failures >= 10) return this._fail('Connection lost — reload to rejoin')
         this.say('Reconnecting: ' + e.message)
       }
       if (!this.finished) await new Promise(r => setTimeout(r, 2000))

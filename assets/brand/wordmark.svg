@@ -6,8 +6,8 @@
   <rect width="64" height="64" rx="14" fill="#0F1218"/>
   <rect x="23" y="11" width="30" height="30" rx="3" fill="none" stroke="#D9A441" stroke-width="3"/>
   <g transform="translate(11 23)">
-    <rect width="15" height="15" fill="#ECE6D6"/><rect x="15" width="15" height="15" fill="#3A4150"/>
-    <rect y="15" width="15" height="15" fill="#3A4150"/><rect x="15" y="15" width="15" height="15" fill="#ECE6D6"/>
+    <rect width="15" height="15" fill="#ECE6D6"/><rect x="15" width="15" height="15" fill="#3A4456"/>
+    <rect y="15" width="15" height="15" fill="#3A4456"/><rect x="15" y="15" width="15" height="15" fill="#ECE6D6"/>
   </g>
   <text class="w" x="84" y="38">PARALLAX</text>
   <text class="t" x="86" y="58">CHESS IN DEPTH</text>

@@ -85,7 +85,7 @@ export class PuzzleSession {
     const { puzzle } = data
     this.solution = puzzle.solution
     this.idx = 0
-    this.info = `Puzzle ${puzzle.id} • rating ${puzzle.rating}`
+    this.info = `Rating ${puzzle.rating}`
     this.clean = true
     this.color = this.chess.turn() === 'w' ? 'white' : 'black'
     this.running = true
@@ -94,7 +94,7 @@ export class PuzzleSession {
     const last = this.chess.history({ verbose: true }).at(-1)
     this.board.setPosition(this.chess.fen(), last)
     this.board.announce(last)
-    this._status(`Find the best move for ${this.color}`)
+    this._status(`${this.color === 'white' ? 'White' : 'Black'} to move`)
   }
 
   _myTurn() { return this.running && this.chess.turn() === this.color[0] }
@@ -112,7 +112,7 @@ export class PuzzleSession {
     this.timer = setTimeout(() => this.next(), 1500)
   }
 
-  _fetchFailed(e) { this._status('Puzzle fetch failed: ' + e.message) }
+  _fetchFailed() { this._status("Couldn't load a puzzle — check the network, then Next puzzle") }
 
   _actions() {
     return [{ label: 'Next puzzle', run: () => this.next() },
@@ -122,7 +122,7 @@ export class PuzzleSession {
 
   _sub() {
     const { streak, best } = this.stats
-    return this.info && `${this.info} • streak ${streak} (best ${best})`
+    return this.info && `${this.info} · Streak ${streak} · Best ${best}`
   }
 
   // Hooks for wrong / solved; the wrong move is already undone on the board.
@@ -134,7 +134,7 @@ export class PuzzleSession {
   _solved() {
     this._saveStats({ streak: this.clean ? this.stats.streak + 1 : 0, solved: this.stats.solved + 1 })
     this.board.cue('success')
-    this._status('Solved! Next puzzle…')
+    this._status('Solved · next puzzle')
     this.timer = setTimeout(() => this.next(), 2000)
   }
 
@@ -181,6 +181,6 @@ export class PuzzleSession {
     this.board.setMarks({})
     this.board.setPosition(this.chess.fen(), mv)
     this.board.announce(mv)
-    this._status(`Your move (${this.color})`)
+    this._status('Your move')
   }
 }

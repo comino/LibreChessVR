@@ -1,7 +1,7 @@
 // Parallax design tokens (see BRAND.md). CSS mirrors these as variables in index.html.
 
 export const COLOR = {
-  ink: '#0F1218', slate: '#1A1F28', steel: '#2A313D', steelHi: '#3A4456',
+  ink: '#0F1218', slate: '#1A1F28', steel: '#2A313D', steelHi: '#3A4456', walnut: '#4A3020',
   ivory: '#ECE6D6', mist: '#9AA3B2',
   brass: '#D9A441', moss: '#3F9D6A', azure: '#4C7FD1', ember: '#D5543F', violet: '#7B5CD6', amber: '#C98A2B'
 }
@@ -18,6 +18,8 @@ export const TINT_MIX = 0.55
 
 export const BOARD = { light: 0xe3cfa6, dark: 0x8a5a36, frame: 0x2e1f14, label: '#d8c6a0' }
 export const PIECES = { white: 0xf2ead8, black: 0x2f2b27 }
+const css = n => '#' + n.toString(16).padStart(6, '0')
+export const PIECE_CSS = { w: css(PIECES.white), b: css(PIECES.black) }
 
 export const FONT = {
   display: "'Space Grotesk', 'Helvetica Neue', Arial, sans-serif",

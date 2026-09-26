@@ -122,17 +122,17 @@ async function runScenario(name) {
     }
 
     if (name === 'main') {
-      await until(() => labels().startsWith('Stockfish L3 10+5'))
+      await until(() => labels().startsWith('Stockfish L3'))
 
       // Stockfish challenge rejected: the VR user must see why (Maia does this via notify).
       routes['/api/challenge/ai'] = () => json({ error: 'Invalid clock' }, 400)
-      press('Stockfish L3 10+5')
+      press('Stockfish L3')
       await until(() => $('msg').textContent.includes('Invalid clock'))
       check(text()?.includes('Invalid clock'), 'AI challenge failure not shown on VR panel (got "' + text() + '")')
 
       // Seek rejected by lichess: same, the panel silently falls back to the menu.
       routes['/api/board/seek'] = () => json({ error: 'Too many seeks' }, 429)
-      press('Seek human 10+5')
+      press('Seek 10+5')
       await until(() => $('msg').textContent.includes('Too many seeks'))
       await sleep(50)
       check(text()?.includes('Too many seeks'), 'seek failure not shown on VR panel (got "' + text() + '")')
@@ -143,7 +143,7 @@ async function runScenario(name) {
         setTimeout(() => streams['/api/stream/event'].push({ type: 'gameStart', game: { gameId: 'm1', speed: 'rapid' } }), 10)
         return json({ id: 'm1' })
       }
-      press('Maia 5 10+5')
+      press('Maia 5')
       await until(() => streams['/api/board/game/stream/m1'] && labels().includes('Abort'))
       streams['/api/board/game/stream/m1'].push({ type: 'gameState', moves: 'e2e4 e7e5', wtime: 6e5, btime: 6e5,
         status: 'resign', winner: 'white' })

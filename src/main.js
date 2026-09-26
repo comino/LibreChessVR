@@ -10,6 +10,7 @@ const $ = id => document.getElementById(id)
 const msg = t => { $('msg').textContent = t }
 
 let lichess = null, session = null, username = null, seekAbort = null, connecting = false
+let maiaTimer = null
 let view = null // what the VR panel shows: game session, puzzles, trainer, or null (idle menu)
 
 const board = new Board3D()
@@ -40,7 +41,7 @@ const settings = () => ({
   level: Math.min(8, Math.max(1, Math.round(+val('ailevel')) || 3)),
   maia: [1, 5, 9].includes(+val('maia')) ? +val('maia') : 5, pdiff: val('pdiff'), ptheme: val('ptheme'),
   height: board.stage.position.y, scale: board.boardScale, flipped: !!board.flipped,
-  environment: board.environment, pieces: board.pieceStyle, voice: board.voice
+  environment: board.environment, pieces: board.pieceStyle, voice: board.voice, hands: board.handMode
 })
 const FIELD_OF = { time: 'time', increment: 'inc', color: 'color', rated: 'rated', level: 'ailevel', maia: 'maia', pdiff: 'pdiff', ptheme: 'ptheme' }
 // View settings live on the board and persist in their own localStorage keys.
@@ -49,6 +50,7 @@ const VIEW_SETTERS = {
   scale: s => { board.setScale(s); localStorage.setItem('boardScale', s) },
   flipped: f => { board.setFlipped(f); localStorage.setItem('flipped', f ? '1' : '') },
   environment: e => { board.setEnvironment(e); localStorage.setItem('environment', e) },
+  hands: h => { $('handmode').value = h; $('handmode').onchange() },
   pieces: p => { board.setPieceStyle(p); localStorage.setItem('pieceStyle', p) },
   voice: v => { board.voice = v; localStorage.setItem('voice', v) }
 }
@@ -66,12 +68,11 @@ const seeking = () => seekAbort && !seekAbort.signal.aborted
 // Full menu, shown on the idle panel.
 function menu() {
   const { time, increment, level } = settings(), tc = `${time}+${increment}`
-  const acts = []
+  const acts = [] // time control / color live on the idle panel's sub line
   if (username) {
-    acts.push({ label: `Stockfish L${level} ${tc}`, run: playAi, primary: true })
-    acts.push({ label: `Maia ${settings().maia} ${tc}`, run: playMaia })
-    if (seeking()) acts.push({ label: 'Cancel seek', run: cancelSeek })
-    else if (isRapid(time, increment)) acts.push({ label: `Seek human ${tc}`, run: seek }) // lichess: seeks rapid+
+    acts.push({ label: `Stockfish L${level}`, run: playAi, primary: true })
+    acts.push({ label: `Maia ${settings().maia}`, run: playMaia })
+    acts.push(seeking() ? { label: 'Cancel seek', run: cancelSeek } : { label: `Seek ${tc}`, run: seek })
   }
   acts.push({ label: 'Puzzles', run: startPuzzles, primary: !username }, { label: 'Puzzle rush', run: startRush },
     { label: 'Coordinates', run: startTrainer }, { label: 'Settings', run: openSettings })
@@ -102,7 +103,12 @@ function refresh() {
   $('seek').textContent = seeking() ? 'Cancel seek' : 'Seek human'
   if (view) view.render()
   else board.setStatus({ puzzle: true, brand: true, text: seeking() ? 'Seeking opponent…' : note || 'Choose how to play',
-    sub: username ? 'Connected as ' + username : 'Puzzles work without login', actions: menu() })
+    sub: username ? idleSub() : 'Training works without an account', actions: menu() })
+}
+
+function idleSub() {
+  const { time, increment, color, rated } = settings()
+  return `${username} · ${time}+${increment} · ${color} · ${rated ? 'rated' : 'casual'}`
 }
 
 // --- lichess connection & games ---
@@ -119,7 +125,7 @@ async function connect(token) {
     if (e instanceof TypeError) {
       msg('Offline — retrying login…')
       setTimeout(() => connect(token), 5000)
-    } else msg('Login failed: ' + e.message)
+    } else msg(`Login failed (${e.message}) — check the token and its scopes`)
     return
   }
   lichess = li
@@ -155,7 +161,7 @@ const playable = g => !UNPLAYABLE.includes(g.speed) && g.compat?.board !== false
 
 // lichess re-sends gameStart for every ongoing game when the stream (re)opens.
 function onEvent(ev) {
-  if (ev.type === 'challengeDeclined') return notify('Challenge declined')
+  if (ev.type === 'challengeDeclined') return notify('Challenge declined — try another time control or color')
   if (ev.type !== 'gameStart' || !playable(ev.game)) return
   const id = ev.game.gameId || ev.game.id
   if (id === session?.gameId || gameRunning()) return
@@ -166,6 +172,7 @@ function onEvent(ev) {
 function attach(gameId) {
   if (session?.gameId === gameId || gameRunning()) return // never drop a live game
   note = null
+  clearTimeout(maiaTimer)
   view?.stop()
   session = view = new GameSession({ lichess, board, username, gameId, onStatus: t => msg(t), menu: compactMenu })
   session.start().catch(e => { if (e.name !== 'AbortError') msg('Game stream lost: ' + e.message) })
@@ -177,7 +184,7 @@ async function seek() {
   if (gameRunning()) return msg('Finish or resign the game first')
   const { time, increment, rated, color } = settings()
   if (!isRapid(time, increment))
-    return msg('Seeks must be rapid: minutes + ⅔ × increment ≥ 8 (e.g. 10+0, 5+5). Blitz works vs Stockfish.')
+    return notify('Seeks need rapid or slower (10+0, 5+5). Blitz works vs Stockfish and Maia.')
   seekAbort?.abort()
   note = null
   const ctl = seekAbort = new AbortController()
@@ -222,9 +229,12 @@ async function playMaia() {
   if (gameRunning()) return
   const { maia, time, increment, rated, color } = settings()
   notify(`Challenging Maia ${maia}…`)
+  clearTimeout(maiaTimer)
+  maiaTimer = setTimeout(() => !gameRunning() && notify(`Maia ${maia} didn't answer — try again or another time control`), 20000)
   try {
     await lichess.challenge('maia' + maia, { time, increment, rated, color })
   } catch (e) {
+    clearTimeout(maiaTimer)
     notify('Maia challenge failed: ' + e.message)
   }
 }
@@ -296,8 +306,18 @@ $('maiaBtn').onclick = playMaia
 $('puzzle').onclick = startPuzzles
 $('coords').onclick = startTrainer
 $('rush').onclick = startRush
+// Resign asks twice here too (3 s window), like the in-VR button.
+let resignArmed = 0
 $('resign').onclick = () => {
-  if (gameRunning()) lichess.resign(session.gameId).catch(e => msg(e.message))
+  if (!gameRunning()) return
+  if (performance.now() - resignArmed > 3000) {
+    resignArmed = performance.now()
+    $('resign').textContent = 'Confirm resign'
+    return setTimeout(() => { $('resign').textContent = 'Resign' }, 3000)
+  }
+  resignArmed = 0
+  $('resign').textContent = 'Resign'
+  lichess.resign(session.gameId).catch(e => msg(e.message))
 }
 
 refresh()

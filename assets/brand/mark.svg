@@ -3,8 +3,8 @@
   <rect x="23" y="11" width="30" height="30" rx="3" fill="none" stroke="#D9A441" stroke-width="3"/>
   <g transform="translate(11 23)">
     <rect width="15" height="15" fill="#ECE6D6"/>
-    <rect x="15" width="15" height="15" fill="#3A4150"/>
-    <rect y="15" width="15" height="15" fill="#3A4150"/>
+    <rect x="15" width="15" height="15" fill="#3A4456"/>
+    <rect y="15" width="15" height="15" fill="#3A4456"/>
     <rect x="15" y="15" width="15" height="15" fill="#ECE6D6"/>
   </g>
 </svg>

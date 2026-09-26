@@ -17,7 +17,7 @@ training, all without taking the headset off.
 **Play**
 - **Your lichess account** — Stockfish (levels 1–8), the human-like **Maia** bots (1/5/9) or a
   seek against people. Resumes an ongoing game on load; survives headset sleep and network blips.
-- **Premoves**, draw offers, takebacks, abort/resign (resign asks twice), claim the win when
+- **Premoves**, draw offers, answering takeback requests, abort/resign (resign asks twice), claim the win when
   your opponent leaves, **Rematch** and a **Review** of the finished game on the board.
 - **Promotion picker** — Q/R/B/N float over the last rank; underpromote in one pinch.
 
@@ -51,7 +51,7 @@ training, all without taking the headset off.
    `challenge:write`: [create token](https://lichess.org/account/oauth/token/create?scopes[]=board:play&scopes[]=challenge:write&description=Parallax),
    paste it, **Connect**. The token stays in your browser.
 4. **Enter VR.** The button bar right of the board has everything: start a game, puzzles,
-   rush, coordinates and settings.
+   rush, coordinates and settings (Play, Puzzles, View — incl. scene, pieces, voice and hands).
 
 ![The 2D page doubles as setup and desktop view](docs/img/landing.jpg)
 

@@ -73,8 +73,8 @@ try {
   // Round ends: picks ignored, best saved, New round flips to black
   t.endAt = performance.now() - 1
   t._tick()
-  check(!t.running && board.panel.status.text === 'Time!', 'round over')
-  check(board.panel.status.sub === '2 right • 1 wrong • best 2', 'result: ' + board.panel.status.sub)
+  check(!t.running && board.panel.status.text === 'Time', 'round over')
+  check(board.panel.status.sub === '2 right · 1 wrong · Best 2', 'result: ' + board.panel.status.sub)
   check(localStorage.getItem('coordBest') === '2', 'best saved')
   board._select(t.target)
   check(t.score === 2, 'no scoring after time')
@@ -86,7 +86,7 @@ try {
 
   // Flipped view setting: the label names the side actually shown
   t.stop(); board.setFlipped(true); t.start()
-  check(t.color === 'white' ? board.panel.status.sub.endsWith("black's view") : board.panel.status.sub.endsWith("white's view"),
+  check(t.color === 'white' ? board.panel.status.sub.endsWith("Black's view") : board.panel.status.sub.endsWith("White's view"),
     'flipped label: ' + board.panel.status.sub + ' color ' + t.color)
   board.setFlipped(false)
 

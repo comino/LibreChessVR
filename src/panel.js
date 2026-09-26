@@ -2,7 +2,7 @@
 // pressed by controller ray, mouse click or fingertip poke.
 
 import * as THREE from 'three'
-import { COLOR, FONT } from './theme.js'
+import { COLOR, FONT, PIECE_CSS } from './theme.js'
 
 function canvasPlane(w, h, px) {
   const canvas = document.createElement('canvas')
@@ -44,7 +44,7 @@ function drawMark(ctx, x, y, s) {
   ctx.lineWidth = 3 * u
   ctx.beginPath(); ctx.roundRect(x + 23 * u, y + 11 * u, 30 * u, 30 * u, 3 * u); ctx.stroke()
   const q = 15 * u
-  for (const [i, j, c] of [[0, 0, COLOR.ivory], [1, 0, '#3A4150'], [0, 1, '#3A4150'], [1, 1, COLOR.ivory]]) {
+  for (const [i, j, c] of [[0, 0, COLOR.ivory], [1, 0, COLOR.steelHi], [0, 1, COLOR.steelHi], [1, 1, COLOR.ivory]]) {
     ctx.fillStyle = c
     ctx.fillRect(x + 11 * u + i * q, y + 23 * u + j * q, q, q)
   }
@@ -118,7 +118,7 @@ export class StatusPanel {
     const low = left < LOW_TIME
     ctx.beginPath()
     ctx.arc(46, y + 30, 11, 0, Math.PI * 2)
-    ctx.fillStyle = c === 'w' ? COLOR.ivory : '#2F2B27'
+    ctx.fillStyle = PIECE_CSS[c]
     ctx.fill()
     ctx.strokeStyle = COLOR.mist; ctx.lineWidth = 1.5; ctx.stroke()
     ctx.textAlign = 'left'
@@ -134,6 +134,17 @@ export class StatusPanel {
     Object.assign(this.ctx, { fillStyle: color, font })
     this.ctx.fillText(text, x, y)
   }
+}
+
+// Greedy word wrap to fit maxW pixels (buttons show 1–3 short lines).
+function wrap(ctx, text, maxW) {
+  const lines = []
+  for (const w of text.split(' ')) {
+    const cur = lines.at(-1)
+    if (cur && ctx.measureText(cur + ' ' + w).width <= maxW) lines[lines.length - 1] = cur + ' ' + w
+    else lines.push(w)
+  }
+  return lines
 }
 
 const BAR_W = 0.3, BAR_H = 0.18, COLS = 3, ROWS = 3, CONFIRM_MS = 3000
@@ -217,7 +228,7 @@ export class ButtonBar {
       const fill = armed ? COLOR.ember : b.primary ? COLOR.brass : hot ? COLOR.steelHi : COLOR.steel
       roundRect(ctx, x + 6, y + 6, bw - 12, bh - 12, 18, fill, hot && !armed ? COLOR.brass : null)
       ctx.fillStyle = b.primary && !armed ? COLOR.ink : COLOR.ivory
-      const lines = armed ? ['Confirm?'] : b.label.split(' ')
+      const lines = armed ? ['Confirm?'] : wrap(ctx, b.label, bw - 36)
       lines.forEach((l, j) => ctx.fillText(l, x + bw / 2, y + bh / 2 + (j - (lines.length - 1) / 2) * 32))
     })
     this.mesh.visible = this.buttons.length > 0

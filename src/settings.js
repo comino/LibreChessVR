@@ -10,15 +10,15 @@ export const VOICES = ['off', 'opponent', 'all']
 export const DIFFICULTIES = ['easiest', 'easier', 'normal', 'harder', 'hardest']
 // lichess puzzle angles -> button label ('mix' = no theme filter)
 export const THEMES = {
-  mix: 'Mixed', mateIn1: 'Mate in 1', mateIn2: 'Mate in 2', mateIn3: 'Mate in 3', fork: 'Forks',
-  pin: 'Pins', skewer: 'Skewers', endgame: 'Endgames', opening: 'Openings'
+  mix: 'mixed', mateIn1: 'mate in 1', mateIn2: 'mate in 2', mateIn3: 'mate in 3', fork: 'forks',
+  pin: 'pins', skewer: 'skewers', endgame: 'endgames', opening: 'openings'
 }
 export const ENVIRONMENTS = ['minimal', 'study', 'sunset', 'night'] // builders in environments.js
 
 // Next entry after cur (first entry if cur isn't in the list).
 export const cycle = (list, cur) => list[(list.map(String).indexOf(String(cur)) + 1) % list.length]
 
-// get(): {time, increment, color, rated, level, maia, height, scale, flipped, environment, pieces, voice, pdiff, ptheme}
+// get(): {time, increment, color, rated, level, maia, height, scale, flipped, environment, pieces, voice, hands, pdiff, ptheme}
 export function settingsView({ board, get, set, onBack }) {
   let page = 'play'
   const view = {
@@ -45,7 +45,7 @@ export function settingsView({ board, get, set, onBack }) {
         { label: s.rated ? 'Rated' : 'Casual', run: () => set({ rated: !s.rated }) },
         { label: 'Puzzle settings', run: go('puzzles') },
         { label: 'View settings', run: go('view') },
-        { label: 'Back', run: onBack }
+        { label: 'Menu', run: onBack }
       ]
     }
   }
@@ -54,10 +54,10 @@ export function settingsView({ board, get, set, onBack }) {
     return {
       puzzle: true, text: 'Settings · Puzzles', sub: 'Applies from the next puzzle',
       actions: [
-        { label: `Level ${s.pdiff}`, run: () => set({ pdiff: cycle(DIFFICULTIES, s.pdiff) }) },
-        { label: THEMES[s.ptheme] ?? 'Mixed', run: () => set({ ptheme: cycle(Object.keys(THEMES), s.ptheme) }) },
+        { label: `Difficulty ${s.pdiff}`, run: () => set({ pdiff: cycle(DIFFICULTIES, s.pdiff) }) },
+        { label: `Theme ${THEMES[s.ptheme] ?? 'mixed'}`, run: () => set({ ptheme: cycle(Object.keys(THEMES), s.ptheme) }) },
         { label: 'Play settings', run: go('play') },
-        { label: 'Back', run: onBack }
+        { label: 'Menu', run: onBack }
       ]
     }
   }
@@ -73,9 +73,9 @@ export function settingsView({ board, get, set, onBack }) {
         { label: `Board ${Math.round(s.scale * 100)}%`, run: () => set({ scale: cycle(BOARD_SCALES, s.scale) }) },
         { label: 'Table up', run: () => set({ height: s.height + 0.05 }) },
         { label: 'Table down', run: () => set({ height: s.height - 0.05 }) },
-        { label: s.flipped ? 'Flipped view' : 'Normal view', run: () => set({ flipped: !s.flipped }) },
-        { label: 'Play settings', run: go('play') },
-        { label: 'Back', run: onBack }
+        { label: `Flip ${s.flipped ? 'on' : 'off'}`, run: () => set({ flipped: !s.flipped }) },
+        { label: `Hands ${s.hands === 'grab' ? 'grab' : 'point'}`, run: () => set({ hands: s.hands === 'grab' ? 'ray' : 'grab' }) },
+        { label: 'Menu', run: onBack }
       ]
     }
   }

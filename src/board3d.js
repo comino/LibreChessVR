@@ -12,7 +12,7 @@ import { buildEnvironment, disposeGroup, woodTexture } from './environments.js'
 import { squareToXZ, xzToSquare, parseFen, captured } from './coords.js'
 import { StatusPanel, ButtonBar } from './panel.js'
 import { playCue, buzz } from './feedback.js'
-import { TINT, TINT_MIX, BOARD, PIECES } from './theme.js'
+import { TINT, TINT_MIX, BOARD, PIECES, COLOR, FONT } from './theme.js'
 import { moveToSpeech, speak } from './speech.js'
 
 const SQUARE = 0.06                      // 6cm squares -> 48cm board, tournament-ish size
@@ -94,7 +94,7 @@ export class Board3D {
     this.scene.add(this.stage)
     const table = new THREE.Mesh(
       new THREE.BoxGeometry(0.75, 1.44, 0.75),
-      new THREE.MeshStandardMaterial({ map: woodTexture('#4a3020', 'rgba(20,10,4,0.4)', 2), roughness: 0.7 }))
+      new THREE.MeshStandardMaterial({ map: woodTexture(COLOR.walnut, 'rgba(20,10,4,0.4)', 2), roughness: 0.7 }))
     table.position.set(BOARD_POS.x, 0, BOARD_POS.z)
     table.receiveShadow = true
     this.stage.add(table)
@@ -155,7 +155,7 @@ export class Board3D {
     c.width = c.height = 64
     const ctx = c.getContext('2d')
     ctx.fillStyle = BOARD.label
-    ctx.font = 'bold 44px sans-serif'
+    ctx.font = `600 44px ${FONT.ui}`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillText(text, 32, 34)
@@ -528,10 +528,10 @@ export class Board3D {
       const ctrl = this.renderer.xr.getController(i)
       const line = new THREE.Line(
         new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 0, -1)]),
-        new THREE.LineBasicMaterial({ color: 0x8899bb }))
+        new THREE.LineBasicMaterial({ color: COLOR.mist }))
       line.scale.z = RAY_LEN
       const dot = new THREE.Mesh(new THREE.SphereGeometry(0.004, 8, 6),
-        new THREE.MeshBasicMaterial({ color: 0xe8e2d0 }))
+        new THREE.MeshBasicMaterial({ color: COLOR.ivory }))
       dot.visible = false
       ctrl.add(line, dot)
       ctrl.addEventListener('connected', e => {

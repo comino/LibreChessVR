@@ -109,7 +109,7 @@ async function runScenario(name) {
   }
 
   try {
-    await until(() => labels().startsWith('Stockfish L3 10+5'))
+    await until(() => labels().startsWith('Stockfish L3'))
 
     if (name === 'staleBar') {
       // A game starts while solving puzzles; its gameFull is slow. attach() stops the puzzle
@@ -164,7 +164,7 @@ async function runScenario(name) {
     if (name === 'rushSeek') {
       // main.js compactMenu: "a running seek stays cancellable" in every activity. The running
       // rush drops compactMenu, so a seek started before can't be cancelled from VR for 3 min.
-      press('Seek human 10+5')
+      press('Seek 10+5')
       await until(() => streams['/api/board/seek'])
       press('Puzzle rush')
       await until(() => labels().includes('End rush'))
@@ -175,10 +175,10 @@ async function runScenario(name) {
       // A failed seek leaves its note; a later seek that the user cancels falls back to the
       // stale "Seek failed" text on the idle panel, as if the new seek had failed.
       routes['/api/board/seek'] = () => json({ error: 'Too many seeks' }, 429)
-      press('Seek human 10+5')
+      press('Seek 10+5')
       await until(() => text()?.includes('Too many seeks'))
       delete routes['/api/board/seek']
-      press('Seek human 10+5')
+      press('Seek 10+5')
       await until(() => labels().includes('Cancel seek'))
       press('Cancel seek')
       await until(() => labels().includes('Seek human'))

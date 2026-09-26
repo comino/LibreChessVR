@@ -53,7 +53,7 @@ export class RushSession extends PuzzleSession {
   _solved() {
     this.score++
     this.board.cue('success')
-    this._status('Solved!')
+    this._status('Solved')
     this.timer = setTimeout(() => this.next(), 400)
   }
 
@@ -88,6 +88,6 @@ export class RushSession extends PuzzleSession {
   _sub() {
     if (this.over) return `Best ${this.best ?? 0}`
     this.shownSec = this._left()
-    return `Score ${this.score} • ${'♥'.repeat(this.lives)} • ${this.shownSec} s`
+    return `Score ${this.score} · ${'♥'.repeat(this.lives)} · ${this.shownSec} s`
   }
 }

@@ -175,5 +175,5 @@ Desktop pre-check for controller input: Meta's Immersive Web Emulator extension.
 
 ## Ideas / not yet done
 
-- Chat, requesting takebacks, claim draw when the opponent leaves
+- Chat, requesting takebacks, claim draw when the opponent leaves, time-control picker per game
 - Move list / PGN view

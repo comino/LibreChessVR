@@ -13,8 +13,9 @@
   /* Tokens mirror src/theme.js (see BRAND.md) */
   :root {
     --ink: #0F1218; --slate: #1A1F28; --steel: #2A313D; --steel-hi: #3A4456;
-    --ivory: #ECE6D6; --mist: #9AA3B2; --brass: #D9A441; --moss: #3F9D6A; --ember: #D5543F;
-    --r-btn: 12px; --r-card: 20px;
+    --ivory: #ECE6D6; --mist: #9AA3B2; --brass: #D9A441; --moss: #3F9D6A; --azure: #4C7FD1;
+    --ember: #D5543F; --violet: #7B5CD6; --amber: #C98A2B;
+    --r-btn: 16px; --r-card: 24px;
     --ui: Inter, system-ui, 'Helvetica Neue', Arial, sans-serif;
     --display: 'Space Grotesk', 'Helvetica Neue', Arial, sans-serif;
   }
@@ -24,7 +25,7 @@
   #ui {
     position: fixed; top: 16px; left: 16px; bottom: 16px; z-index: 10; width: 320px; overflow-y: auto;
     background: rgba(26, 31, 40, .92); border: 1px solid var(--steel); border-radius: var(--r-card);
-    padding: 22px 22px 18px; backdrop-filter: blur(8px); box-shadow: 0 20px 60px rgba(0,0,0,.45);
+    padding: 24px; backdrop-filter: blur(8px); box-shadow: 0 20px 60px rgba(0,0,0,.45);
   }
   .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 4px }
   .brand img { width: 40px; height: 40px }
@@ -86,22 +87,26 @@
       <button id="connect" class="primary">Connect</button>
       <small><a href="https://lichess.org/account/oauth/token/create?scopes[]=board:play&scopes[]=challenge:write&description=Parallax" target="_blank">Create a token</a></small>
     </div>
-    <p class="hint">Puzzles, rush and coordinates work without an account.</p>
+    <p class="hint">Training works without an account.</p>
   </div>
 
   <div id="play" style="display:none">
     <h2>Play</h2>
     <div class="row">
-      <input id="time" type="number" value="10" min="3" title="minutes"> +
-      <input id="inc" type="number" value="5" min="0" title="increment (s)">
-      <select id="color"><option value="random">random</option><option value="white">white</option><option value="black">black</option></select>
-      <label><input id="rated" type="checkbox"> rated</label>
+      <label><input id="time" type="number" value="10" min="3"> min</label>
+      <label>+ <input id="inc" type="number" value="5" min="0"> s</label>
+    </div>
+    <div class="row">
+      <select id="color"><option value="random">Random color</option><option value="white">White</option><option value="black">Black</option></select>
+      <label><input id="rated" type="checkbox"> Rated</label>
     </div>
     <div class="row">
       <button id="ai">Stockfish</button>
-      <input id="ailevel" type="number" value="3" min="1" max="8" title="level 1–8">
+      <label>Level <input id="ailevel" type="number" value="3" min="1" max="8"></label>
+    </div>
+    <div class="row">
       <button id="maiaBtn">Maia</button>
-      <select id="maia"><option value="1">maia1</option><option value="5" selected>maia5</option><option value="9">maia9</option></select>
+      <select id="maia"><option value="1">Maia 1</option><option value="5" selected>Maia 5</option><option value="9">Maia 9</option></select>
     </div>
     <div class="row">
       <button id="seek">Seek human</button>
@@ -113,14 +118,14 @@
   <div class="row">
     <button id="puzzle">Puzzles</button>
     <select id="pdiff">
-      <option value="easiest">easiest</option><option value="easier">easier</option>
-      <option value="normal" selected>normal</option><option value="harder">harder</option>
-      <option value="hardest">hardest</option>
+      <option value="easiest">Easiest</option><option value="easier">Easier</option>
+      <option value="normal" selected>Normal</option><option value="harder">Harder</option>
+      <option value="hardest">Hardest</option>
     </select>
     <select id="ptheme">
-      <option value="mix">mixed</option><option value="mateIn1">mate in 1</option><option value="mateIn2">mate in 2</option>
-      <option value="mateIn3">mate in 3</option><option value="fork">forks</option><option value="pin">pins</option>
-      <option value="skewer">skewers</option><option value="endgame">endgames</option><option value="opening">openings</option>
+      <option value="mix">Mixed themes</option><option value="mateIn1">Mate in 1</option><option value="mateIn2">Mate in 2</option>
+      <option value="mateIn3">Mate in 3</option><option value="fork">Forks</option><option value="pin">Pins</option>
+      <option value="skewer">Skewers</option><option value="endgame">Endgames</option><option value="opening">Openings</option>
     </select>
   </div>
   <div class="row">
@@ -137,7 +142,8 @@
   </div>
 
   <div id="msg">Loading…</div>
-  <p class="hint">Everything is also on the button bar next to the board — put on the headset and press <b>Enter VR</b>.</p>
+  <p class="hint">Everything is also on the button bar next to the board — put on the headset and press <b>Enter VR</b>.
+    VR needs https or localhost (see README).</p>
 </div>
 <script type="module" src="src/main.js"></script>
 </body>

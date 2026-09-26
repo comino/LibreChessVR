@@ -76,7 +76,7 @@ export class TrainerSession {
     } catch { best = this.score }
     this.board.cue('success')
     this.onStatus?.(`Coordinates: ${this.score} right, ${this.misses} wrong (best ${best})`)
-    this.result = `${this.score} right • ${this.misses} wrong • best ${best}`
+    this.result = `${this.score} right · ${this.misses} wrong · Best ${best}`
     this._show()
   }
 
@@ -84,8 +84,8 @@ export class TrainerSession {
     const again = { label: 'New round', run: () => this.start(), primary: !this.running }
     const status = this.running
       ? { big: this.target, text: `${this.shownSec = this._left()} s`,
-          sub: `Score ${this.score} • ${this.board.viewSide()}'s view` }
-      : { text: 'Time!', sub: this.result }
+          sub: `Score ${this.score} · ${this.board.viewSide() === 'white' ? 'White' : 'Black'}'s view` }
+      : { text: 'Time', sub: this.result }
     this.board.setStatus({ puzzle: true, ...status, actions: [again, ...this.menu?.() ?? []] })
   }
 }

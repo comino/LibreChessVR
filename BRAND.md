@@ -13,7 +13,9 @@ live in one place: `src/theme.js` (3D + canvas UI) mirrored as CSS variables in 
   "Your move", "Premove Nf3", "Rush over — 12 solved". Errors say what happened and what to do:
   "Seeks need rapid or slower (10+0, 5+5). Blitz works vs Stockfish."
 - Button labels: 1–2 words, sentence case ("Offer draw", "Puzzle rush"). A value shown on a
-  button reads as `Name value` ("Board 125%", "Voice opponent").
+  button reads as `Name value` ("Board 125%", "Voice opponent", "Seek 10+5"). Context that
+  doesn't fit (time control, color, rating) goes on the panel's sub line. Leaving any screen
+  is always "Menu". Separator: " · ". No exclamation marks.
 
 ## Logo
 

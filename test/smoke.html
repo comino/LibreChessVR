@@ -27,7 +27,7 @@ try {
   board.setStatus({
     names: { white: 'me', black: 'stockfish' }, myColor: 'white',
     wtime: 600000, btime: 597000, turn: 'w', running: true, text: 'Your move',
-    actions: [{ label: 'Next puzzle', run() {} }, { label: 'Stockfish L3 10+5', run() {} }, { label: 'Seek human 10+5', run() {} }, { label: 'Resign', confirm: true, run() {} }]
+    actions: [{ label: 'Next puzzle', run() {} }, { label: 'Stockfish L3', run() {} }, { label: 'Seek 10+5', run() {} }, { label: 'Resign', confirm: true, run() {} }]
   })
   if (location.hash === '#closeup') {
     board.camera.position.set(0.18, 0.82, -0.14)

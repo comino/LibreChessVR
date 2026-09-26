@@ -45,7 +45,7 @@ try {
 
   r.start()
   await until(() => r.running, 'first puzzle loaded')
-  check(/^Score 0 • ♥♥♥ • 1(80|79) s$/.test(board.panel.status.sub), 'rush header: ' + board.panel.status.sub)
+  check(/^Score 0 · ♥♥♥ · 1(80|79) s$/.test(board.panel.status.sub), 'rush header: ' + board.panel.status.sub)
   check(labels() === 'Flip board,End rush', 'no hint/next during rush: ' + labels())
   check(diffs[0] === 'easiest', 'starts easiest')
 
@@ -62,7 +62,7 @@ try {
   check(r.lives === 2 && board.panel.status.text === 'Wrong — 2 lives left', 'life lost: ' + board.panel.status.text)
   check(!board.canPick('d8'), 'no moves until the next puzzle')
   await until(() => r.running && diffs.length === fetched + 1, 'moved on to a new puzzle')
-  check(board.panel.status.sub.includes('♥♥ •') && !board.panel.status.sub.includes('♥♥♥'), 'two hearts: ' + board.panel.status.sub)
+  check(board.panel.status.sub.includes('♥♥ ·') && !board.panel.status.sub.includes('♥♥♥'), 'two hearts: ' + board.panel.status.sub)
 
   // A failed fetch retries instead of leaving the board empty
   failNext = 1
