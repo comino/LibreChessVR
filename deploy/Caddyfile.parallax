@@ -4,6 +4,7 @@ parallax.46-224-133-201.sslip.io {
 	encode gzip
 	header /sw.js Cache-Control "no-cache"
 	header /index.html Cache-Control "no-cache"
+	header / Cache-Control "no-cache"
 	header /.well-known/assetlinks.json Content-Type application/json
 	header /manifest.webmanifest Content-Type application/manifest+json
 	file_server
