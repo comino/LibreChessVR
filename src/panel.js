@@ -68,6 +68,13 @@ export class StatusPanel {
   }
 
   // Redraws only when the running clock's shown second changes.
+  // Small text in the top-right corner (FPS readout); '' hides it.
+  setCorner(text) {
+    if (text === this.corner) return
+    this.corner = text
+    this.draw()
+  }
+
   tick() {
     const s = this.status
     if (!s?.running) return
@@ -107,6 +114,10 @@ export class StatusPanel {
       this._clockRow(28, opp)
       this._clockRow(168, s.myColor[0])
       this._text(s.text, COLOR.mist, `500 22px ${FONT.ui}`, 256, 138)
+    }
+    if (this.corner) {
+      ctx.textAlign = 'right'
+      this._text(this.corner, COLOR.brass, `600 16px ${FONT.mono}`, 492, 22)
     }
     this.tex.needsUpdate = true
   }

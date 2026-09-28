@@ -42,7 +42,8 @@ const settings = () => ({
   level: Math.min(8, Math.max(1, Math.round(+val('ailevel')) || 3)),
   maia: [1, 5, 9].includes(+val('maia')) ? +val('maia') : 5, pdiff: val('pdiff'), ptheme: val('ptheme'),
   height: board.stage.position.y, scale: board.boardScale, flipped: !!board.flipped,
-  environment: board.environment, pieces: board.pieceStyle, voice: board.voice, hands: board.handMode
+  environment: board.environment, pieces: board.pieceStyle, voice: board.voice, hands: board.handMode,
+  boardTheme: board.boardTheme, pieceTheme: board.pieceTheme, fps: !!board.showFps
 })
 const FIELD_OF = { time: 'time', increment: 'inc', color: 'color', rated: 'rated', level: 'ailevel', maia: 'maia', pdiff: 'pdiff', ptheme: 'ptheme' }
 // View settings live on the board and persist in their own localStorage keys.
@@ -52,6 +53,9 @@ const VIEW_SETTERS = {
   flipped: f => { board.setFlipped(f); localStorage.setItem('flipped', f ? '1' : '') },
   environment: e => { board.setEnvironment(e); localStorage.setItem('environment', e) },
   hands: h => { $('handmode').value = h; $('handmode').onchange() },
+  boardTheme: t => { board.setBoardTheme(t); localStorage.setItem('boardTheme', t) },
+  pieceTheme: t => { board.setPieceTheme(t); localStorage.setItem('pieceTheme', t) },
+  fps: f => { board.setShowFps(f); localStorage.setItem('showFps', f ? '1' : '') },
   pieces: p => { board.setPieceStyle(p); localStorage.setItem('pieceStyle', p) },
   voice: v => { board.voice = v; localStorage.setItem('voice', v) }
 }
@@ -289,6 +293,9 @@ board.setFlipped(!!localStorage.getItem('flipped'))
 board.setEnvironment(localStorage.getItem('environment') || 'study')
 board.setPieceStyle(localStorage.getItem('pieceStyle') || 'solid')
 board.voice = localStorage.getItem('voice') || 'off'
+board.setBoardTheme(localStorage.getItem('boardTheme') || 'walnut')
+board.setPieceTheme(localStorage.getItem('pieceTheme') || 'ivory')
+board.setShowFps(!!localStorage.getItem('showFps'))
 board.onHeightChange = h => localStorage.setItem('tableHeight', h.toFixed(3))
 
 $('handmode').value = localStorage.getItem('handMode') || 'ray'

@@ -11,7 +11,8 @@ import { buildEnvironment, disposeGroup, woodTexture } from './environments.js'
 import { squareToXZ, xzToSquare, parseFen, captured } from './coords.js'
 import { StatusPanel, ButtonBar } from './panel.js'
 import { playCue, buzz } from './feedback.js'
-import { TINT, TINT_MIX, BOARD, PIECES, COLOR, FONT } from './theme.js'
+import { TINT, TINT_MIX, BOARD, BOARD_THEMES, PIECE_THEMES, PIECE_DEFAULTS, PIECES, COLOR, FONT } from './theme.js'
+import { canvasTexture, rng, glow } from './scenes/common.js'
 import { moveToSpeech, speak } from './speech.js'
 
 const SQUARE = 0.06                      // 6cm squares -> 48cm board, tournament-ish size
@@ -51,6 +52,9 @@ export class Board3D {
     await this._loadPieces()
     this._ui()
     this._input()
+    this.setBoardTheme('walnut')
+    this.setPieceTheme('ivory')
+    this._captureEnv()
     this.renderer.setAnimationLoop(() => this._tick())
   }
 
@@ -108,7 +112,7 @@ export class Board3D {
     this.boardGroup.position.copy(BOARD_POS)
     this.stage.add(this.boardGroup)
 
-    const base = new THREE.Mesh(
+    const base = this.frame = new THREE.Mesh(
       new THREE.BoxGeometry(8 * SQUARE + 0.05, 0.015, 8 * SQUARE + 0.05),
       new THREE.MeshStandardMaterial({ color: BOARD.frame, roughness: 0.7 }))
     base.position.y = -0.008
@@ -123,6 +127,7 @@ export class Board3D {
       const tile = new THREE.Mesh(tileGeo, new THREE.MeshStandardMaterial({
         color: light ? BOARD.light : BOARD.dark, roughness: 0.5
       }))
+      tile.userData.light = light
       const { x, z } = squareToXZ(sq, SQUARE)
       tile.position.set(x, 0, z)
       tile.receiveShadow = true
@@ -153,14 +158,15 @@ export class Board3D {
     const c = document.createElement('canvas')
     c.width = c.height = 64
     const ctx = c.getContext('2d')
-    ctx.fillStyle = BOARD.label
+    ctx.fillStyle = '#ffffff' // tinted per board theme via the sprite color
     ctx.font = `600 44px ${FONT.ui}`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillText(text, 32, 34)
     const tex = new THREE.CanvasTexture(c)
     tex.colorSpace = THREE.SRGBColorSpace
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, toneMapped: false }))
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, toneMapped: false, color: BOARD.label }))
+    ;(this.labels ??= []).push(sp)
     sp.scale.setScalar(0.035)
     sp.position.set(x, 0.02, z)
     return sp
@@ -254,6 +260,23 @@ export class Board3D {
     p.position.set(x, 0.005, z)
   }
 
+  // Frame counter (FPS readout for tuning on the headset): updates the panel once a second.
+  _fps(now) {
+    this.frames = (this.frames ?? 0) + 1
+    this.fpsT0 ??= now
+    if (now - this.fpsT0 < 1000) return
+    const fps = Math.round(this.frames * 1000 / (now - this.fpsT0))
+    this.frames = 0
+    this.fpsT0 = now
+    this.fps = fps
+    if (this.showFps) this.panel.setCorner(`${fps} fps`)
+  }
+
+  setShowFps(on) {
+    this.showFps = on
+    this.panel.setCorner(on ? (this.fps ? `${this.fps} fps` : '… fps') : '')
+  }
+
   deselect() {
     this.selected = null
     this._applyTints()
@@ -272,6 +295,96 @@ export class Board3D {
       visible: style !== 'hidden', transparent: style === 'ghost',
       opacity: style === 'ghost' ? 0.25 : 1, depthWrite: style !== 'ghost', needsUpdate: true
     })
+  }
+
+  // --- themes ---
+
+  // Board look: square colors tint a grain texture (wood / marble / fine), each square showing
+  // a different part of it so no two look alike. Textures are made once per grain kind.
+  setBoardTheme(name) {
+    const t = BOARD_THEMES[name] ?? BOARD_THEMES.walnut
+    this.boardTheme = BOARD_THEMES[name] ? name : 'walnut'
+    const r = rng(17)
+    for (const tile of Object.values(this.tiles)) {
+      const m = tile.material
+      m.map?.dispose()
+      m.map = this._grain(t.grain).clone()
+      m.map.offset.set(r(), r())
+      m.map.repeat.set(0.22, 0.22)
+      m.map.rotation = r() < 0.5 ? 0 : Math.PI / 2
+      m.roughness = t.grain === 'marble' ? 0.38 : 0.5 // polished, but no glare spot
+      m.needsUpdate = true
+      tile.userData.base.setHex(tile.userData.light ? t.light : t.dark)
+    }
+    this.frame.material.color.setHex(t.frame)
+    for (const l of this.labels) l.material.color.set(t.label)
+    this.shadowsDirty = true
+    this._applyTints()
+  }
+
+  _grain(kind) {
+    this.grains ??= {}
+    return this.grains[kind] ??= canvasTexture(512, 512, (ctx, w, h) => {
+      const r = rng(kind.length * 31)
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, w, h)
+      if (kind === 'wood') {
+        for (let i = 0; i < 90; i++) {
+          ctx.strokeStyle = `rgba(90,60,30,${0.06 + r() * 0.12})`
+          ctx.lineWidth = 0.6 + r() * 2.4
+          const y0 = r() * h, amp = 2 + r() * 6, f = 0.006 + r() * 0.02
+          ctx.beginPath()
+          for (let x = 0; x <= w; x += 8) ctx.lineTo(x, y0 + Math.sin(x * f + i) * amp)
+          ctx.stroke()
+        }
+      } else if (kind === 'marble') {
+        for (let i = 0; i < 14; i++) {
+          ctx.strokeStyle = `rgba(70,70,80,${0.08 + r() * 0.2})`
+          ctx.lineWidth = 0.6 + r() * 2
+          let x = r() * w, y = 0
+          ctx.beginPath(); ctx.moveTo(x, y)
+          while (y < h) { x += (r() - 0.5) * 40; y += 12 + r() * 20; ctx.lineTo(x, y) }
+          ctx.stroke()
+        }
+      } else {
+        for (let i = 0; i < 2500; i++) {            // fine speckle: matte printed-board look
+          ctx.fillStyle = `rgba(0,0,0,${r() * 0.05})`
+          ctx.fillRect(r() * w, r() * h, 2, 2)
+        }
+      }
+    })
+  }
+
+  // Piece set: recolors the shared materials in place (no piece rebuild).
+  setPieceTheme(name) {
+    const t = PIECE_THEMES[name] ?? PIECE_THEMES.ivory
+    this.pieceTheme = PIECE_THEMES[name] ? name : 'ivory'
+    for (const c of ['w', 'b']) for (const m of [this.pieceMat[c], this.solidMat[c]]) {
+      const p = { ...PIECE_DEFAULTS, ...t[c] }
+      m.color.setHex(p.color)
+      m.emissive.setHex(p.emissive)
+      Object.assign(m, { roughness: p.roughness, metalness: p.metalness })
+    }
+    this.shadowsDirty = true
+  }
+
+  // Pieces reflect the real scene: one cube capture per scene switch, never per frame.
+  _captureEnv() {
+    if (!this.pieceMat) return
+    this.pmrem ??= new THREE.PMREMGenerator(this.renderer)
+    const hide = [this.boardGroup, this.panel?.mesh, this.bar?.mesh].filter(Boolean)
+    const was = hide.map(o => o.visible)
+    hide.forEach(o => { o.visible = false })
+    const pos = new THREE.Vector3(BOARD_POS.x, BOARD_POS.y + 0.35 + this.stage.position.y, BOARD_POS.z)
+    const rt = this.pmrem.fromScene(this.scene, 0.02, 0.05, 60, { position: pos })
+    hide.forEach((o, i) => { o.visible = was[i] })
+    this.envRT?.dispose()
+    this.envRT = rt
+    for (const m of [...Object.values(this.pieceMat), ...Object.values(this.solidMat)]) {
+      m.envMap = rt.texture
+      m.envMapIntensity = 0.9
+      m.needsUpdate = true
+    }
   }
 
   // --- WebXR session (own launch UI instead of three's VRButton) ---
@@ -331,6 +444,7 @@ export class Board3D {
     this.lamp.color.set(lc)
     this.lamp.intensity = li
     this.lamp.position.set(...lp)
+    this._captureEnv()
   }
 
   // Table height offset from the default (m), clamped.
@@ -412,6 +526,23 @@ export class Board3D {
       this.anim = { obj: this.pieceAt[lastMove.to], from, to, t0: performance.now() }
       this.anim.obj.position.set(from.x, 0.005, from.z)
     }
+    if (lastMove?.captured) this._burst(lastMove.to)
+  }
+
+  // Capture: a few soft sparks fly out of the square and fade (pooled sprites, ~0.5 s).
+  _burst(square) {
+    this.sparks ??= Array.from({ length: 8 }, () => {
+      const s = glow(COLOR.brass, 0.03, 0)
+      this.boardGroup.add(s)
+      return s
+    })
+    const { x, z } = squareToXZ(square, SQUARE)
+    this.sparks.forEach((s, i) => {
+      const a = i / 8 * Math.PI * 2
+      s.userData.v = new THREE.Vector3(Math.cos(a) * 0.12, 0.1 + (i % 3) * 0.04, Math.sin(a) * 0.12)
+      s.position.set(x, 0.03, z)
+    })
+    this.burstT0 = performance.now()
   }
 
   // state: see StatusPanel.set, plus actions: [{label, run, confirm?}] for the button bar
@@ -773,16 +904,32 @@ export class Board3D {
         this._setHover('grab', xzToSquare(local.x, local.z, SQUARE))
       }
     }
-    if (this.anim) {
-      const k = Math.min(1, (performance.now() - this.anim.t0) / 300)
-      const e = k * (2 - k)
+    if (this.anim) {                     // arc over the board, then a small wooden settle
+      const k = Math.min(1, (now - this.anim.t0) / 380)
+      const e = Math.min(1, k / 0.8), glide = e * (2 - e)
+      const settle = k > 0.8 ? Math.sin((k - 0.8) / 0.2 * Math.PI) * 0.004 : 0
       const { obj, from, to } = this.anim
       obj.position.set(
-        from.x + (to.x - from.x) * e,
-        0.005 + Math.sin(Math.PI * e) * 0.03,
-        from.z + (to.z - from.z) * e)
+        from.x + (to.x - from.x) * glide,
+        0.005 + Math.sin(Math.PI * glide) * 0.03 * (k < 0.8 ? 1 : 0) + settle,
+        from.z + (to.z - from.z) * glide)
       if (k === 1) this.anim = null
     }
+    if (this.burstT0) {
+      const k = (now - this.burstT0) / 500
+      this.sparks.forEach(s => {
+        s.position.addScaledVector(s.userData.v, dt)
+        s.userData.v.y -= 0.35 * dt
+        s.material.opacity = k < 1 ? 0.9 * (1 - k) : 0
+      })
+      if (k >= 1) this.burstT0 = null
+    }
+    if (this.selected) {                 // legal targets breathe gently
+      const p = 0.08 + 0.06 * Math.sin(now / 160)
+      for (const sq of this.targets) if (!Object.values(this.hover).includes(sq))
+        this.tiles[sq].material.emissive.setRGB(0.25 * p, 0.62 * p, 0.42 * p)
+    }
+    this._fps(now)
     this.hands.forEach((hand, i) => {
       const tip = hand.joints['index-finger-tip']
       // disconnect hides the hand group but leaves joint flags as they were

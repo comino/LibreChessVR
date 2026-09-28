@@ -33,7 +33,10 @@ training, all without taking the headset off.
 - Living scenes — a **Study** with a crackling fire, ticking clock and dust in the window light;
   a **Sunset** terrace with drifting clouds, circling birds and lanterns; a **Night** with aurora,
   shooting stars and fireflies; or **Minimal**. Each keeps the board the clearest thing in view.
-- Board size 80–150 %, table height by thumbstick or buttons, wooden move sounds, haptics.
+- **Themes** — boards: walnut, green, ice, marble, midnight; piece sets: ivory, classic, gold &
+  silver, maple, neon. Pieces reflect the scene around them.
+- Board size 80–150 %, table height by thumbstick or buttons, wooden move sounds, haptics,
+  and an FPS readout for tuning (Settings → View).
 - Controllers (point + trigger), hand tracking (point & pinch, or grab pieces), fingertip-poke
   buttons, or mouse on desktop.
 
