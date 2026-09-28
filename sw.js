@@ -1,6 +1,6 @@
 // Parallax service worker: stale-while-revalidate for the app shell, CDN modules and fonts, so
 // the installed app starts instantly and works offline; lichess API calls are never cached.
-const CACHE = 'parallax-v2'
+const CACHE = 'parallax-v3'
 const CACHEABLE = u => u.origin === location.origin || /(^|\.)(cdn\.jsdelivr\.net|fonts\.googleapis\.com|fonts\.gstatic\.com)$/.test(u.host)
 
 self.addEventListener('install', () => self.skipWaiting())

@@ -1,4 +1,4 @@
-// In-VR settings on the button bar, two pages: Play (opponents, clock) and View (board).
+// In-VR settings on the button bar: an overview page leading to Look, Play, Puzzles and View.
 // Values come from get() and change via set(patch); main.js persists them.
 
 export const TIME_PRESETS = ['3+2', '5+3', '10+0', '10+5', '15+10', '30+0']
@@ -22,15 +22,29 @@ export const cycle = (list, cur) => list[(list.map(String).indexOf(String(cur)) 
 
 // get(): {time, increment, color, rated, level, maia, height, scale, flipped, environment, pieces, voice, hands, pdiff, ptheme, boardTheme, pieceTheme, fps}
 export function settingsView({ board, get, set, onBack }) {
-  let page = 'play'
+  let page = 'hub'
   const view = {
     stop() {},
     render() {
       const s = get()
-      board.setStatus({ play: playPage, view: viewPage, look: lookPage, puzzles: puzzlePage }[page](s))
+      board.setStatus({ hub: hubPage, play: playPage, view: viewPage, look: lookPage, puzzles: puzzlePage }[page](s))
     }
   }
   const go = p => () => { page = p; view.render() }
+
+  // Overview: every settings page one press away.
+  function hubPage() {
+    return {
+      puzzle: true, text: 'Settings', sub: 'Look · Play · Puzzles · View',
+      actions: [
+        { label: 'Look', run: go('look'), primary: true },
+        { label: 'Play', run: go('play') },
+        { label: 'Puzzles', run: go('puzzles') },
+        { label: 'View', run: go('view') },
+        { label: 'Menu', run: onBack }
+      ]
+    }
+  }
 
   function playPage(s) {
     const tc = `${s.time}+${s.increment}`
@@ -45,9 +59,7 @@ export function settingsView({ board, get, set, onBack }) {
         } },
         { label: `Color ${s.color}`, run: () => set({ color: cycle(COLORS, s.color) }) },
         { label: s.rated ? 'Rated' : 'Casual', run: () => set({ rated: !s.rated }) },
-        { label: 'Puzzle settings', run: go('puzzles') },
-        { label: 'Look settings', run: go('look') },
-        { label: 'View settings', run: go('view') },
+        { label: 'All settings', run: go('hub') },
         { label: 'Menu', run: onBack }
       ]
     }
@@ -59,7 +71,7 @@ export function settingsView({ board, get, set, onBack }) {
       actions: [
         { label: `Difficulty ${s.pdiff}`, run: () => set({ pdiff: cycle(DIFFICULTIES, s.pdiff) }) },
         { label: `Theme ${THEMES[s.ptheme] ?? 'mixed'}`, run: () => set({ ptheme: cycle(Object.keys(THEMES), s.ptheme) }) },
-        { label: 'Play settings', run: go('play') },
+        { label: 'All settings', run: go('hub') },
         { label: 'Menu', run: onBack }
       ]
     }
@@ -74,7 +86,7 @@ export function settingsView({ board, get, set, onBack }) {
         { label: `Set ${s.pieceTheme}`, run: () => set({ pieceTheme: cycle(PIECE_THEME_NAMES, s.pieceTheme) }) },
         { label: `Pieces ${s.pieces}`, run: () => set({ pieces: cycle(PIECE_STYLES, s.pieces) }) },
         { label: `Size ${Math.round(s.scale * 100)}%`, run: () => set({ scale: cycle(BOARD_SCALES, s.scale) }) },
-        { label: 'Play settings', run: go('play') },
+        { label: 'All settings', run: go('hub') },
         { label: 'Menu', run: onBack }
       ]
     }
@@ -91,7 +103,7 @@ export function settingsView({ board, get, set, onBack }) {
         { label: `Flip ${s.flipped ? 'on' : 'off'}`, run: () => set({ flipped: !s.flipped }) },
         { label: `Hands ${s.hands === 'grab' ? 'grab' : 'point'}`, run: () => set({ hands: s.hands === 'grab' ? 'ray' : 'grab' }) },
         { label: `FPS ${s.fps ? 'on' : 'off'}`, run: () => set({ fps: !s.fps }) },
-        { label: 'Play settings', run: go('play') },
+        { label: 'All settings', run: go('hub') },
         { label: 'Menu', run: onBack }
       ]
     }

@@ -35,6 +35,7 @@ function loadSettings() {
 }
 function saveSettings() {
   localStorage.setItem('settings', JSON.stringify(Object.fromEntries(FIELDS.map(id => [id, val(id)]))))
+  syncLook()
   refresh()
 }
 const settings = () => ({
@@ -296,6 +297,16 @@ board.voice = localStorage.getItem('voice') || 'off'
 board.setBoardTheme(localStorage.getItem('boardTheme') || 'walnut')
 board.setPieceTheme(localStorage.getItem('pieceTheme') || 'ivory')
 board.setShowFps(!!localStorage.getItem('showFps'))
+
+// Look dropdowns on the 2D page share the in-VR setters (and their persistence).
+const LOOK = { scene: 'environment', boardTheme: 'boardTheme', pieceTheme: 'pieceTheme' }
+function syncLook() {
+  const s = settings()
+  for (const [id, key] of Object.entries(LOOK)) if ($(id)) $(id).value = s[key]
+}
+for (const [id, key] of Object.entries(LOOK)) if ($(id)) $(id).onchange = () => setSettings({ [key]: $(id).value })
+
+syncLook()
 board.onHeightChange = h => localStorage.setItem('tableHeight', h.toFixed(3))
 
 $('handmode').value = localStorage.getItem('handMode') || 'ray'
