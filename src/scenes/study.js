@@ -2,7 +2,7 @@
 // grandfather clock with the real time, dust drifting in the window light, evening view outside.
 
 import * as THREE from 'three'
-import { rng, std, mesh, box, canvasTexture, woodTexture, glow, instanced, points, mergeStatic } from './common.js'
+import { rng, std, mesh, box, canvasTexture, woodTexture, glow, instanced, points, mergeStatic, shadowBlob, edgeShade, shadeMat, mergeInto } from './common.js'
 
 const W = 8, H = 3.2, Z0 = -0.45           // room size and center z (table sits at the center)
 const BACK = Z0 - W / 2, RIGHT = W / 2, LEFT = -W / 2
@@ -238,6 +238,37 @@ export function study() {
   group.add(dust.points)
   const dustBase = dust.pos.slice()
 
+  // grounding: soft occlusion along the walls and under the furniture
+  const edge = edgeShade(W, [0, BACK], 0)
+  group.add(mergeInto([edge, edgeShade(W, [LEFT, Z0], Math.PI / 2, 0.7, 0.011, edge.material),
+    edgeShade(W, [RIGHT, Z0], -Math.PI / 2, 0.7, 0.011, edge.material)]))
+  const blobMat = shadeMat(0.85)
+  group.add(mergeInto([[0.8, 2.3, LEFT + 0.25, -1.2], [0.8, 0.8, LEFT + 0.3, -3.3], [1.3, 1.2, 2.7, -0.6],
+    [0.7, 0.7, 2.05, 0.35], [0.7, 0.7, -2.9, -3.8], [0.9, 2.2, RIGHT - 0.3, -1.9]]
+    .map(([w, d, x, z]) => shadowBlob(w, d, [x, z], 1, 0.012, blobMat))))
+  // light falling from the window: two crossed soft beams toward the floor
+  const beamTex = canvasTexture(64, 256, (ctx, w, h) => {
+    const g = ctx.createLinearGradient(0, 0, 0, h)
+    g.addColorStop(0, 'rgba(255,236,205,0.3)'); g.addColorStop(1, 'rgba(255,236,205,0)')
+    ctx.fillStyle = g; ctx.fillRect(0, 0, w, h)
+    const side = ctx.createLinearGradient(0, 0, w, 0)       // soft sides
+    side.addColorStop(0, 'rgba(0,0,0,1)'); side.addColorStop(0.3, 'rgba(0,0,0,0)')
+    side.addColorStop(0.7, 'rgba(0,0,0,0)'); side.addColorStop(1, 'rgba(0,0,0,1)')
+    ctx.globalCompositeOperation = 'destination-out'
+    ctx.fillStyle = side; ctx.fillRect(0, 0, w, h)
+  })
+  const beams = [0, Math.PI / 2].map(rot => {
+    const b = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 3.4), new THREE.MeshBasicMaterial({
+      map: beamTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide, toneMapped: false, fog: false
+    }))
+    b.geometry.translate(0, -1.7, 0)                       // hang from the window
+    b.position.set(0.6, 2.3, BACK + 0.1)
+    b.rotation.set(0.62, rot, 0, 'YXZ')
+    group.add(b)
+    return b
+  })
+
   mergeStatic(group) // furniture, panelling, fireplace stone… in one draw call
   const firePos = new THREE.Vector3(RIGHT - 0.5, 0.45, -1.9)
   function update(t, dt, { lamp }) {
@@ -251,6 +282,7 @@ export function study() {
     lamp.position.copy(firePos)
     lamp.intensity = 3.2 + 0.35 * Math.sin(t * 9) + 0.25 * Math.sin(t * 23 + 1)
     candle.scale.setScalar(0.1 * (1 + 0.12 * Math.sin(t * 17) + 0.08 * Math.sin(t * 29)))
+    beams.forEach((b, i) => { b.material.opacity = 0.85 + 0.15 * Math.sin(t * 0.3 + i) })
     // clock: real time, pendulum swings once per second
     const now = new Date(), min = now.getMinutes() + now.getSeconds() / 60
     clock.minute.rotation.z = -min / 60 * Math.PI * 2

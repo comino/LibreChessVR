@@ -435,6 +435,22 @@ try {
   board.burstT0 -= 1000; board._tick()
   check(board.sparks.every(sp => sp.material.opacity === 0) && !board.burstT0, 'sparks fade out')
 
+  // --- contact shadows follow the pieces, hide in blindfold ---
+  board.setPosition('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1')
+  board._tick()
+  check(board.contacts.count === 32, 'one contact shadow per piece: ' + board.contacts.count)
+  const m4 = new THREE.Matrix4(), pos = new THREE.Vector3()
+  board.contacts.getMatrixAt(0, m4); pos.setFromMatrixPosition(m4)
+  const p0 = board.piecesGroup.children[0].position
+  check(Math.abs(pos.x - p0.x) < 1e-6 && Math.abs(pos.z - p0.z) < 1e-6, 'shadow under its piece')
+  board.setPosition('rnbqkbnr/pppp1ppp/8/8/8/8/PPPPPPPP/RNBQKBN1 w Qkq - 0 1')
+  board._tick()
+  check(board.contacts.count === 32, 'captured pieces keep a (smaller) shadow: ' + board.contacts.count)
+  board.setPieceStyle('hidden')
+  check(!board.contacts.visible, 'blindfold hides contact shadows')
+  board.setPieceStyle('solid')
+  check(board.contacts.visible, 'shadows back')
+
   board.cue('capture'); board.cue('error')        // must not throw
   out.textContent = 'UI-OK'
 } catch (e) {

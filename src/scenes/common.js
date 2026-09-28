@@ -153,3 +153,52 @@ export function lantern([x, y, z], post = 0) {
   g.add(halo)
   return { group: g, halo }
 }
+
+// Soft dark radial blob (contact shadows / baked-looking occlusion), shared texture.
+let blobTex = null
+export const blobTexture = () => blobTex ??= canvasTexture(128, 128, (ctx, w) => {
+  const g = ctx.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2)
+  g.addColorStop(0, 'rgba(0,0,0,0.6)')
+  g.addColorStop(0.55, 'rgba(0,0,0,0.3)')
+  g.addColorStop(1, 'rgba(0,0,0,0)')
+  ctx.fillStyle = g
+  ctx.fillRect(0, 0, w, w)
+})
+export const shadeMat = opacity => new THREE.MeshBasicMaterial({
+  map: blobTexture(), transparent: true, opacity, depthWrite: false, toneMapped: false,
+  polygonOffset: true, polygonOffsetFactor: -2
+})
+
+// Flat soft shadow on the floor: w × d meters at (x, z).
+export function shadowBlob(w, d, [x, z], opacity = 1, y = 0.012, mat = shadeMat(opacity)) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mat)
+  m.rotation.x = -Math.PI / 2
+  m.position.set(x, y, z)
+  return m
+}
+
+// Occlusion strip where a wall meets the floor: dark at the wall, fading into the room.
+let edgeTex = null
+export function edgeShade(length, [x, z], rotY, depth = 0.7, y = 0.011, mat) {
+  edgeTex ??= canvasTexture(8, 128, (ctx, w, h) => {
+    const g = ctx.createLinearGradient(0, 0, 0, h)
+    g.addColorStop(0, 'rgba(0,0,0,0.5)'); g.addColorStop(1, 'rgba(0,0,0,0)')
+    ctx.fillStyle = g; ctx.fillRect(0, 0, w, h)
+  })
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(length, depth), mat ?? new THREE.MeshBasicMaterial({
+    map: edgeTex, transparent: true, depthWrite: false, toneMapped: false
+  }))
+  m.geometry.translate(0, -depth / 2, 0) // top edge (dark) on the wall line
+  m.rotation.set(-Math.PI / 2, 0, rotY, 'YXZ')
+  m.position.set(x, y, z)
+  return m
+}
+
+// Merges meshes that share one material into a single mesh (one draw call).
+export function mergeInto(meshes) {
+  const geos = meshes.map(m => { m.updateMatrix(); return m.geometry.clone().applyMatrix4(m.matrix) })
+  const one = new THREE.Mesh(mergeGeometries(geos), meshes[0].material)
+  meshes.forEach(m => m.geometry.dispose())
+  geos.forEach(g => g.dispose())
+  return one
+}

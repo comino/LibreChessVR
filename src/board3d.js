@@ -12,14 +12,14 @@ import { squareToXZ, xzToSquare, parseFen, captured } from './coords.js'
 import { StatusPanel, ButtonBar } from './panel.js'
 import { playCue, buzz } from './feedback.js'
 import { TINT, TINT_MIX, BOARD, BOARD_THEMES, PIECE_THEMES, PIECE_DEFAULTS, PIECES, COLOR, FONT } from './theme.js'
-import { canvasTexture, rng, glow } from './scenes/common.js'
+import { canvasTexture, rng, glow, blobTexture, shadowBlob } from './scenes/common.js'
 import { moveToSpeech, speak } from './speech.js'
 
 const SQUARE = 0.06                      // 6cm squares -> 48cm board, tournament-ish size
 const BOARD_POS = new THREE.Vector3(0, 0.73, -0.45)
 const NODE_MAP = { Pawn: 'p', Queen: 'q', King: 'k', Rook: 'r', Knight: 'n', Bishop: 'b' }
 const _vA = new THREE.Vector3(), _vB = new THREE.Vector3(), _vC = new THREE.Vector3()
-const _m = new THREE.Matrix4(), _tint = new THREE.Color()
+const _m = new THREE.Matrix4(), _tint = new THREE.Color(), _dummy = new THREE.Object3D()
 const HOVER = new THREE.Color(TINT.hover)   // added on top of the tile's tint
 const RAY_LEN = 1.5
 const BAR_X = 0.4
@@ -103,6 +103,9 @@ export class Board3D {
     table.receiveShadow = true
     this.stage.add(table)
     this.table = table
+    // soft shadow of the table on the floor (in the scene: the floor doesn't move with the stage)
+    this.tableShadow = shadowBlob(1.25, 1.25, [BOARD_POS.x, BOARD_POS.z], 0.9, 0.014) // above rugs
+    this.scene.add(this.tableShadow)
     this.stage.add(this.sun, this.sun.target) // shadows follow the table height
 
     addEventListener('resize', () => this._resize())
@@ -143,6 +146,14 @@ export class Board3D {
     this.piecesGroup = new THREE.Group()
     this.capturedGroup = new THREE.Group() // not pickable: outside piecesGroup
     this.boardGroup.add(this.piecesGroup, this.capturedGroup)
+    // contact shadows: one instanced draw for every piece on and beside the board
+    const geo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)
+    this.contacts = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({
+      map: blobTexture(), transparent: true, depthWrite: false, toneMapped: false,
+      polygonOffset: true, polygonOffsetFactor: -2
+    }), 64)
+    this.contacts.count = 0
+    this.boardGroup.add(this.contacts)
     this.pieceAt = {}
     this.selected = null
     this.lastMove = null
@@ -268,6 +279,7 @@ export class Board3D {
   // Puts a piece dropped elsewhere (grab mode) back on its own square.
   snapBack(square) {
     this.shadowsDirty = true
+    this.contactsDirty = true
     const p = this.pieceAt[square]
     if (!p) return
     const { x, z } = squareToXZ(square, SQUARE)
@@ -291,6 +303,22 @@ export class Board3D {
     this.panel.setCorner(on ? (this.fps ? `${this.fps} fps` : '… fps') : '')
   }
 
+  // Contact shadow under each piece; a lifted piece's shadow spreads and softens.
+  _updateContacts() {
+    const d = _dummy
+    let n = 0
+    for (const [group, size] of [[this.piecesGroup, 1], [this.capturedGroup, 0.6]]) for (const p of group.children) {
+      const lift = Math.max(0, p.position.y - 0.005)
+      d.position.set(p.position.x, 0.0056, p.position.z)
+      d.scale.setScalar(SQUARE * 1.05 * size * (1 + lift * 8))
+      d.updateMatrix()
+      this.contacts.setMatrixAt(n++, d.matrix)
+    }
+    this.contacts.count = n
+    this.contacts.instanceMatrix.needsUpdate = true
+    this.contactsDirty = false
+  }
+
   deselect() {
     this.selected = null
     this._applyTints()
@@ -305,6 +333,7 @@ export class Board3D {
 
   _styleMaterials(style) {
     this.shadowsDirty = true
+    this.contacts.visible = style !== 'hidden' // blindfold: shadows would give the pieces away
     for (const m of Object.values(this.pieceMat)) Object.assign(m, {
       visible: style !== 'hidden', transparent: style === 'ghost',
       opacity: style === 'ghost' ? 0.25 : 1, depthWrite: style !== 'ghost', needsUpdate: true
@@ -502,6 +531,7 @@ export class Board3D {
     const grow = Math.max(1, this.boardScale)
     this.boardGroup.scale.setScalar(this.boardScale)
     this.table.scale.set(grow, 1, grow)
+    this.tableShadow.scale.set(grow, grow, 1)
     const cam = this.sun.shadow.camera // shadow box covers table + captured pieces
     cam.left = cam.bottom = -0.7 * grow
     cam.right = cam.top = 0.7 * grow
@@ -527,6 +557,7 @@ export class Board3D {
       this.piecesGroup.add(piece)
     }
     this._showCaptured(fen)
+    this.contactsDirty = true
     this.selected = null
     this.lastMove = lastMove
     this.check = this.checkSquare()
@@ -665,6 +696,7 @@ export class Board3D {
 
   // promo = chosen piece type, or null to cancel (the pawn returns home).
   _closePicker(promo) {
+    this.contactsDirty = true
     const { from, to } = this.picker
     this._removePicker()
     if (promo) return this.onMove?.(from, to, promo)
@@ -840,6 +872,7 @@ export class Board3D {
   }
 
   _drop(cancel = false) {
+    this.contactsDirty = true
     const { piece, from } = this.grab
     this.grab = null
     delete this.hover.grab
@@ -943,6 +976,7 @@ export class Board3D {
       for (const sq of this.targets) if (!Object.values(this.hover).includes(sq))
         this.tiles[sq].material.emissive.setRGB(0.25 * p, 0.62 * p, 0.42 * p)
     }
+    if (this.anim || this.grab || this.contactsDirty) this._updateContacts()
     this._fps(now)
     this.hands.forEach((hand, i) => {
       const tip = hand.joints['index-finger-tip']
