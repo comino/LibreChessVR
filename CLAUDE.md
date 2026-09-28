@@ -176,6 +176,10 @@ frame (`board._tick()`); XR controllers need `updateMatrix()`; tints are `tile.u
 - Hosted on fred: `deploy/deploy.sh` → `/opt/parallax/web`, Caddy site in
   `deploy/Caddyfile.parallax` (appended to `/etc/caddy/Caddyfile`; backups `Caddyfile.bak-parallax-*`).
   URL https://parallax.46-224-133-201.sslip.io. Bump `CACHE` in `sw.js` on each ship.
+- Caching: Caddy sends `Cache-Control: no-cache` on every file (revalidate → 304s); `sw.js` is
+  network-first for app files (cache only offline) and cache-first for versioned CDN modules.
+  Never go back to stale-while-revalidate for app modules: it mixed old and new ES modules
+  after a deploy (old settings page inside a new scene).
 - PWA: `manifest.webmanifest`, `sw.js` (registered on https only, so localhost dev never caches),
   icons `assets/brand/icon-*.png`. `.well-known/assetlinks.json` ties the APK to the site (no URL bar).
 - Quest APK: `android/build.sh` (Meta's Bubblewrap fork, `horizonOSAppMode: immersive`,
