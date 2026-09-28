@@ -451,6 +451,19 @@ try {
   board.setPieceStyle('solid')
   check(board.contacts.visible, 'shadows back')
 
+  // --- procedural piece detail: every set compiles and renders without shader errors ---
+  const shaderErrors = []
+  const realErr = console.error
+  console.error = (...a) => { shaderErrors.push(a.join(' ')); realErr(...a) }
+  for (const [set, kind] of [['ivory', 1], ['maple', 2], ['gold', 3], ['neon', 4], ['classic', 1]]) {
+    board.setPieceTheme(set)
+    board._tick()
+    check(board.detailU.uDetail.value === kind, `${set}: detail kind ${kind}, got ${board.detailU.uDetail.value}`)
+  }
+  console.error = realErr
+  check(!shaderErrors.some(e => /Shader|WebGL/i.test(e)), 'piece detail shader compiles: ' + shaderErrors.join(' | ').slice(0, 300))
+  board.setPieceTheme('ivory')
+
   board.cue('capture'); board.cue('error')        // must not throw
   out.textContent = 'UI-OK'
 } catch (e) {

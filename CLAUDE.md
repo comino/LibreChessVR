@@ -108,6 +108,9 @@ Never hardcode a color: add a token. Button labels: 1–2 words, sentence case; 
   Settings → Look (scene, board, set, piece style, size); View = comfort (voice, table, flip, hands, FPS).
 - Reflections: `_captureEnv()` renders the scene once into a PMREM env map at each scene switch
   (board/UI hidden during capture) — never per frame.
+- Piece surface detail: `PIECE_DETAIL` shader chunks via `onBeforeCompile` on the 4 piece
+  materials (`uDetail` per set: lathe/wood/brushed/glow, from `PIECE_THEMES[].detail`). Keep
+  pattern frequencies low: fine stripes alias and shimmer in VR.
 - Grounding: `board.contacts` = one InstancedMesh of soft blobs under every piece (+captured),
   rebuilt when `contactsDirty` / each frame while animating or grabbing; hidden in blindfold.
   Table floor shadow lives in the scene. Scene decals share a material → `mergeInto()` (one draw).

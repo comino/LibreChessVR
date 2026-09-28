@@ -29,12 +29,14 @@ export const BOARD = BOARD_THEMES.walnut
 // Piece sets: material params for white (w) and black (b); unset params use the defaults.
 export const PIECE_DEFAULTS = { roughness: 0.35, metalness: 0.05, emissive: 0 }
 export const PIECE_THEMES = {
-  ivory: { w: { color: 0xf2ead8 }, b: { color: 0x2f2b27 } },
-  classic: { w: { color: 0xfafafa, roughness: 0.18 }, b: { color: 0x17171a, roughness: 0.18 } },
-  gold: { w: { color: 0xe0b85e, metalness: 0.85, roughness: 0.28 }, b: { color: 0xd0d4dc, metalness: 0.75, roughness: 0.3 } },
-  maple: { w: { color: 0xe8c99a, roughness: 0.55 }, b: { color: 0x5a3a22, roughness: 0.55 } },
-  neon: { w: { color: 0x9ff4ff, emissive: 0x0a8aa0, roughness: 0.3 }, b: { color: 0xff8ad8, emissive: 0x8a1066, roughness: 0.3 } }
+  ivory: { detail: 'lathe', w: { color: 0xf2ead8 }, b: { color: 0x2f2b27 } },
+  classic: { detail: 'lathe', w: { color: 0xfafafa, roughness: 0.18 }, b: { color: 0x17171a, roughness: 0.18 } },
+  gold: { detail: 'brushed', w: { color: 0xe0b85e, metalness: 0.85, roughness: 0.28 }, b: { color: 0xd0d4dc, metalness: 0.75, roughness: 0.3 } },
+  maple: { detail: 'wood', w: { color: 0xe8c99a, roughness: 0.55 }, b: { color: 0x5a3a22, roughness: 0.55 } },
+  neon: { detail: 'glow', w: { color: 0x9ff4ff, emissive: 0x0a8aa0, roughness: 0.3 }, b: { color: 0xff8ad8, emissive: 0x8a1066, roughness: 0.3 } }
 }
+// Procedural surface detail per set (shader, no textures): see board3d PIECE_DETAIL.
+export const DETAIL_KINDS = ['none', 'lathe', 'wood', 'brushed', 'glow']
 export const PIECES = { white: PIECE_THEMES.ivory.w.color, black: PIECE_THEMES.ivory.b.color }
 const css = n => '#' + n.toString(16).padStart(6, '0')
 export const PIECE_CSS = { w: css(PIECES.white), b: css(PIECES.black) }

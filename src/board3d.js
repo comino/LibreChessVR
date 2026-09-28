@@ -11,7 +11,7 @@ import { buildEnvironment, disposeGroup, woodTexture } from './environments.js'
 import { squareToXZ, xzToSquare, parseFen, captured } from './coords.js'
 import { StatusPanel, ButtonBar } from './panel.js'
 import { playCue, buzz } from './feedback.js'
-import { TINT, TINT_MIX, BOARD, BOARD_THEMES, PIECE_THEMES, PIECE_DEFAULTS, PIECES, COLOR, FONT } from './theme.js'
+import { TINT, TINT_MIX, BOARD, BOARD_THEMES, PIECE_THEMES, PIECE_DEFAULTS, PIECES, COLOR, FONT, DETAIL_KINDS } from './theme.js'
 import { canvasTexture, rng, glow, blobTexture, shadowBlob } from './scenes/common.js'
 import { moveToSpeech, speak } from './speech.js'
 
@@ -23,6 +23,28 @@ const _m = new THREE.Matrix4(), _tint = new THREE.Color(), _dummy = new THREE.Ob
 const HOVER = new THREE.Color(TINT.hover)   // added on top of the tile's tint
 const RAY_LEN = 1.5
 const BAR_X = 0.4
+
+// Piece surface detail, computed per pixel from the offset to the piece's own origin in world
+// meters (upright, independent of the model's units): turned-lathe rings, wood grain,
+// brushed metal, or glow bands sweeping up (neon). A few ALU ops on pieces only.
+const PIECE_DETAIL = {
+  vertex: ['#include <begin_vertex>', `#include <begin_vertex>
+    vDetailP = (modelMatrix * vec4(position, 1.0)).xyz - (modelMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;`],
+  color: ['#include <color_fragment>', `#include <color_fragment>
+    float lathe = 0.5 + 0.5 * sin(vDetailP.y * 1900.0); // coarse enough not to shimmer in VR
+    if (uDetail == 1) diffuseColor.rgb *= 0.965 + 0.035 * lathe;
+    if (uDetail == 2) {
+      float rad = length(vDetailP.xz) * 1400.0 + vDetailP.y * 180.0 + sin(vDetailP.y * 520.0) * 0.9;
+      float ring = smoothstep(0.15, 0.95, 0.5 + 0.5 * sin(rad));
+      float fiber = 0.5 + 0.5 * sin(vDetailP.y * 2400.0 + vDetailP.x * 900.0);
+      diffuseColor.rgb *= 0.8 + 0.14 * ring + 0.06 * fiber;
+    }`],
+  roughness: ['#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+    if (uDetail == 1) roughnessFactor *= 0.9 + 0.12 * lathe;
+    if (uDetail == 3) roughnessFactor = clamp(roughnessFactor + 0.07 * sin(vDetailP.y * 2600.0), 0.06, 1.0);`],
+  emissive: ['#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+    if (uDetail == 4) totalEmissiveRadiance *= 0.55 + 0.9 * smoothstep(-0.3, 0.6, sin(vDetailP.y * 120.0 - uDetailTime * 2.2));`]
+}
 const BORDER = 0.036 // frame width around the squares (coordinates are printed on it)
 const SESSION_INIT = { optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking', 'layers'] }
 const HEIGHT_RANGE = 0.45, HEIGHT_SPEED = 0.25 // table offset limit (m), m/s at full stick
@@ -221,11 +243,19 @@ export class Board3D {
       t.position.sub(c.setY(box.min.y))
       this.pieceH[type] = box.max.y - box.min.y
     }
+    // Surface detail uniforms, shared by all four piece materials (one shader program).
+    this.detailU = { uDetail: { value: 0 }, uDetailTime: { value: 0 } }
+    const addDetail = shader => {
+      Object.assign(shader.uniforms, this.detailU)
+      shader.vertexShader = 'varying vec3 vDetailP;\n' + shader.vertexShader.replace(...PIECE_DETAIL.vertex)
+      shader.fragmentShader = 'uniform int uDetail;\nuniform float uDetailTime;\nvarying vec3 vDetailP;\n' +
+        shader.fragmentShader.replace(...PIECE_DETAIL.color).replace(...PIECE_DETAIL.roughness).replace(...PIECE_DETAIL.emissive)
+    }
     // Shared across all pieces: pieces are rebuilt on every position change.
-    const mat = color => new THREE.MeshStandardMaterial({
+    const mat = color => Object.assign(new THREE.MeshStandardMaterial({
       color, roughness: 0.35, metalness: 0.05, envMap: this.envMap, envMapIntensity: 0.6,
       side: THREE.DoubleSide // piece shells are open at the base (felt mesh is hidden)
-    })
+    }), { onBeforeCompile: addDetail, customProgramCacheKey: () => 'piece-detail' })
     this.pieceMat = { w: mat(PIECES.white), b: mat(PIECES.black) }  // follows pieceStyle
     this.solidMat = { w: mat(PIECES.white), b: mat(PIECES.black) }  // promotion picker: always solid
     this.proxyGeo = {}
@@ -402,6 +432,7 @@ export class Board3D {
   setPieceTheme(name) {
     const t = PIECE_THEMES[name] ?? PIECE_THEMES.ivory
     this.pieceTheme = PIECE_THEMES[name] ? name : 'ivory'
+    this.detailU.uDetail.value = Math.max(0, DETAIL_KINDS.indexOf(t.detail))
     for (const c of ['w', 'b']) for (const m of [this.pieceMat[c], this.solidMat[c]]) {
       const p = { ...PIECE_DEFAULTS, ...t[c] }
       m.color.setHex(p.color)
@@ -977,6 +1008,7 @@ export class Board3D {
         this.tiles[sq].material.emissive.setRGB(0.25 * p, 0.62 * p, 0.42 * p)
     }
     if (this.anim || this.grab || this.contactsDirty) this._updateContacts()
+    if (this.detailU) this.detailU.uDetailTime.value = now / 1000
     this._fps(now)
     this.hands.forEach((hand, i) => {
       const tip = hand.joints['index-finger-tip']
