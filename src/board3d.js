@@ -23,6 +23,7 @@ const _m = new THREE.Matrix4(), _tint = new THREE.Color()
 const HOVER = new THREE.Color(TINT.hover)   // added on top of the tile's tint
 const RAY_LEN = 1.5
 const BAR_X = 0.4
+const BORDER = 0.036 // frame width around the squares (coordinates are printed on it)
 const SESSION_INIT = { optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking', 'layers'] }
 const HEIGHT_RANGE = 0.45, HEIGHT_SPEED = 0.25 // table offset limit (m), m/s at full stick
 const PROXY_MAT = new THREE.MeshBasicMaterial({ visible: false })
@@ -113,7 +114,7 @@ export class Board3D {
     this.stage.add(this.boardGroup)
 
     const base = this.frame = new THREE.Mesh(
-      new THREE.BoxGeometry(8 * SQUARE + 0.05, 0.015, 8 * SQUARE + 0.05),
+      new THREE.BoxGeometry(8 * SQUARE + 2 * BORDER, 0.015, 8 * SQUARE + 2 * BORDER),
       new THREE.MeshStandardMaterial({ color: BOARD.frame, roughness: 0.7 }))
     base.position.y = -0.008
     base.receiveShadow = true
@@ -137,14 +138,7 @@ export class Board3D {
       this.boardGroup.add(tile)
     }
 
-    // Coordinate labels on all four edges (sprites always face the viewer)
-    for (let i = 0; i < 8; i++) {
-      const off = 4.1 * SQUARE, at = (i - 3.5) * SQUARE
-      for (const s of [1, -1]) {
-        this.boardGroup.add(this._label('abcdefgh'[i], at, off * s))
-        this.boardGroup.add(this._label(String(i + 1), off * s, -at))
-      }
-    }
+    this.boardGroup.add(this._coordinates())
 
     this.piecesGroup = new THREE.Group()
     this.capturedGroup = new THREE.Group() // not pickable: outside piecesGroup
@@ -154,23 +148,43 @@ export class Board3D {
     this.lastMove = null
   }
 
-  _label(text, x, z) {
-    const c = document.createElement('canvas')
-    c.width = c.height = 64
-    const ctx = c.getContext('2d')
-    ctx.fillStyle = '#ffffff' // tinted per board theme via the sprite color
-    ctx.font = `600 44px ${FONT.ui}`
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(text, 32, 34)
-    const tex = new THREE.CanvasTexture(c)
-    tex.colorSpace = THREE.SRGBColorSpace
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, toneMapped: false, color: BOARD.label }))
-    ;(this.labels ??= []).push(sp)
-    sp.scale.setScalar(0.035)
-    sp.position.set(x, 0.02, z)
-    return sp
+  // Coordinates printed on the frame like a tournament board: white's edges read upright from
+  // white's seat, the far edges are turned to face black (so flips and black games stay readable).
+  // One canvas texture on a plane just above the frame; tinted per board theme.
+  _coordinates() {
+    const W = 8 * SQUARE + 2 * BORDER, N = 1024, px = v => (v / W + 0.5) * N
+    const edge = 4 * SQUARE + BORDER / 2
+    const tex = canvasTexture(N, N, ctx => {
+      ctx.fillStyle = '#ffffff'
+      ctx.font = `600 ${Math.round(0.019 / W * N)}px ${FONT.ui}`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      const put = (text, x, z, flip) => {
+        ctx.save()
+        ctx.translate(px(x), px(z))
+        if (flip) ctx.rotate(Math.PI)
+        ctx.fillText(text, 0, 0)
+        ctx.restore()
+      }
+      for (let i = 0; i < 8; i++) {
+        const at = (i - 3.5) * SQUARE
+        put('abcdefgh'[i], at, edge, false)      // near edge (rank 1 side)
+        put('abcdefgh'[i], at, -edge, true)      // far edge, for black
+        put(String(i + 1), -edge, -at, false)    // a-file side
+        put(String(i + 1), edge, -at, true)      // h-file side, for black
+      }
+    })
+    tex.repeat.set(1, 1)
+    this.labelMat = new THREE.MeshStandardMaterial({
+      map: tex, color: BOARD.label, transparent: true, depthWrite: false, roughness: 0.6
+    })
+    const plane = new THREE.Mesh(new THREE.PlaneGeometry(W, W), this.labelMat)
+    plane.rotation.x = -Math.PI / 2
+    plane.position.y = 0.0004 // just above the frame top (-0.0005), below the squares' tops
+    plane.receiveShadow = true
+    return plane
   }
+
 
   async _loadPieces() {
     const gltf = await new GLTFLoader().loadAsync('assets/chess.glb')
@@ -317,7 +331,7 @@ export class Board3D {
       tile.userData.base.setHex(tile.userData.light ? t.light : t.dark)
     }
     this.frame.material.color.setHex(t.frame)
-    for (const l of this.labels) l.material.color.set(t.label)
+    this.labelMat.color.set(t.label)
     this.shadowsDirty = true
     this._applyTints()
   }

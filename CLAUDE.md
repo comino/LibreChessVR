@@ -100,6 +100,8 @@ Never hardcode a color: add a token. Button labels: 1–2 words, sentence case; 
 - PuzzleSession hooks for subclasses: `_wrong()`, `_solved()`, `_actions()`, `_sub()`, `_miss()`;
   `next()` uses `_halt()` (ends the puzzle) so a subclass's own timers survive; `stop()` is the
   public full stop. Rush keeps its clock in `stop()`-cleared `this.clock`.
+- Coordinates are printed on the frame (`_coordinates()`: one canvas texture on a plane just
+  above the frame, `BORDER` = 3.6 cm); near/left edges face white, far/right edges face black.
 - Themes: `BOARD_THEMES` / `PIECE_THEMES` in theme.js (names mirrored in settings.js).
   `setBoardTheme` sets `tile.userData.base` (tints lerp from it) + a per-square offset of one
   shared grain texture (wood/marble/fine); `setPieceTheme` recolors `pieceMat`+`solidMat` in place.
