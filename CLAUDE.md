@@ -184,6 +184,8 @@ frame (`board._tick()`); XR controllers need `updateMatrix()`; tints are `tile.u
 - Hosted on fred: `deploy/deploy.sh` → `/opt/parallax/web`, Caddy site in
   `deploy/Caddyfile.parallax` (appended to `/etc/caddy/Caddyfile`; backups `Caddyfile.bak-parallax-*`).
   URL https://parallax.46-224-133-201.sslip.io. Bump `CACHE` in `sw.js` on each ship.
+- Short address **chess.janasven.de**: nginx 301 on janasven (`/etc/nginx/sites-available/chess`,
+  certbot TLS; `*.janasven.de` wildcard at netcup) → the fred URL. The app's origin stays fred.
 - Caching: Caddy sends `Cache-Control: no-cache` on every file (revalidate → 304s); `sw.js` is
   network-first for app files (cache only offline) and cache-first for versioned CDN modules.
   Never go back to stale-while-revalidate for app modules: it mixed old and new ES modules

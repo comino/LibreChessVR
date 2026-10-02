@@ -48,7 +48,8 @@ training, all without taking the headset off.
 ## Install on the Quest (app)
 
 Parallax runs as a Quest app: it sits in your Library, launches into its own window and offers
-VR right away. It's hosted at **https://parallax.46-224-133-201.sslip.io**.
+VR right away. Open **chess.janasven.de** in the Quest Browser (it forwards to the app at
+https://parallax.46-224-133-201.sslip.io) and choose *Install app*.
 
 1. Headset in developer mode, connected by USB (or wireless adb).
 2. `adb install -r android/app-release-signed.apk` (build it with `android/build.sh`).
