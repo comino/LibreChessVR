@@ -20,7 +20,7 @@ export const ENVIRONMENTS = ['minimal', 'study', 'sunset', 'night'] // builders 
 // Next entry after cur (first entry if cur isn't in the list).
 export const cycle = (list, cur) => list[(list.map(String).indexOf(String(cur)) + 1) % list.length]
 
-// get(): {time, increment, color, rated, level, maia, height, scale, flipped, environment, pieces, voice, hands, pdiff, ptheme, boardTheme, pieceTheme, fps}
+// get(): {time, increment, color, rated, level, maia, height, scale, flipped, environment, pieces, voice, hands, pdiff, ptheme, boardTheme, pieceTheme, fps, resolution}
 export function settingsView({ board, get, set, onBack }) {
   let page = 'hub'
   const view = {
@@ -103,6 +103,7 @@ export function settingsView({ board, get, set, onBack }) {
         { label: `Flip ${s.flipped ? 'on' : 'off'}`, run: () => set({ flipped: !s.flipped }) },
         { label: `Hands ${s.hands === 'grab' ? 'grab' : 'point'}`, run: () => set({ hands: s.hands === 'grab' ? 'ray' : 'grab' }) },
         { label: `FPS ${s.fps ? 'on' : 'off'}`, run: () => set({ fps: !s.fps }) },
+        { label: `Resolution ${s.resolution}`, run: () => set({ resolution: s.resolution === 'native' ? 'normal' : 'native' }) },
         { label: 'All settings', run: go('hub') },
         { label: 'Menu', run: onBack }
       ]

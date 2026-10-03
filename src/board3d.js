@@ -23,6 +23,7 @@ const _m = new THREE.Matrix4(), _tint = new THREE.Color(), _dummy = new THREE.Ob
 const BANDS = 12                         // silhouette resolution for picking (height bands)
 const HOVER = new THREE.Color(TINT.hover)   // added on top of the tile's tint
 const RAY_LEN = 1.5
+const GRAB_HOLD = 120, GRAB_GAP = 0.012 // pinch-grab: hold (ms) and max thumb-index gap (m)
 const BAR_X = 0.4
 
 // Piece surface detail, computed per pixel from the offset to the piece's own origin in world
@@ -62,6 +63,7 @@ export class Board3D {
   onSquarePick = null        // square => ; when set, any square pick goes here (trainer)
   marks = {}                 // square -> tint hex, see setMarks
   handMode = 'ray'           // 'ray' = point & pinch, 'grab' = pinch-grab pieces
+  resolution = 'native'      // VR render resolution: 'native' | 'normal' (see setResolution)
   boardScale = 1
   shadowsDirty = true
   pieceStyle = 'solid'
@@ -491,13 +493,25 @@ export class Board3D {
   }
 
   async enterVR() {
-    await this.renderer.xr.setSession(await navigator.xr.requestSession('immersive-vr', SESSION_INIT))
+    await this._startSession(await navigator.xr.requestSession('immersive-vr', SESSION_INIT))
   }
 
   // Quest Browser can offer VR itself (no click needed; an installed immersive app starts here).
   async offerVR() {
     const s = await navigator.xr?.offerSession?.('immersive-vr', SESSION_INIT).catch(() => null)
-    if (s) await this.renderer.xr.setSession(s)
+    if (s) await this._startSession(s)
+  }
+
+  // 'native' = the headset panel's resolution (Quest 2: ~1.27x the browser default per axis),
+  // 'normal' = the browser default. Applies from the next VR session.
+  setResolution(r) {
+    this.resolution = r
+  }
+
+  async _startSession(s) {
+    const native = this.resolution === 'native' && window.XRWebGLLayer?.getNativeFramebufferScaleFactor?.(s)
+    this.renderer.xr.setFramebufferScaleFactor(native || 1) // must be set before the session starts
+    await this.renderer.xr.setSession(s)
   }
 
   // Desktop only: shift the rendered image right by px (e.g. a sidebar covering the left).
@@ -596,12 +610,13 @@ export class Board3D {
   }
 
   setPosition(fen, lastMove = null) {
+    this.fen = fen
     this.shadowsDirty = true
     this._removePicker()
     this.piecesGroup.clear()
     this.pieceAt = {}
     this.anim = null
-    this.grab = null
+    this.grab = this.pendingGrab = null
     delete this.hover.grab
     for (const p of parseFen(fen)) {
       const piece = this._makePiece(p.type, p.color)
@@ -910,12 +925,12 @@ export class Board3D {
   // Does this hand's pinch belong to pinch-grab (not the ray)? Always in grab mode; in point mode
   // when the pinch is right at one of your pieces (picker and trainer stay with the ray there).
   _handGrabs(hand) {
-    if (this.handMode === 'grab' || this.grab?.hand === hand) return true
+    if (this.handMode === 'grab' || this.grab?.hand === hand || this.pendingGrab?.hand === hand) return true
     return !this.picker && !this.onSquarePick && !!this._reachable(this._pinchLocal(hand))
   }
 
   _grabStart(hand) {
-    if (this.grab) return
+    if (this.grab || this.pendingGrab) return
     const local = this._pinchLocal(hand)
     if (!local) return
     if (this.handMode === 'grab') {
@@ -925,6 +940,18 @@ export class Board3D {
         return sq && this.onSquarePick(sq)
       }
     } else if (this.picker || this.onSquarePick) return // point mode: the ray picks these
+    if (this._reachable(local)) this.pendingGrab = { hand, t0: performance.now() } // see _confirmGrab
+  }
+
+  // A pinch grabs once held for GRAB_HOLD ms with the fingers firmly closed, and takes the piece
+  // nearest to where the hand is then: closing fingers while still reaching in grab nothing early.
+  _confirmGrab() {
+    const { hand, t0 } = this.pendingGrab, local = this._pinchLocal(hand)
+    if (!local) return (this.pendingGrab = null)            // tracking lost
+    const tip = hand.joints['index-finger-tip'], thumb = hand.joints['thumb-tip']
+    const gap = tip.getWorldPosition(_vA).distanceTo(thumb.getWorldPosition(_vB))
+    if (performance.now() - t0 < GRAB_HOLD || gap > GRAB_GAP) return
+    this.pendingGrab = null
     const from = this._reachable(local)
     if (!from) return
     this.grab = { hand, piece: this.pieceAt[from], from }
@@ -944,6 +971,7 @@ export class Board3D {
   }
 
   _grabEnd(hand) {
+    if (this.pendingGrab?.hand === hand) this.pendingGrab = null // let go before it confirmed
     if (this.grab?.hand === hand) this._drop()
   }
 
@@ -1039,6 +1067,7 @@ export class Board3D {
     else if (this.hover.c0 || this.hover.c1) this._clearHover('c0', 'c1') // left VR
     this._thumbstick(dt)
     this.env?.update?.(now / 1000, dt, this) // scene life: fire, clouds, birds, aurora…
+    if (this.pendingGrab) this._confirmGrab()
     if (this.grab) {
       const p = this._pinchPos(this.grab.hand)
       if (!p) this._drop(true) // tracking lost -> piece returns home

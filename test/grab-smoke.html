@@ -39,6 +39,8 @@ try {
   const j1 = new THREE.Object3D(), j2 = new THREE.Object3D()
   const hand = { joints: { 'index-finger-tip': j1, 'thumb-tip': j2 } }
   board.boardGroup.updateWorldMatrix(true, false)
+  // A grab confirms once the pinch has been held firmly for a moment (board.pendingGrab).
+  const hold = () => { if (board.pendingGrab) board.pendingGrab.t0 -= 1000; board._tick() }
   const at = (sq, y = 0.05) => {
     const { x, z } = squareToXZ(sq, S)
     const p = board.boardGroup.localToWorld(new THREE.Vector3(x, y, z))
@@ -48,7 +50,7 @@ try {
 
   // Legal grab-and-drop: e2 pawn to e4
   at('e2')
-  board._grabStart(hand)
+  board._grabStart(hand); hold()
   check(board.grab?.from === 'e2', 'grabbed e2 pawn')
   check(board.tiles.e2.userData.tint === TINT.select, 'origin tinted')
   check(board.tiles.e4.userData.tint === TINT.target, 'target tinted')
@@ -64,7 +66,7 @@ try {
   // Illegal drop: a2 pawn released on d5 returns home, no move
   board.setPosition('rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1')
   at('a2')
-  board._grabStart(hand)
+  board._grabStart(hand); hold()
   check(board.grab?.from === 'a2', 'grabbed a2 pawn')
   const pawn2 = board.grab.piece
   at('d5', 0.08)
@@ -78,7 +80,7 @@ try {
   board.setPosition('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1')
   const onMove = board.onMove
   board.onMove = () => false
-  at('e2'); board._grabStart(hand)
+  at('e2'); board._grabStart(hand); hold()
   const refused = board.grab.piece
   at('e4', 0.08); board._tick(); board._grabEnd(hand)
   check(refused.position.z === squareToXZ('e2', S).z, 'refused drop snaps back to e2')
@@ -86,12 +88,12 @@ try {
 
   // Pinch in empty space: no grab
   at('d5')
-  board._grabStart(hand)
+  board._grabStart(hand); hold()
   check(!board.grab, 'empty-space pinch ignored')
 
   // Tracking lost mid-grab: piece returns home
   at('a2')
-  board._grabStart(hand)
+  board._grabStart(hand); hold()
   j1.visible = false
   board._tick()
   check(!board.grab, 'grab cancelled on tracking loss')
@@ -101,12 +103,26 @@ try {
 
   // Hand disconnects mid-grab (group hidden, joint flags untouched): piece returns home
   at('a2')
-  board._grabStart(hand)
+  board._grabStart(hand); hold()
   check(board.grab, 'grabbed before disconnect')
   hand.visible = false
   board._tick()
   check(!board.grab && moves.length === 1, 'disconnect cancels grab')
   hand.visible = true
+
+  // Forgiving timing: a quick pinch grabs nothing, a loose pinch waits, and the piece is chosen
+  // when the grab confirms (the hand may still be moving in when the fingers first touch)
+  board.setPosition('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1')
+  at('e2'); board._grabStart(hand); board._grabEnd(hand); board._tick()
+  check(!board.grab && !board.pendingGrab, 'pinch released at once grabs nothing')
+  at('d2'); board._grabStart(hand)
+  check(!board.grab && board.pendingGrab, 'grab waits for the hold')
+  at('e2'); j2.position.x += 0.02; hold()
+  check(!board.grab, 'loose pinch (2 cm) does not grab yet')
+  j2.position.copy(j1.position); hold()
+  check(board.grab?.from === 'e2', 'piece chosen when the grab confirms, got ' + board.grab?.from)
+  board._grabEnd(hand)
+  check(moves.length === 1, 'dropped where it was picked: no move')
 
   // Point (ray) mode: a pinch right at one of your pieces grabs it, and that pinch's
   // selectstart must not also fire a ray pick; a pinch away from the pieces stays a ray pick.
@@ -120,12 +136,12 @@ try {
   board._pick = () => { rayPicks++ }
   at('e2')
   ctrl.dispatchEvent({ type: 'selectstart' })
-  board._grabStart(hand)
+  board._grabStart(hand); hold()
   check(board.grab?.from === 'e2' && rayPicks === 0, `ray mode pinch at a piece grabs it (grab ${board.grab?.from}, ray picks ${rayPicks})`)
   at('e4', 0.08); board._tick(); board._grabEnd(hand)
   check(moves.at(-1) === 'e2e4', 'ray mode grab-drop moves, got ' + moves.at(-1))
   at('e2', 0.45)                                            // hand up in the air: pointing
-  board._grabStart(hand)
+  board._grabStart(hand); hold()
   ctrl.dispatchEvent({ type: 'selectstart' })
   check(!board.grab && rayPicks === 1, 'pinch away from the pieces is a ray pick')
   board._pick = realPick

@@ -107,7 +107,7 @@ await scenario('grab premove', async () => {
     j1.position.copy(board.boardGroup.localToWorld(new THREE.Vector3(x, y, z)))
     j2.position.copy(j1.position)
   }
-  at('g1'); board._grabStart(hand)
+  at('g1'); board._grabStart(hand); board.pendingGrab.t0 -= 1000; board._tick() // firm hold confirms
   const knight = board.grab?.piece
   at('f3', 0.08); board._tick(); board._grabEnd(hand)
   board.setHandMode('ray')

@@ -6,6 +6,7 @@ import { TrainerSession } from './trainer.js'
 import { RushSession } from './rush.js'
 import { settingsView } from './settings.js'
 import { startLogin, finishLogin } from './auth.js'
+import { FreeBoard } from './free.js'
 
 const $ = id => document.getElementById(id)
 const msg = t => { $('msg').textContent = t }
@@ -22,6 +23,7 @@ try {
   throw e
 }
 window.parallax = { board } // debug handle (chrome://inspect, app tests)
+const free = new FreeBoard(board, () => !view && refresh()) // idle: move both sides freely
 
 // --- settings: 2D form fields, persisted so the in-VR menu uses the same values ---
 
@@ -44,7 +46,7 @@ const settings = () => ({
   maia: [1, 5, 9].includes(+val('maia')) ? +val('maia') : 5, pdiff: val('pdiff'), ptheme: val('ptheme'),
   height: board.stage.position.y, scale: board.boardScale, flipped: !!board.flipped,
   environment: board.environment, pieces: board.pieceStyle, voice: board.voice, hands: board.handMode,
-  boardTheme: board.boardTheme, pieceTheme: board.pieceTheme, fps: !!board.showFps
+  boardTheme: board.boardTheme, pieceTheme: board.pieceTheme, fps: !!board.showFps, resolution: board.resolution
 })
 const FIELD_OF = { time: 'time', increment: 'inc', color: 'color', rated: 'rated', level: 'ailevel', maia: 'maia', pdiff: 'pdiff', ptheme: 'ptheme' }
 // View settings live on the board and persist in their own localStorage keys.
@@ -57,6 +59,7 @@ const VIEW_SETTERS = {
   boardTheme: t => { board.setBoardTheme(t); localStorage.setItem('boardTheme', t) },
   pieceTheme: t => { board.setPieceTheme(t); localStorage.setItem('pieceTheme', t) },
   fps: f => { board.setShowFps(f); localStorage.setItem('showFps', f ? '1' : '') },
+  resolution: r => { board.setResolution(r); localStorage.setItem('resolution', r) },
   pieces: p => { board.setPieceStyle(p); localStorage.setItem('pieceStyle', p) },
   voice: v => { board.voice = v; localStorage.setItem('voice', v) }
 }
@@ -82,7 +85,9 @@ function menu() {
     acts.push(seeking() ? { label: 'Cancel seek', run: cancelSeek } : { label: `Seek ${tc}`, run: seek })
   }
   acts.push({ label: 'Puzzles', run: startPuzzles }, { label: 'Puzzle rush', run: startRush },
-    { label: 'Coordinates', run: startTrainer }, { label: 'Settings', run: openSettings })
+    { label: 'Coordinates', run: startTrainer })
+  if (free.changed()) acts.push({ label: 'Reset board', run: () => free.reset() })
+  acts.push({ label: 'Settings', run: openSettings })
   return acts
 }
 
@@ -94,6 +99,7 @@ function compactMenu() {
 function toMenu() {
   view?.stop()
   view = null
+  free.attach()
   board.setOrientation(board.orientation ?? 'white') // drops an in-game peek
   refresh()
 }
@@ -110,7 +116,7 @@ function refresh() {
   $('seek').textContent = seeking() ? 'Cancel seek' : 'Seek human'
   if (view) view.render()
   else board.setStatus({ puzzle: true, brand: true, text: seeking() ? 'Seeking opponent…' : note || 'Choose how to play',
-    sub: username ? idleSub() : 'Training works without an account', actions: menu() })
+    sub: username ? idleSub() : 'Free board · training needs no account', actions: menu() })
 }
 
 function idleSub() {
@@ -285,6 +291,7 @@ loadSettings()
 for (const id of FIELDS) $(id).onchange = saveSettings
 
 board.setPosition('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1') // idle: the start position
+free.attach()
 const sidebar = () => board.setViewShift(innerWidth > 720 ? $('ui').offsetWidth + 16 : 0)
 sidebar()
 addEventListener('resize', sidebar)
@@ -297,6 +304,7 @@ board.voice = localStorage.getItem('voice') || 'off'
 board.setBoardTheme(localStorage.getItem('boardTheme') || 'walnut')
 board.setPieceTheme(localStorage.getItem('pieceTheme') || 'antique')
 board.setShowFps(!!localStorage.getItem('showFps'))
+board.setResolution(localStorage.getItem('resolution') === 'normal' ? 'normal' : 'native')
 
 // Look dropdowns on the 2D page share the in-VR setters (and their persistence).
 const LOOK = { scene: 'environment', boardTheme: 'boardTheme', pieceTheme: 'pieceTheme' }
