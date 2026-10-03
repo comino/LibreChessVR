@@ -47,16 +47,30 @@ const cloudTexture = () => canvasTexture(256, 128, (ctx, w, h) => {
   }
 })
 
+// A flock in one draw: instance matrices are rebuilt each frame by flyBirds().
 function birds(n, r) {
   const geo = new THREE.BufferGeometry()
   geo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, -0.5, 0.15, -0.1, 0, 0, 0.18, 0, 0, 0, 0, 0, 0.18, 0.5, 0.15, -0.1], 3))
-  const mat = new THREE.MeshBasicMaterial({ color: 0x2a1a1a, side: THREE.DoubleSide, fog: false })
-  return Array.from({ length: n }, (_, i) => {
-    const b = new THREE.Mesh(geo, mat)
-    b.userData = { radius: 16 + r() * 10, height: 9 + r() * 6, speed: 0.08 + r() * 0.05, phase: r() * Math.PI * 2, flap: 5 + r() * 3 }
-    b.scale.setScalar(0.6 + r() * 0.3)
-    return b
+  const flock = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ color: 0x2a1a1a, side: THREE.DoubleSide, fog: false }), n)
+  flock.frustumCulled = false // instances roam the whole sky
+  flock.userData.birds = Array.from({ length: n }, () => ({
+    radius: 16 + r() * 10, height: 9 + r() * 6, speed: 0.08 + r() * 0.05, phase: r() * Math.PI * 2,
+    flap: 5 + r() * 3, size: 0.6 + r() * 0.3
+  }))
+  return flock
+}
+
+const _bird = new THREE.Object3D()
+function flyBirds(flock, t) {
+  flock.userData.birds.forEach(({ radius, height, speed, phase, flap, size }, i) => {
+    const a = phase + t * speed
+    _bird.position.set(Math.cos(a) * radius, height + Math.sin(t * 0.3 + phase) * 0.8, Math.sin(a) * radius)
+    _bird.rotation.set(0, -a, 0)
+    _bird.scale.set(size, size * (0.6 + 0.4 * Math.abs(Math.sin(t * flap + phase))), size)
+    _bird.updateMatrix()
+    flock.setMatrixAt(i, _bird.matrix)
   })
+  flock.instanceMatrix.needsUpdate = true
 }
 
 export function sunset() {
@@ -145,7 +159,8 @@ export function sunset() {
   }
   group.add(clouds)
   const flock = birds(5, r)
-  flock.forEach(b => group.add(b))
+  flyBirds(flock, 0)
+  group.add(flock)
 
   mergeStatic(group)
   const ready = props(group, [
@@ -161,12 +176,7 @@ export function sunset() {
 
   function update(t) {
     clouds.rotation.y = t * 0.004
-    for (const b of flock) {
-      const { radius, height, speed, phase, flap } = b.userData, a = phase + t * speed
-      b.position.set(Math.cos(a) * radius, height + Math.sin(t * 0.3 + phase) * 0.8, Math.sin(a) * radius)
-      b.rotation.y = -a
-      b.scale.y = b.scale.x * (0.6 + 0.4 * Math.abs(Math.sin(t * flap + phase)))
-    }
+    flyBirds(flock, t)
     lanterns.forEach((g, i) => { g.material.opacity = 0.5 + 0.06 * Math.sin(t * 6 + i * 1.7) + 0.03 * Math.sin(t * 17 + i) })
   }
 

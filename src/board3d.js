@@ -708,7 +708,7 @@ export class Board3D {
     }
   }
 
-  // key: 'mouse' | 'c0' | 'c1' | 'grab'; square or null. Retints only on change.
+  // key: 'mouse' | 'c0' | 'c1' | 'h0' | 'h1' | 'grab'; square or null. Retints only on change.
   _setHover(key, square) {
     if ((this.hover[key] ?? null) === (square ?? null)) return
     if (square) this.hover[key] = square
@@ -943,6 +943,14 @@ export class Board3D {
     if (this._reachable(local)) this.pendingGrab = { hand, t0: performance.now() } // see _confirmGrab
   }
 
+  // The piece a pinch would grab right now lights up (hover 'h0'/'h1'), so a grab never surprises.
+  _reachHover() {
+    this.hands.forEach((hand, i) => {
+      const idle = !this.grab && !this.picker && !this.onSquarePick
+      this._setHover('h' + i, idle ? this._reachable(this._pinchLocal(hand)) : null)
+    })
+  }
+
   // A pinch grabs once held for GRAB_HOLD ms with the fingers firmly closed, and takes the piece
   // nearest to where the hand is then: closing fingers while still reaching in grab nothing early.
   _confirmGrab() {
@@ -1068,6 +1076,7 @@ export class Board3D {
     this._thumbstick(dt)
     this.env?.update?.(now / 1000, dt, this) // scene life: fire, clouds, birds, aurora…
     if (this.pendingGrab) this._confirmGrab()
+    this._reachHover()
     if (this.grab) {
       const p = this._pinchPos(this.grab.hand)
       if (!p) this._drop(true) // tracking lost -> piece returns home

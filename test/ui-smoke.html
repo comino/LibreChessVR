@@ -355,11 +355,13 @@ try {
     check(sparks.length === 1 && ys[1] !== ys[0], `${env}: sparks move`)
   }
   board.setEnvironment('sunset')
-  const bird = board.envGroup.children.find(o => o.isMesh && o.geometry.attributes.position.count === 6)
+  const flock = board.envGroup.children.filter(o => o.isMesh && o.geometry.attributes.position.count === 6)
+  check(flock.length === 1 && flock[0].isInstancedMesh && flock[0].count === 5, 'birds: one instanced draw')
+  const birdAt = () => { const m = new THREE.Matrix4(); flock[0].getMatrixAt(2, m); return new THREE.Vector3().setFromMatrixPosition(m) }
   board.env.update(10, 0.1, board)
-  const b1 = bird.position.clone()
+  const b1 = birdAt()
   board.env.update(12, 0.1, board)
-  check(bird.position.distanceTo(b1) > 0.5, 'birds fly')
+  check(birdAt().distanceTo(b1) > 0.5, 'birds fly')
   board.setEnvironment('night')
   const streak = board.envGroup.children.find(o => o.isMesh && o.geometry.parameters?.width === 2.4)
   let seen = false

@@ -86,6 +86,7 @@ function menu() {
   }
   acts.push({ label: 'Puzzles', run: startPuzzles }, { label: 'Puzzle rush', run: startRush },
     { label: 'Coordinates', run: startTrainer })
+  if (free.canUndo()) acts.push({ label: 'Undo', run: () => free.undo() })
   if (free.changed()) acts.push({ label: 'Reset board', run: () => free.reset() })
   acts.push({ label: 'Settings', run: openSettings })
   return acts

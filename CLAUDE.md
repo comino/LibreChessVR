@@ -30,7 +30,7 @@ Never hardcode a color: add a token. Button labels: 1–2 words, sentence case; 
 | `src/game.js` | `GameSession`: one game stream ↔ chess.js ↔ board. Optimistic local moves, rollback on server reject, offers → button bar. |
 | `src/puzzle.js` | `PuzzleSession`: fetches `/api/puzzle/next`, replays game PGN, validates solution moves, auto-plays replies, auto-advances. |
 | `src/rush.js` | `RushSession extends PuzzleSession`: 3 min, 3 lives, wrong move = life lost + next puzzle, difficulty rises every 5 solved; best in `localStorage.rushBest`. Overrides the puzzle hooks only. |
-| `src/free.js` | `FreeBoard`: idle-screen board, both sides move by the rules (no account). `attach()` (main.js `toMenu` + startup) continues from `board.fen`; menu shows "Reset board" when changed. |
+| `src/free.js` | `FreeBoard`: idle-screen board, both sides move by the rules (no account). `attach()` (main.js `toMenu` + startup) continues from `board.fen`; menu shows Undo / Reset board when possible. |
 | `src/speech.js` | `moveToSpeech(verboseMove)` (pure, unit-tested: "Knight takes F 3, check") + `speak()` via speechSynthesis. `board.announce(move, mine)` filters by `board.voice` (off/opponent/all). |
 | `src/trainer.js` | `TrainerSession`: coordinate drill — big target square on the panel, point at it; 30 s rounds alternating white/black view; best in `localStorage.coordBest`. |
 | `src/environments.js` | Scene registry (`buildEnvironment`, `disposeGroup`) + minimal. |
@@ -159,7 +159,8 @@ Never hardcode a color: add a token. Button labels: 1–2 words, sentence case; 
   one of your pieces (`_handGrabs`/`_reachable`), which grabs it instead. Piece grabs confirm
   in `_tick` (`pendingGrab` → `_confirmGrab`): held `GRAB_HOLD` ms with thumb–index gap ≤
   `GRAB_GAP`; the piece is chosen then, a pinch released earlier grabs nothing (tests shift
-  `pendingGrab.t0`). `grab`: no hand rays; three's
+  `pendingGrab.t0`). `_reachHover` lights up the piece a pinch would grab (hover `h0`/`h1`).
+  `grab`: no hand rays; three's
   `pinchstart/pinchend` hand events grab the nearest pickable piece within 0.7
   squares of the pinch point (thumb+index tip midpoint); the piece follows the hand
   (`_tick`), release snaps to the nearest square and emits `onMove` if legal, else

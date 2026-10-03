@@ -30,6 +30,14 @@ export class FreeBoard {
     return true
   }
 
+  canUndo() { return this.chess.history().length > 0 }
+
+  undo() {
+    this.chess.undo()
+    this.board.setPosition(this.chess.fen(), this.chess.history({ verbose: true }).at(-1))
+    this.onChange()
+  }
+
   reset() {
     this.chess.reset()
     this.board.setPosition(START)

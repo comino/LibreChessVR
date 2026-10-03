@@ -110,6 +110,20 @@ try {
   check(!board.grab && moves.length === 1, 'disconnect cancels grab')
   hand.visible = true
 
+  // Reach highlight: the piece a pinch would grab lights up before the pinch (hover 'h0'),
+  // and the highlight goes once the hand leaves or a grab is under way
+  board.hands[0] = hand
+  board.setPosition('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1')
+  at('e2'); board._tick()
+  check(board.hover.h0 === 'e2', 'reachable piece highlighted, got ' + board.hover.h0)
+  at('e2', 0.45); board._tick()
+  check(!board.hover.h0, 'no highlight with the hand up in the air')
+  at('e5'); board._tick()
+  check(!board.hover.h0, 'no highlight when no own piece is near')
+  at('e2'); board._grabStart(hand); hold()
+  check(board.grab && !board.hover.h0, 'highlight replaced by the grab')
+  board._grabEnd(hand)
+
   // Forgiving timing: a quick pinch grabs nothing, a loose pinch waits, and the piece is chosen
   // when the grab confirms (the hand may still be moving in when the fingers first touch)
   board.setPosition('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1')
