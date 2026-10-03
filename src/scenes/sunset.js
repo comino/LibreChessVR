@@ -20,6 +20,20 @@ const tiles = () => canvasTexture(256, 256, (ctx, w) => {
   }
 }, 12)
 
+// Olive foliage card: clusters of slim silver-green leaves on transparent (alpha-tested).
+const leavesTexture = () => canvasTexture(256, 256, (ctx, w) => {
+  const r = rng(17), greens = ['#6f8466', '#8fa38a', '#56684d', '#a9b8a0']
+  for (let i = 0; i < 600; i++) {
+    const a = r() * Math.PI * 2, d = Math.sqrt(r()) * w * 0.42
+    ctx.save()
+    ctx.translate(w / 2 + Math.cos(a) * d, w / 2 + Math.sin(a) * d)
+    ctx.rotate(r() * Math.PI)
+    ctx.fillStyle = greens[Math.floor(r() * 4)]
+    ctx.beginPath(); ctx.ellipse(0, 0, 9 + r() * 6, 2.6, 0, 0, Math.PI * 2); ctx.fill()
+    ctx.restore()
+  }
+})
+
 // Soft cloud puff (normal blending, lit warm by the setting sun).
 const cloudTexture = () => canvasTexture(256, 128, (ctx, w, h) => {
   const r = rng(8)
@@ -68,14 +82,28 @@ export function sunset() {
   for (let a = 0; a <= Math.PI; a += Math.PI / 8) wall.push(new THREE.Vector2(R + 0.12 * Math.sin(a), 0.62 + 0.12 * Math.cos(a)))
   group.add(new THREE.Mesh(new THREE.LatheGeometry([new THREE.Vector2(R + 0.12, 0), ...wall.reverse(), new THREE.Vector2(R - 0.12, 0)], 96),
     std(0xf2e6d4, { roughness: 1 })))
-  // potted olive trees: clay pot (scanned) with a trunk and a soft silver-green crown
+  // potted olive trees: clay pot (scanned), trunk and branches, a dark core under leafy cards
   const olives = [[3.2, -2.4], [-3.6, -2.2], [4.0, 1.6]]
-  const leaf = std(0x8f9a74, { roughness: 1 }), bark = std(0x5a4632)
+  const core = std(0x55654a, { roughness: 1 }), bark = std(0x5a4632)
+  const leafMat = std(0xffffff, { map: leavesTexture(), alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.9 })
+  const cards = []
   for (const [x, z] of olives) {
     group.add(mesh(new THREE.CylinderGeometry(0.035, 0.05, 1.3, 6), bark, [x, 1.0, z]))
-    for (let i = 0; i < 10; i++) group.add(mesh(new THREE.IcosahedronGeometry(0.15 + r() * 0.1, 1), leaf,
-      [x + (r() - 0.5) * 0.7, 1.55 + r() * 0.4, z + (r() - 0.5) * 0.7]))
+    for (let i = 0; i < 3; i++) {
+      const b = mesh(new THREE.CylinderGeometry(0.012, 0.022, 0.45, 5), bark, [x, 1.75, z])
+      b.rotation.set(0.6, i * 2.1 + r(), 0, 'YXZ')
+      group.add(b)
+    }
+    for (let i = 0; i < 3; i++) group.add(mesh(new THREE.IcosahedronGeometry(0.13, 1), core,
+      [x + (r() - 0.5) * 0.25, 1.72 + r() * 0.2, z + (r() - 0.5) * 0.25]))
+    for (let i = 0; i < 18; i++) {
+      const c = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.6), leafMat)
+      c.position.set(x + (r() - 0.5) * 0.5, 1.62 + r() * 0.4, z + (r() - 0.5) * 0.5)
+      c.rotation.set((r() - 0.5) * 1.2, r() * Math.PI, (r() - 0.5) * 0.6)
+      cards.push(c)
+    }
   }
+  group.add(mergeInto(cards)) // all foliage: one draw
   const lanterns = [[-3.0, 0.78, -0.95], [3.45, 0.98, -2.2]].map(([x, y, z]) => {
     const h = glow(0xffb060, 0.8, 0.55)
     h.position.set(x, y, z)

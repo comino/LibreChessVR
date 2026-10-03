@@ -49,9 +49,12 @@ const outsideTexture = () => canvasTexture(512, 320, (ctx, w, h) => {
   ctx.fillStyle = 'rgba(255,255,255,0.8)'
   for (let i = 0; i < 40; i++) ctx.fillRect(r() * w, r() * h * 0.45, 1.5, 1.5)
   ctx.fillStyle = '#1a1712'
-  for (let x = -20; x < w + 20; x += 18 + r() * 26) {
+  for (let x = -20; x < w + 20; x += 30 + r() * 30) {   // pines: three stacked tiers
     const th = 60 + r() * 90
-    ctx.beginPath(); ctx.moveTo(x - 22, h); ctx.lineTo(x, h - th); ctx.lineTo(x + 22, h); ctx.fill()
+    ctx.fillRect(x - 2, h - th * 0.3, 4, th * 0.3)
+    for (const [hw, y0] of [[26, 0.15], [19, 0.42], [12, 0.66]]) {
+      ctx.beginPath(); ctx.moveTo(x - hw, h - th * y0); ctx.lineTo(x, h - th * (y0 + 0.36)); ctx.lineTo(x + hw, h - th * y0); ctx.fill()
+    }
   }
 })
 
