@@ -1,7 +1,7 @@
 // Builds assets/pieces.glb from Poly Haven's CC0 "Chess Set" (Riley Queen): one piece per
 // type and color, no board, textures resized to 512 px WebP. Dev tool only (the app has no npm):
-//   npm i --prefix /tmp/gt @gltf-transform/core@4 @gltf-transform/functions@4 @gltf-transform/extensions@4 sharp
-//   NODE_PATH=/tmp/gt/node_modules node tools/build-pieces.mjs <dir with chess_set_1k.gltf>
+//   npm i --prefix tools @gltf-transform/core@4 @gltf-transform/functions@4 @gltf-transform/extensions@4 sharp   (gitignored)
+//   node tools/build-pieces.mjs <dir with chess_set_1k.gltf>
 import { NodeIO } from '@gltf-transform/core'
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions'
 import { prune, dedup, textureCompress } from '@gltf-transform/functions'

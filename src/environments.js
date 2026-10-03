@@ -1,11 +1,12 @@
-// Scenery around the table, built procedurally (no downloads); one file per scene in scenes/.
+// Scenery around the table: procedural shell + scanned props; one file per scene in scenes/.
 // Each builder returns {group, background, fog?, exposure, hemi: [sky, ground, intensity],
-// sun: [color, intensity, offset], lamp?: [color, intensity, position], update?(t, dt, {lamp})}.
+// sun: [color, intensity, offset], lamp?: [color, intensity, position], update?(t, dt, {lamp}),
+// ready?: Promise (scanned props loaded)}.
 // Sun offset is relative to the board. Board3D owns the lights (fixed count: adding/removing
 // lights would recompile every shader on a scene switch); update() may animate the lamp.
 
 import * as THREE from 'three'
-import { std, disc } from './scenes/common.js'
+import { std, disc, disposeObject } from './scenes/common.js'
 import { study } from './scenes/study.js'
 import { sunset } from './scenes/sunset.js'
 import { night } from './scenes/night.js'
@@ -24,15 +25,8 @@ export function buildEnvironment(name) {
   return { name: key, ...BUILDERS[key]() }
 }
 
-// Frees GPU resources of a built environment group.
+// Frees GPU resources of a built environment group; props still loading are dropped.
 export function disposeGroup(group) {
-  group.traverse(o => {
-    if (o.isInstancedMesh) o.dispose() // frees the per-instance buffers
-    o.geometry?.dispose()
-    for (const m of [o.material].flat()) {
-      if (!m) continue
-      m.map?.dispose()
-      m.dispose()
-    }
-  })
+  group.userData.disposed = true
+  disposeObject(group)
 }

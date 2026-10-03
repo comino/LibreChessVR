@@ -527,6 +527,8 @@ export class Board3D {
     this.lamp.intensity = li
     this.lamp.position.set(...lp)
     this._captureEnv()
+    env.ready?.then(() => { if (this.env === env) this._captureEnv() }, // reflect the props too
+      e => console.warn('scene props not loaded', e))
   }
 
   // Table height offset from the default (m), clamped.

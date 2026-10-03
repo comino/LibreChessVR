@@ -3,6 +3,7 @@
 
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 
 // mulberry32: tiny seeded PRNG in [0, 1)
 export function rng(seed) {
@@ -201,4 +202,34 @@ export function mergeInto(meshes) {
   meshes.forEach(m => m.geometry.dispose())
   geos.forEach(g => g.dispose())
   return one
+}
+
+// Scanned CC0 props (assets/props/<id>.glb, built by tools/build-props.mjs) added to group
+// once loaded, so a scene shows at once. items: [id, [x, y, z], rotY = 0, scale = 1]; repeats
+// share geometry. Resolves when all are in; a group disposed meanwhile gets nothing.
+const loader = new GLTFLoader()
+export async function props(group, items) {
+  const ids = [...new Set(items.map(i => i[0]))]
+  const scenes = await Promise.all(ids.map(id => loader.loadAsync(`assets/props/${id}.glb`).then(g => g.scene)))
+  if (group.userData.disposed) return scenes.forEach(disposeObject)
+  for (const [id, [x, y, z], rotY = 0, scale = 1] of items) {
+    const o = scenes[ids.indexOf(id)].clone()
+    o.position.set(x, y, z)
+    o.rotation.y = rotY
+    o.scale.setScalar(scale)
+    group.add(o)
+  }
+}
+
+// Frees an object's geometries, materials and every texture they use.
+export function disposeObject(root) {
+  root.traverse(o => {
+    if (o.isInstancedMesh) o.dispose() // frees the per-instance buffers
+    o.geometry?.dispose()
+    for (const m of [o.material].flat()) {
+      if (!m) continue
+      for (const v of Object.values(m)) if (v?.isTexture) v.dispose()
+      m.dispose()
+    }
+  })
 }

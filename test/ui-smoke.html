@@ -311,7 +311,8 @@ try {
   for (let round = 0; round < 3; round++) {
     for (const name of ENVIRONMENTS) {
       board.setEnvironment(name)
-      board._tick()                                   // render: uploads geometries/textures
+      await board.env.ready                           // scanned props in, then render: uploads everything
+      board._tick()
       check(board.environment === name && board.scene.children.length === childCount, 'env swap keeps scene size: ' + name)
       backgrounds.add(board.scene.background.getHex())
       check(lights() === lightCount, 'constant light count (no shader recompiles): ' + name)
@@ -356,11 +357,29 @@ try {
   check(seen, 'a shooting star crosses the sky within 20 s')
   for (const env of ENVIRONMENTS) {
     board.setEnvironment(env)
+    await board.env.ready
     let draws = 0
     board.envGroup.traverse(o => { if (o.isMesh || o.isPoints || o.isSprite) draws++ })
     check(draws <= 45, `${env}: draw calls bounded for Quest (${draws})`)
   }
   board.setEnvironment('minimal')
+
+  // scanned props: loaded after the scene shows, reflected once in, dropped when the scene is gone
+  const scanned = g => { let n = 0; g.traverse(o => { if (o.isMesh && o.material.normalMap) n++ }); return n }
+  board.setEnvironment('study')
+  const rtBefore = board.envRT
+  await board.env.ready
+  check(scanned(board.envGroup) >= 9, 'study furniture loaded: ' + scanned(board.envGroup))
+  check(board.envRT !== rtBefore, 'reflections recaptured with the props')
+  board.setEnvironment('sunset')
+  const oldGroup = board.envGroup, oldReady = board.env.ready, oldCount = oldGroup.children.length
+  board.setEnvironment('minimal')
+  const rtMinimal = board.envRT
+  await oldReady
+  check(oldGroup.children.length === oldCount && scanned(oldGroup) === 0, 'late props not added to a disposed scene')
+  check(board.envRT === rtMinimal, 'late props of an old scene do not recapture reflections')
+  board._tick()
+  check(board.renderer.info.memory.textures <= mem1.textures, 'late props leak nothing: ' + board.renderer.info.memory.textures)
 
   // shadows follow the stage and cover a scaled board
   check(board.sun.parent === board.stage, 'sun moves with the table')

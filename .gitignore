@@ -4,3 +4,5 @@
 android/*
 !android/twa-manifest.json
 !android/build.sh
+tools/node_modules
+tools/package*.json

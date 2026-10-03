@@ -1,8 +1,8 @@
-// Study: a warm, lived-in room — crackling fireplace (its flicker lights the board), ticking
-// grandfather clock with the real time, dust drifting in the window light, evening view outside.
+// Study: a cozy room in an old European house — crackling fireplace (its flicker lights the board),
+// ticking grandfather clock with the real time, scanned antique furniture, dust in the window light.
 
 import * as THREE from 'three'
-import { rng, std, mesh, box, canvasTexture, woodTexture, glow, instanced, points, mergeStatic, shadowBlob, edgeShade, shadeMat, mergeInto } from './common.js'
+import { rng, std, mesh, box, canvasTexture, woodTexture, glow, instanced, points, mergeStatic, shadowBlob, edgeShade, shadeMat, mergeInto, props } from './common.js'
 
 const W = 8, H = 3.2, Z0 = -0.45           // room size and center z (table sits at the center)
 const BACK = Z0 - W / 2, RIGHT = W / 2, LEFT = -W / 2
@@ -91,8 +91,10 @@ const flameTexture = () => canvasTexture(64, 128, (ctx, w, h) => {
 
 function fireplace() {
   const g = new THREE.Group()
-  const stone = std(0x8a8176, { roughness: 1 })
+  const stone = std(0x6b5a4c, { roughness: 1 })
   g.add(box(1.7, 1.2, 0.35, stone, [0, 0.6, 0]))                 // surround
+  g.add(box(1.9, 0.08, 0.65, std(0x463b33, { roughness: 1 }), [0, 0.04, 0.2])) // raised hearth
+  for (const x of [-0.62, 0.62]) g.add(box(0.26, 1.15, 0.42, std(0x5e4e42, { roughness: 1 }), [x, 0.6, 0.02])) // pillars
   g.add(box(1.9, 0.1, 0.45, std(0x3a2414, { roughness: 0.6 }), [0, 1.25, 0.03])) // mantel
   g.add(box(0.9, 0.7, 0.3, std(0x0c0908), [0, 0.42, 0.04]))     // firebox
   g.add(box(0.5, 0.06, 0.06, std(0x3a2414), [0, 0.12, 0.2]))     // logs
@@ -181,7 +183,6 @@ export function study() {
   })
   for (const x of [-0.85, 2.05]) group.add(box(0.55, 2.3, 0.08, std(0xffffff, { map: curtainTex, roughness: 1 }), [x, 1.95, BACK + 0.12]))
   group.add(box(3.4, 0.05, 0.05, std(0xb08a3e, { metalness: 0.7, roughness: 0.3 }), [0.6, 3.07, BACK + 0.16]))
-  group.add(framedPicture(painting(5, ['#e8b67a', '#6a3a2a']), 0.8, 0.6, [-2.4, 1.95, BACK + 0.05]))
   group.add(framedPicture(painting(9, ['#8ab0c8', '#2a3a4a']), 0.6, 0.8, [3.0, 1.9, BACK + 0.05]))
   // left wall: bookshelf (instanced books) and the grandfather clock
   const shelf = new THREE.Group()
@@ -202,32 +203,14 @@ export function study() {
   clock.group.position.set(LEFT + 0.2, 0, -3.3)
   clock.group.rotation.y = Math.PI / 2
   group.add(clock.group)
-  // right wall: fireplace (its light is the board's warm flicker), armchair, side table + candle, plant
+  // right wall: fireplace (its light is the board's warm flicker)
   const fire = fireplace()
   fire.group.position.set(RIGHT - 0.18, 0, -1.9)
   fire.group.rotation.y = -Math.PI / 2
   group.add(fire.group)
-  const leather = std(0x5a2a18, { roughness: 0.5 })
-  const chair = new THREE.Group()
-  chair.add(box(0.8, 0.42, 0.75, leather, [0, 0.21, 0]))
-  chair.add(box(0.8, 0.75, 0.18, leather, [0, 0.72, -0.3]))
-  for (const x of [-0.36, 0.36]) chair.add(box(0.12, 0.62, 0.75, leather, [x, 0.31, 0]))
-  chair.position.set(2.7, 0, -0.6)
-  chair.rotation.y = -2.2
-  group.add(chair)
-  group.add(mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.03, 24), std(0x3a2414, { roughness: 0.5 }), [2.05, 0.6, 0.35]))
-  group.add(mesh(new THREE.CylinderGeometry(0.03, 0.05, 0.58, 12), std(0x3a2414), [2.05, 0.3, 0.35]))
-  group.add(mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.12, 12), std(0xefe6d0), [2.1, 0.68, 0.35]))
-  const candle = glow(0xffb45a, 0.1, 0.9)
-  candle.position.set(2.1, 0.77, 0.35)
-  group.add(candle)
-  const plant = new THREE.Group()
-  plant.add(mesh(new THREE.CylinderGeometry(0.16, 0.12, 0.3, 16), std(0x8a4a2a), [0, 0.15, 0]))
-  const leaf = std(0x2f5a2a, { roughness: 0.8 })
-  for (let i = 0; i < 7; i++) plant.add(mesh(new THREE.IcosahedronGeometry(0.14 + r() * 0.08, 0), leaf,
-    [(r() - 0.5) * 0.3, 0.45 + r() * 0.45, (r() - 0.5) * 0.3]))
-  plant.position.set(-2.9, 0, -3.8)
-  group.add(plant)
+  const lampGlow = glow(0xffc070, 0.35, 0.5)               // oil lamp on the nightstand
+  lampGlow.position.set(3.68, 1.08, 0.1)
+  group.add(lampGlow)
   // floor lamp (glow only; the room's point light is the fire)
   group.add(mesh(new THREE.CylinderGeometry(0.015, 0.015, 1.5), std(0x222222, { metalness: 0.6 }), [1.3, 0.75, -1.4]))
   group.add(mesh(new THREE.CylinderGeometry(0.12, 0.2, 0.22, 24, 1, true),
@@ -243,8 +226,9 @@ export function study() {
   group.add(mergeInto([edge, edgeShade(W, [LEFT, Z0], Math.PI / 2, 0.7, 0.011, edge.material),
     edgeShade(W, [RIGHT, Z0], -Math.PI / 2, 0.7, 0.011, edge.material)]))
   const blobMat = shadeMat(0.85)
-  group.add(mergeInto([[0.8, 2.3, LEFT + 0.25, -1.2], [0.8, 0.8, LEFT + 0.3, -3.3], [1.3, 1.2, 2.7, -0.6],
-    [0.7, 0.7, 2.05, 0.35], [0.7, 0.7, -2.9, -3.8], [0.9, 2.2, RIGHT - 0.3, -1.9]]
+  group.add(mergeInto([[0.8, 2.3, LEFT + 0.25, -1.2], [0.8, 0.8, LEFT + 0.3, -3.3], [1.2, 1.2, 2.6, -0.3],
+    [1.0, 0.8, 3.0, -1.0], [0.7, 0.8, 3.68, 0.1], [1.0, 1.0, 3.0, -3.6], [0.9, 2.2, RIGHT - 0.3, -1.9],
+    [3.0, 1.1, 0, Z0 + W / 2 - 0.5], [1.5, 0.8, -2.4, BACK + 0.3]]
     .map(([w, d, x, z]) => shadowBlob(w, d, [x, z], 1, 0.012, blobMat))))
   // light falling from the window: two crossed soft beams toward the floor
   const beamTex = canvasTexture(64, 256, (ctx, w, h) => {
@@ -257,19 +241,33 @@ export function study() {
     ctx.globalCompositeOperation = 'destination-out'
     ctx.fillStyle = side; ctx.fillRect(0, 0, w, h)
   })
-  const beams = [0, Math.PI / 2].map(rot => {
-    const b = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 3.4), new THREE.MeshBasicMaterial({
-      map: beamTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-      side: THREE.DoubleSide, toneMapped: false, fog: false
-    }))
+  const beamMat = new THREE.MeshBasicMaterial({
+    map: beamTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide, toneMapped: false, fog: false
+  })
+  const beams = mergeInto([0, Math.PI / 2].map(rot => {
+    const b = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 3.4), beamMat)
     b.geometry.translate(0, -1.7, 0)                       // hang from the window
     b.position.set(0.6, 2.3, BACK + 0.1)
     b.rotation.set(0.62, rot, 0, 'YXZ')
-    group.add(b)
     return b
-  })
+  }))
+  group.add(beams)
+  // front wall (behind the player): sofa under a landscape
+  group.add(framedPicture(painting(5, ['#e8b67a', '#6a3a2a']), 1.2, 0.8, [0, 1.85, Z0 + W / 2 - 0.05], Math.PI))
 
-  mergeStatic(group) // furniture, panelling, fireplace stone… in one draw call
+  mergeStatic(group) // panelling, fireplace stone, clock case… in one draw call
+  const ready = props(group, [
+    ['ArmChair_01', [2.6, 0, -0.3], 2.5],                // by the fire, with a footstool
+    ['Ottoman_01', [3.0, 0, -1.0], 2.5],
+    ['ClassicNightstand_01', [3.68, 0, 0.1], -Math.PI / 2],
+    ['vintage_oil_lamp', [3.68, 0.7, 0.1]],
+    ['Rockingchair_01', [3.0, 0, -3.6], -0.76],
+    ['sofa_03', [0, 0, Z0 + W / 2 - 0.5], Math.PI],
+    ['GothicCommode_01', [-2.4, 0, BACK + 0.3]],            // back wall: commode, painting above
+    ['potted_plant_04', [-2.8, 1.21, BACK + 0.32]],
+    ['fancy_picture_frame_01', [-2.4, 2.1, BACK + 0.03], 0, 1.6]
+  ])
   const firePos = new THREE.Vector3(RIGHT - 0.5, 0.45, -1.9)
   function update(t, dt, { lamp }) {
     // fire: flames and embers dance, the point light flickers (a few % only: the board stays readable)
@@ -281,8 +279,8 @@ export function study() {
     fire.embers.material.opacity = 0.45 + 0.12 * Math.sin(t * 3.1) + 0.06 * Math.sin(t * 11)
     lamp.position.copy(firePos)
     lamp.intensity = 3.2 + 0.35 * Math.sin(t * 9) + 0.25 * Math.sin(t * 23 + 1)
-    candle.scale.setScalar(0.1 * (1 + 0.12 * Math.sin(t * 17) + 0.08 * Math.sin(t * 29)))
-    beams.forEach((b, i) => { b.material.opacity = 0.85 + 0.15 * Math.sin(t * 0.3 + i) })
+    lampGlow.material.opacity = 0.5 + 0.05 * Math.sin(t * 17) + 0.03 * Math.sin(t * 29)
+    beamMat.opacity = 0.85 + 0.15 * Math.sin(t * 0.3)
     // clock: real time, pendulum swings once per second
     const now = new Date(), min = now.getMinutes() + now.getSeconds() / 60
     clock.minute.rotation.z = -min / 60 * Math.PI * 2
@@ -299,7 +297,7 @@ export function study() {
   }
 
   return {
-    group, update, background: 0x2a2018, exposure: 1.1,
+    group, update, ready, background: 0x2a2018, exposure: 1.1,
     hemi: [0xffe8cc, 0x6a4a34, 1.3], sun: [0xfff1dc, 1.7, [-1.2, 2.2, -2.0]],
     lamp: [0xff9a4a, 3.2, firePos.toArray()]
   }

@@ -1,6 +1,6 @@
 // Runs smoke pages in a headless Chrome (DevTools on $CDP_PORT) in real time, one after another
 // with the origin's storage wiped in between (pages must not share localStorage); polls #result
-// until it is filled (60 s max), prints "page: result". Exit code 1 unless all *-OK.
+// until it is filled (180 s max), prints "page: result". Exit code 1 unless all *-OK.
 // Real time, not --virtual-time-budget: virtual time stalls image decoding (textured GLB).
 const [base, ...pages] = process.argv.slice(2)
 const port = process.env.CDP_PORT || 9333
@@ -21,7 +21,7 @@ async function run(page) {
     ws.send(JSON.stringify({ id: my, method, params })) })
   await new Promise(r => ws.addEventListener('open', r))
   let out = ''
-  for (const t0 = Date.now(); Date.now() - t0 < 60000 && !out; await new Promise(r => setTimeout(r, 300)))
+  for (const t0 = Date.now(); Date.now() - t0 < 180000 && !out; await new Promise(r => setTimeout(r, 300)))
     out = (await send('Runtime.evaluate', { expression: "document.getElementById('result')?.textContent || ''" }))?.result?.value || ''
   ws.close()
   await fetch(`http://127.0.0.1:${port}/json/close/${t.id}`)

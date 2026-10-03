@@ -33,11 +33,12 @@ Never hardcode a color: add a token. Button labels: 1–2 words, sentence case; 
 | `src/speech.js` | `moveToSpeech(verboseMove)` (pure, unit-tested: "Knight takes F 3, check") + `speak()` via speechSynthesis. `board.announce(move, mine)` filters by `board.voice` (off/opponent/all). |
 | `src/trainer.js` | `TrainerSession`: coordinate drill — big target square on the panel, point at it; 30 s rounds alternating white/black view; best in `localStorage.coordBest`. |
 | `src/environments.js` | Scene registry (`buildEnvironment`, `disposeGroup`) + minimal. |
-| `src/scenes/` | One file per scene (`study`, `sunset`, `night`) + `common.js` helpers (seeded `rng`, canvas textures, `glow` sprites, `instanced`, `points`, `lantern`, `mergeStatic`). Builders may return `update(t, dt, {lamp})` — called every frame by the board for scene life. |
+| `src/scenes/` | One file per scene (`study`, `sunset`, `night`) + `common.js` helpers (seeded `rng`, canvas textures, `glow` sprites, `instanced`, `points`, `lantern`, `mergeStatic`, `props`). Builders may return `update(t, dt, {lamp})` — called every frame by the board for scene life. |
 | `src/settings.js` | In-VR settings, three pages: Play (Stockfish level, Maia 1/5/9, time, color, rated) View (scene, board scale, table ↑/↓, flipped view) and Puzzles (difficulty, theme). `cycle()` unit-tested. main.js maps Play values onto the 2D form fields; View values live on the board (`VIEW_SETTERS`, own localStorage keys). |
 | `src/main.js` | 2D page + in-VR menu (`menu()`: Stockfish/seek/cancel/puzzles, from persisted `settings`), event stream, resumes ongoing game. `view` = what the panel shows; `refresh()` re-renders it. `window.parallax.board` = debug handle. |
 | `src/theme.js` | Design tokens: `COLOR`, `TINT` (+`TINT_MIX`), `BOARD`, `PIECES`, `FONT`. |
 | `assets/brand/` | Logo mark + wordmark SVGs. `docs/img/` = README screenshots. |
+| `assets/props/` | Scanned CC0 scene furniture (Poly Haven), one GLB per model, built by `tools/build-props.mjs <id[@256]>…` (joins meshes per material, 512 px WebP). Watch the real triangle count it prints: the site's listed polycount can be wrong (`wooden_candlestick` = 213k). |
 | `assets/pieces.glb` | Scanned piece set (Poly Haven `chess_set`, CC0, Riley Queen): nodes `piece_<type>_<white|black>`, PBR textures as 512 px webp. Rebuild with `tools/build-pieces.mjs` (usage in its header). |
 
 ## Key invariants & gotchas
@@ -76,6 +77,10 @@ Never hardcode a color: add a token. Button labels: 1–2 words, sentence case; 
   (ui-smoke checks it) — use `instanced` for repeats and `mergeStatic(group)` to fuse plain
   static meshes (flag animated ones `userData.dynamic`); seeded `rng` for stable layouts.
   The env list lives in settings.js (pure, Node-testable); names must match `BUILDERS`.
+  Scanned props: `props(group, items)` loads them *after* the scene shows and resolves `env.ready`;
+  the board then recaptures reflections (only if that env is still current). `disposeGroup` sets
+  `userData.disposed`, so props of a scene switched away mid-load are freed, never added. Draw
+  budget counts props: tests `await board.env.ready` before counting.
 - `board.stage` holds table + board + panel + bar; `setHeight(offset)` (±0.45 m) moves it.
   Thumbstick Y on either controller adjusts it; `onHeightChange` fires once on release and
   main.js persists `localStorage.tableHeight`. The table box reaches below the floor.
