@@ -38,7 +38,7 @@ training, all without taking the headset off.
   silver, maple, neon. Pieces reflect the scene around them.
 - Board size 80–150 %, table height by thumbstick or buttons, wooden move sounds, haptics,
   and an FPS readout for tuning (Settings → View).
-- Controllers (point + trigger), hand tracking (point & pinch, or grab pieces), fingertip-poke
+- Controllers (point + trigger), hand tracking (point & pinch from afar, or just pinch a piece to pick it up), fingertip-poke
   buttons, or mouse on desktop.
 
 | | | |

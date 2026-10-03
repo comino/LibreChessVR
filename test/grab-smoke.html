@@ -108,11 +108,46 @@ try {
   check(!board.grab && moves.length === 1, 'disconnect cancels grab')
   hand.visible = true
 
-  // Ray mode ignores pinch-grab
+  // Point (ray) mode: a pinch right at one of your pieces grabs it, and that pinch's
+  // selectstart must not also fire a ray pick; a pinch away from the pieces stays a ray pick.
   board.setHandMode('ray')
-  at('a2')
+  board.setPosition('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1')
+  const { ctrl } = board.controllers[0]
+  ctrl.userData.isHand = true
+  board.hands[0] = hand
+  let rayPicks = 0
+  const realPick = board._pick
+  board._pick = () => { rayPicks++ }
+  at('e2')
+  ctrl.dispatchEvent({ type: 'selectstart' })
   board._grabStart(hand)
-  check(!board.grab, 'grab inactive in ray mode')
+  check(board.grab?.from === 'e2' && rayPicks === 0, `ray mode pinch at a piece grabs it (grab ${board.grab?.from}, ray picks ${rayPicks})`)
+  at('e4', 0.08); board._tick(); board._grabEnd(hand)
+  check(moves.at(-1) === 'e2e4', 'ray mode grab-drop moves, got ' + moves.at(-1))
+  at('e2', 0.45)                                            // hand up in the air: pointing
+  board._grabStart(hand)
+  ctrl.dispatchEvent({ type: 'selectstart' })
+  check(!board.grab && rayPicks === 1, 'pinch away from the pieces is a ray pick')
+  board._pick = realPick
+
+  // Picking past a slim piece: the invisible pick cylinders are much wider than the pieces, so a
+  // ray that passes beside the queen's real silhouette must reach the pawn behind it.
+  board.setPosition('8/8/8/3p4/3Q4/8/8/K6k w - - 0 1')
+  board._select(null)
+  board._tick()
+  const toWorld = (x, y, z) => board.boardGroup.localToWorld(new THREE.Vector3(x, y, z))
+  const aim = (sq, y, [dx, dy, dz]) => {
+    const { x, z } = squareToXZ(sq, S), t = toWorld(x, y, z), o = toWorld(x + dx, y + dy, z + dz)
+    board.raycaster.ray.set(o, t.sub(o).normalize())
+  }
+  const pawnTop = board.pieceH.p * board.pieceScale * 0.85
+  aim('d5', pawnTop, [1.2 * S, 3 * S, 3 * S])
+  check(board.raycaster.intersectObject(board.pieceAt.d4.userData.proxy).length > 0, 'test ray crosses the queen cylinder')
+  check(board._cast()?.square === 'd5', 'pawn behind the queen pickable, got ' + board._cast()?.square)
+  aim('d4', board.pieceH.q * board.pieceScale * 0.5, [0.2 * S, 3 * S, 3 * S])
+  check(board._cast()?.square === 'd4', 'aiming at the queen still picks it, got ' + board._cast()?.square)
+  aim('d4', 0.004, [1.6 * S, 3 * S, 3 * S])                 // grazing past the queen's cylinder, onto the tile
+  check(board._cast()?.square === 'd4', 'tile of an occupied square picks it, got ' + board._cast()?.square)
 
   out.textContent = 'GRAB-OK'
 } catch (e) {

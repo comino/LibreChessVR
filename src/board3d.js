@@ -19,7 +19,8 @@ const SQUARE = 0.06                      // 6cm squares -> 48cm board, tournamen
 const BOARD_POS = new THREE.Vector3(0, 0.73, -0.45)
 const NODE_TYPE = { pawn: 'p', knight: 'n', bishop: 'b', rook: 'r', queen: 'q', king: 'k' }
 const _vA = new THREE.Vector3(), _vB = new THREE.Vector3(), _vC = new THREE.Vector3()
-const _m = new THREE.Matrix4(), _tint = new THREE.Color(), _dummy = new THREE.Object3D()
+const _m = new THREE.Matrix4(), _tint = new THREE.Color(), _dummy = new THREE.Object3D(), _ray = new THREE.Ray()
+const BANDS = 12                         // silhouette resolution for picking (height bands)
 const HOVER = new THREE.Color(TINT.hover)   // added on top of the tile's tint
 const RAY_LEN = 1.5
 const BAR_X = 0.4
@@ -243,6 +244,20 @@ export class Board3D {
       const box = new THREE.Box3().setFromObject(t), ctr = box.getCenter(new THREE.Vector3())
       t.position.sub(ctr.setY(box.min.y))
       this.pieceH[type] = box.max.y - box.min.y
+    }
+    // Picking silhouette per type: widest radius in each height band (template units, white set).
+    this.profile = {}
+    for (const [type, t] of Object.entries(this.templates.w)) {
+      const prof = this.profile[type] = new Array(BANDS).fill(0), h = this.pieceH[type]
+      t.updateMatrixWorld(true)
+      t.traverse(m => {
+        const pos = m.isMesh && m.geometry.attributes.position
+        for (let i = 0; pos && i < pos.count; i++) {
+          const v = _vA.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld)
+          const b = THREE.MathUtils.clamp(Math.floor(v.y / h * BANDS), 0, BANDS - 1)
+          prof[b] = Math.max(prof[b], Math.hypot(v.x, v.z))
+        }
+      })
     }
     // Surface detail uniforms, shared by all four piece materials (one shader program).
     this.detailU = { uDetail: { value: 0 }, uDetailTime: { value: 0 } }
@@ -775,7 +790,7 @@ export class Board3D {
       })
       ctrl.addEventListener('disconnected', () => { ctrl.userData.source = null })
       ctrl.addEventListener('selectstart', () => {
-        if (this.handMode === 'grab' && ctrl.userData.isHand) return // pinch-grab handles it
+        if (ctrl.userData.isHand && this._handGrabs(this.hands[i])) return // pinch-grab handles it
         this.source = ctrl.userData.source
         this._rayFrom(ctrl)
         this._pick()
@@ -784,8 +799,8 @@ export class Board3D {
       this.controllers.push({ ctrl, line, dot })
     }
 
-    // Tracked hands: rendered meshes; pinch fires selectstart on the controller
-    // groups above (ray mode), or grabs the nearest piece directly (grab mode).
+    // Tracked hands: rendered meshes; pinch fires selectstart on the controller groups above
+    // (a ray pick), unless it happens right at one of your pieces: then it grabs the piece.
     this.grab = null
     this.hands = []
     const handFactory = new XRHandModelFactory()
@@ -873,17 +888,15 @@ export class Board3D {
     return tip.getWorldPosition(_vA).add(thumb.getWorldPosition(_vB)).multiplyScalar(0.5)
   }
 
-  _grabStart(hand) {
-    if (this.handMode !== 'grab' || this.grab) return
-    const p = this._pinchPos(hand)
-    if (!p) return
-    const local = this.boardGroup.worldToLocal(p.clone())
-    if (this.picker) return this._closePicker(this._nearestPromo(local))
-    if (local.y < -0.02 || local.y > 0.18) return
-    if (this.onSquarePick) {
-      const sq = xzToSquare(local.x, local.z, SQUARE)
-      return sq && this.onSquarePick(sq)
-    }
+  // Pinch point in board space, or null while tracking is lost.
+  _pinchLocal(hand) {
+    const p = hand && this._pinchPos(hand)
+    return p && this.boardGroup.worldToLocal(p.clone())
+  }
+
+  // Own piece within reach of a board-space pinch point (just above the board), or null.
+  _reachable(local) {
+    if (!local || local.y < -0.02 || local.y > 0.18) return null
     let best = null
     for (const sq in this.pieceAt) {
       if (!this.canPick(sq)) continue
@@ -891,10 +904,32 @@ export class Board3D {
       const d = Math.hypot(pos.x - local.x, pos.z - local.z)
       if (d < 0.7 * SQUARE && (!best || d < best.d)) best = { sq, d }
     }
-    if (!best) return
-    this.grab = { hand, piece: this.pieceAt[best.sq], from: best.sq }
-    this.selected = best.sq
-    this.targets = this.getTargets(best.sq)
+    return best?.sq ?? null
+  }
+
+  // Does this hand's pinch belong to pinch-grab (not the ray)? Always in grab mode; in point mode
+  // when the pinch is right at one of your pieces (picker and trainer stay with the ray there).
+  _handGrabs(hand) {
+    if (this.handMode === 'grab' || this.grab?.hand === hand) return true
+    return !this.picker && !this.onSquarePick && !!this._reachable(this._pinchLocal(hand))
+  }
+
+  _grabStart(hand) {
+    if (this.grab) return
+    const local = this._pinchLocal(hand)
+    if (!local) return
+    if (this.handMode === 'grab') {
+      if (this.picker) return this._closePicker(this._nearestPromo(local))
+      if (this.onSquarePick) {
+        const sq = local.y >= -0.02 && local.y <= 0.18 && xzToSquare(local.x, local.z, SQUARE)
+        return sq && this.onSquarePick(sq)
+      }
+    } else if (this.picker || this.onSquarePick) return // point mode: the ray picks these
+    const from = this._reachable(local)
+    if (!from) return
+    this.grab = { hand, piece: this.pieceAt[from], from }
+    this.selected = from
+    this.targets = this.getTargets(from)
     this._applyTints()
   }
 
@@ -930,17 +965,38 @@ export class Board3D {
 
   // Nearest interactive object on the current ray, using the cheap piece proxies:
   // {promo} while the picker is open, else {uv} on the button bar or {square}; null = miss.
+  // A ray through a proxy but beside the real piece (see _touches) goes on to what is behind it.
   _cast() {
     const proxies = group => group.children.map(g => g.userData.proxy ?? g.children[1].userData.proxy)
     const objs = this.picker ? proxies(this.picker.group)
       : [...Object.values(this.tiles), ...proxies(this.piecesGroup), ...(this.bar.mesh.visible ? [this.bar.mesh] : [])]
-    const h = this.raycaster.intersectObjects(objs, false)[0]
+    const hits = this.raycaster.intersectObjects(objs, false)
+    const h = this.picker ? hits[0] : hits.find(h => this._touches(h)) ?? hits[0]
     if (!h) return null
     const hit = { dist: h.distance }
     if (h.object === this.bar.mesh) hit.uv = h.uv
     else if (this.picker) hit.promo = h.object.parent.parent.userData.promo
     else hit.square = h.object.userData.square
     return hit
+  }
+
+  // Does the ray really touch what it hit? Tiles, the bar and legal targets: yes. A piece proxy:
+  // only if the ray passes within the piece's silhouette (+ margin) somewhere inside the cylinder.
+  _touches(h) {
+    const o = h.object, piece = o.parent
+    if (o.material !== PROXY_MAT || (this.selected && this.targets.includes(o.userData.square))) return true
+    const prof = this.profile[piece.userData.type], top = this.pieceH[piece.userData.type]
+    const ray = _ray.copy(this.raycaster.ray).applyMatrix4(_m.copy(piece.matrixWorld).invert())
+    const R = 0.42 * SQUARE / this.pieceScale, margin = 0.08 * SQUARE / this.pieceScale // ~5 mm: hand jitter
+    const flat = Math.hypot(ray.direction.x, ray.direction.z), len = 2 * R / Math.max(flat, 0.05)
+    const t0 = ray.origin.distanceTo(_vC.copy(h.point).applyMatrix4(_m))
+    for (let k = 0; k <= 16; k++) {                 // walk the chord through the cylinder
+      const p = ray.at(t0 + len * k / 16, _vC)
+      if (p.y < 0 || p.y > top) continue
+      const r = prof[Math.min(BANDS - 1, Math.floor(p.y / top * BANDS))]
+      if (Math.hypot(p.x, p.z) < r + margin) return true
+    }
+    return false
   }
 
   // Acts on the current ray: picker choice (a miss cancels), bar button, or square.

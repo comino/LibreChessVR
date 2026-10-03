@@ -54,6 +54,10 @@ Never hardcode a color: add a token. Button labels: 1–2 words, sentence case; 
 - Ray picking/hover never touches the GLB meshes: each piece has an invisible cylinder
   `userData.proxy` (too many triangles for per-frame raycasts on the Quest). `_cast()` is
   the single ray resolver for click, trigger and hover, so hover and pick always agree.
+  Proxies are much wider than the pieces, so `_touches()` re-checks a proxy hit against the
+  piece's silhouette (`board.profile[type]`: widest radius per height band, measured at load,
+  + ~5 mm margin); a ray only through the empty part goes on to what is behind (pawn behind a
+  queen). Legal targets of the selected piece keep their full proxy.
 - Hover state lives in `board.hover[key]` (`mouse`, `c0`, `c1`, `grab`); tints are
   recomputed in `_applyTints` (last move < check < selection < hover brighten).
 - XR controller groups have `matrixAutoUpdate = false` — tests must `updateMatrix()`.
@@ -150,7 +154,8 @@ Never hardcode a color: add a token. Button labels: 1–2 words, sentence case; 
   after a game starts.
 - Hand tracking: hand meshes via `XRHandModelFactory`; two modes, persisted as
   `localStorage.handMode` and set via `board.setHandMode`. `ray` (default): pinch
-  fires `selectstart` on the controller groups → normal ray select. `grab`: three's
+  fires `selectstart` on the controller groups → normal ray select — except a pinch right at
+  one of your pieces (`_handGrabs`/`_reachable`), which grabs it instead. `grab`: no hand rays; three's
   `pinchstart/pinchend` hand events grab the nearest pickable piece within 0.7
   squares of the pinch point (thumb+index tip midpoint); the piece follows the hand
   (`_tick`), release snaps to the nearest square and emits `onMove` if legal, else
