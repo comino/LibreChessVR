@@ -143,14 +143,67 @@ export function mergeStatic(group) {
   group.add(one)
 }
 
-// Flame texture: warm teardrop fading upward.
-export const flameTexture = () => canvasTexture(64, 128, (ctx, w, h) => {
-  const g = ctx.createRadialGradient(w / 2, h * 0.75, 2, w / 2, h * 0.6, h * 0.55)
-  g.addColorStop(0, 'rgba(255,240,200,1)'); g.addColorStop(0.3, 'rgba(255,170,60,0.9)')
-  g.addColorStop(0.7, 'rgba(200,60,10,0.4)'); g.addColorStop(1, 'rgba(120,20,0,0)')
-  ctx.fillStyle = g
-  ctx.beginPath(); ctx.ellipse(w / 2, h * 0.62, w * 0.42, h * 0.46, 0, 0, Math.PI * 2); ctx.fill()
+// Flame tongue: wide hot base narrowing to a tip (lean -1..1 bends it), soft edges, bright core.
+const flameTexture = lean => canvasTexture(64, 128, (ctx, w, h) => {
+  const tongue = (sx, a) => {
+    const tip = w / 2 + lean * w * 0.2 * sx
+    ctx.beginPath()
+    ctx.moveTo(w / 2, h * 0.98)
+    ctx.bezierCurveTo(w / 2 - w * 0.45 * sx, h * 0.95, w / 2 - w * 0.36 * sx, h * (1 - 0.5 * sx), tip, h * (1 - 0.95 * sx))
+    ctx.bezierCurveTo(w / 2 + w * 0.36 * sx, h * (1 - 0.5 * sx), w / 2 + w * 0.45 * sx, h * 0.95, w / 2, h * 0.98)
+    const g = ctx.createLinearGradient(0, h * (1 - sx), 0, h)
+    g.addColorStop(0, 'rgba(255,70,10,0)'); g.addColorStop(0.35, `rgba(255,120,30,${0.7 * a})`)
+    g.addColorStop(0.7, `rgba(255,190,80,${0.95 * a})`); g.addColorStop(1, `rgba(255,240,200,${a})`)
+    ctx.fillStyle = g
+    ctx.fill()
+  }
+  ctx.filter = 'blur(2px)'
+  tongue(1, 1)
+  tongue(0.55, 0.9) // hot core
 })
+
+// Fire: crossed logs, flame tongues growing from their base that flicker and sway, sparks rising.
+// Place .group at the fire's base; call update(t) every frame. Logs merge via mergeStatic.
+export function fire(size, n, seed = 1) {
+  const r = rng(seed), group = new THREE.Group(), tex = [-1, 0, 1].map(flameTexture)
+  const bark = std(0x22160e), logGeo = new THREE.CylinderGeometry(size * 0.07, size * 0.09, size * 0.8, 7)
+  for (let i = 0; i < 4; i++) {                       // teepee: leaning in, tops meeting over the center
+    const a = i * Math.PI / 2 + r() * 0.4, log = mesh(logGeo, bark, [Math.sin(a) * size * 0.26, size * 0.12, Math.cos(a) * size * 0.26])
+    log.rotation.set(-1.25, a, 0, 'YXZ')
+    group.add(log)
+  }
+  const flames = Array.from({ length: n }, (_, i) => {
+    const f = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: tex[i % 3], blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false
+    }))
+    f.center.set(0.5, 0.02)
+    const x = (r() - 0.5) * size * 0.5
+    f.position.set(x, 0, (r() - 0.5) * size * 0.3)
+    f.userData = { x, s: size * (0.6 + r() * 0.5), phase: r() * 6 }
+    group.add(f)
+    return f
+  })
+  const N = 14, sparks = points(N, 0xffa040, size * 0.06, () => {})
+  const seeds = Array.from({ length: N }, () => [r(), 0.25 + r() * 0.3, (r() - 0.5) * size * 0.5])
+  group.add(sparks.points)
+  function update(t) {
+    for (const f of flames) {
+      const { x, s, phase } = f.userData, k = 1 + 0.22 * Math.sin(t * (8 + phase) + phase) + 0.12 * Math.sin(t * 17.3 + phase * 2)
+      f.scale.set(s * 0.5 * (1.6 - 0.6 * k), s * 1.25 * k, 1)
+      f.position.x = x + s * 0.05 * Math.sin(t * 5 + phase)
+      f.material.opacity = 0.8 + 0.2 * Math.sin(t * 11 + phase)
+    }
+    const p = sparks.pos
+    seeds.forEach(([o, speed, x], i) => {
+      const life = (t * speed + o) % 1
+      p[i * 3] = x + Math.sin(t * 3 + i) * size * 0.15 * life
+      p[i * 3 + 1] = size * (0.2 + life * 2.6)
+      p[i * 3 + 2] = Math.cos(t * 2.3 + i) * size * 0.12 * life
+    })
+    sparks.points.geometry.attributes.position.needsUpdate = true
+  }
+  return { group, update }
+}
 
 // Soft dark radial blob (contact shadows / baked-looking occlusion), shared texture.
 let blobTex = null

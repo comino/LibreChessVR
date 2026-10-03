@@ -2,7 +2,7 @@
 // boulder by the table, ferns; twinkling and shooting stars, aurora, haloed moon, fireflies, mist.
 
 import * as THREE from 'three'
-import { rng, std, mesh, disc, canvasTexture, glow, instanced, points, mergeStatic, props, flameTexture } from './common.js'
+import { rng, std, mesh, disc, canvasTexture, glow, instanced, points, mergeStatic, props, fire } from './common.js'
 
 // Aurora curtain: bright green hem fading upward into violet, soft at the edges.
 const auroraTexture = () => canvasTexture(64, 256, (ctx, w, h) => {
@@ -92,14 +92,9 @@ export function night() {
   group.add(flies.points)
   // campfire (the scene's warm point light) and a lantern on a boulder by the table
   const FIRE = [2.3, -1.7]
-  const fireTex = flameTexture()
-  const flames = [[-0.1, 0.42], [0.08, 0.5], [0.0, 0.36]].map(([dx, s]) => {
-    const f = new THREE.Sprite(new THREE.SpriteMaterial({ map: fireTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }))
-    f.position.set(FIRE[0] + dx, 0.32, FIRE[1] + dx)
-    f.userData.s = s
-    group.add(f)
-    return f
-  })
+  const flame = fire(0.5, 5, 7)
+  flame.group.position.set(FIRE[0], 0.1, FIRE[1])
+  group.add(flame.group)
   const embers = glow(0xff7a2a, 1.6, 0.5)
   embers.position.set(FIRE[0], 0.2, FIRE[1])
   group.add(embers)
@@ -163,10 +158,7 @@ export function night() {
       streak.lookAt(0, 1.2, 0)
       streak.rotation.z = Math.atan2(shot.dir.y, shot.dir.x)
     }
-    flames.forEach((f, i) => {
-      const k = 1 + 0.2 * Math.sin(t * (7 + i) + i * 2) + 0.1 * Math.sin(t * 13.7 + i), s = f.userData.s
-      f.scale.set(s * 0.6 * (2 - k), s * 1.3 * k, 1)
-    })
+    flame.update(t)
     embers.material.opacity = 0.45 + 0.1 * Math.sin(t * 3.1) + 0.05 * Math.sin(t * 11)
     lamp.intensity = 2.2 + 0.3 * Math.sin(t * 9) + 0.2 * Math.sin(t * 23 + 1)
     lanternGlow.material.opacity = 0.55 + 0.06 * Math.sin(t * 7)

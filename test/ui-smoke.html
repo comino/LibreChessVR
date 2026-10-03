@@ -344,6 +344,15 @@ try {
   board.envGroup.traverse(o => { if (o.userData.dynamic && o.isGroup) swinging.push(o) })
   const angles = new Set([0.25, 0.5, 1.5].map(t => { board.env.update(t, 0.05, board); return swinging.map(o => o.rotation.z.toFixed(3)).join() }))
   check(swinging.length >= 3 && angles.size === 3, 'clock hands/pendulum move: ' + [...angles])
+  for (const env of ['study', 'night']) {                // fires: tongues flicker from their base, sparks rise
+    board.setEnvironment(env)
+    const tongues = [], sparks = []
+    board.envGroup.traverse(o => { if (o.isSprite && o.center.y < 0.1) tongues.push(o); if (o.isPoints && o.material.color.getHex() === 0xffa040) sparks.push(o) })
+    const heights = new Set([1, 1.13, 1.37].map(t => { board.env.update(t, 0.05, board); return tongues[0].scale.y.toFixed(4) }))
+    const ys = [2, 2.2].map(t => { board.env.update(t, 0.05, board); return sparks[0].geometry.attributes.position.getY(0) })
+    check(tongues.length >= 4 && heights.size === 3, `${env}: flames flicker (${tongues.length} tongues)`)
+    check(sparks.length === 1 && ys[1] !== ys[0], `${env}: sparks move`)
+  }
   board.setEnvironment('sunset')
   const bird = board.envGroup.children.find(o => o.isMesh && o.geometry.attributes.position.count === 6)
   board.env.update(10, 0.1, board)

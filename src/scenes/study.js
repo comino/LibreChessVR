@@ -2,7 +2,7 @@
 // ticking grandfather clock with the real time, scanned antique furniture, dust in the window light.
 
 import * as THREE from 'three'
-import { rng, std, mesh, box, canvasTexture, woodTexture, glow, instanced, points, mergeStatic, shadowBlob, edgeShade, shadeMat, mergeInto, props, flameTexture } from './common.js'
+import { rng, std, mesh, box, canvasTexture, woodTexture, glow, instanced, points, mergeStatic, shadowBlob, edgeShade, shadeMat, mergeInto, props, fire as flames } from './common.js'
 
 const W = 8, H = 3.2, Z0 = -0.45           // room size and center z (table sits at the center)
 const BACK = Z0 - W / 2, RIGHT = W / 2, LEFT = -W / 2
@@ -80,32 +80,36 @@ function framedPicture(tex, w, h, pos, rotY = 0) {
   return g
 }
 
+// Old brick: staggered courses of warm, slightly varied bricks in pale mortar.
+const bricks = () => canvasTexture(256, 256, (ctx, w, h) => {
+  const r = rng(13)
+  ctx.fillStyle = '#5a4a40'
+  ctx.fillRect(0, 0, w, h)
+  for (let row = 0; row < 8; row++) for (let col = -1; col < 4; col++) {
+    ctx.fillStyle = `hsl(${12 + r() * 10}, ${30 + r() * 15}%, ${30 + r() * 10}%)`
+    ctx.fillRect(col * 64 + (row % 2) * 32 + 2, row * 32 + 2, 60, 28)
+  }
+})
+
 function fireplace() {
   const g = new THREE.Group()
-  const stone = std(0x6b5a4c, { roughness: 1 })
-  g.add(box(1.7, 1.2, 0.35, stone, [0, 0.6, 0]))                 // surround
+  const brick = std(0xffffff, { map: bricks(), roughness: 1 })      // surround + pillars: one draw
+  g.add(mergeInto([box(1.7, 1.2, 0.35, brick, [0, 0.6, 0]),
+    ...[-0.62, 0.62].map(x => box(0.26, 1.15, 0.42, brick, [x, 0.6, 0.02]))]))
   g.add(box(1.9, 0.08, 0.65, std(0x463b33, { roughness: 1 }), [0, 0.04, 0.2])) // raised hearth
-  for (const x of [-0.62, 0.62]) g.add(box(0.26, 1.15, 0.42, std(0x5e4e42, { roughness: 1 }), [x, 0.6, 0.02])) // pillars
   g.add(box(1.9, 0.1, 0.45, std(0x3a2414, { roughness: 0.6 }), [0, 1.25, 0.03])) // mantel
   g.add(box(0.9, 0.7, 0.3, std(0x0c0908), [0, 0.42, 0.04]))     // firebox
-  g.add(box(0.5, 0.06, 0.06, std(0x3a2414), [0, 0.12, 0.2]))     // logs
-  g.add(box(0.45, 0.06, 0.06, std(0x2e1c10), [0.02, 0.16, 0.24]))
-  const tex = flameTexture()
-  const flames = [[-0.12, 0.26], [0.02, 0.3], [0.14, 0.24], [-0.02, 0.22]].map(([x, s]) => {
-    const f = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }))
-    f.position.set(x, 0.3, 0.26)
-    f.scale.set(s * 0.7, s * 1.4, 1)
-    f.userData.base = [x, s]
-    g.add(f)
-    return f
-  })
-  const embers = glow(0xff7a2a, 0.9, 0.55)
-  embers.position.set(0, 0.24, 0.3)
+  const flame = flames(0.4, 5, 3)
+  flame.group.position.set(0, 0.08, 0.24)                          // just before the black firebox face
+  g.add(flame.group)
+  const embers = glow(0xff7a2a, 0.5, 0.55)                        // clear of the firebox face: no cut edge
+  embers.position.set(0, 0.2, 0.48)
   g.add(embers)
-  // mantel decor: two candlesticks and a small clock-less bust substitute (brass orb)
-  for (const x of [-0.7, 0.7]) g.add(box(0.05, 0.22, 0.05, std(0xb08a3e, { metalness: 0.7, roughness: 0.3 }), [x, 1.41, 0.05]))
-  g.add(mesh(new THREE.SphereGeometry(0.08, 16, 12), std(0xb08a3e, { metalness: 0.8, roughness: 0.25 }), [0, 1.38, 0.05]))
-  return { group: g, flames, embers }
+  // mantel decor: two candlesticks and a brass orb (not metallic, so they merge into one draw)
+  const brass = std(0xb08a3e, { roughness: 0.35 })
+  for (const x of [-0.7, 0.7]) g.add(box(0.05, 0.22, 0.05, brass, [x, 1.41, 0.05]))
+  g.add(mesh(new THREE.SphereGeometry(0.08, 16, 12), brass, [0, 1.38, 0.05]))
+  return { group: g, flame, embers }
 }
 
 function grandfatherClock() {
@@ -259,14 +263,10 @@ export function study() {
     ['potted_plant_04', [-2.8, 1.21, BACK + 0.32]],
     ['fancy_picture_frame_01', [-2.4, 2.1, BACK + 0.03], 0, 1.6]
   ])
-  const firePos = new THREE.Vector3(RIGHT - 0.5, 0.45, -1.9)
+  const firePos = new THREE.Vector3(RIGHT - 0.75, 0.45, -1.9)
   function update(t, dt, { lamp }) {
     // fire: flames and embers dance, the point light flickers (a few % only: the board stays readable)
-    fire.flames.forEach((f, i) => {
-      const [x, s] = f.userData.base, k = 1 + 0.18 * Math.sin(t * (7 + i) + i * 2) + 0.1 * Math.sin(t * 13.7 + i)
-      f.scale.set(s * 0.7 * (2 - k) * 0.9, s * 1.4 * k, 1)
-      f.position.x = x + 0.012 * Math.sin(t * 5 + i)
-    })
+    fire.flame.update(t)
     fire.embers.material.opacity = 0.45 + 0.12 * Math.sin(t * 3.1) + 0.06 * Math.sin(t * 11)
     lamp.position.copy(firePos)
     lamp.intensity = 3.2 + 0.35 * Math.sin(t * 9) + 0.25 * Math.sin(t * 23 + 1)
