@@ -2,7 +2,7 @@
 // boulder by the table, ferns; twinkling and shooting stars, aurora, haloed moon, fireflies, mist.
 
 import * as THREE from 'three'
-import { rng, std, mesh, disc, canvasTexture, glow, instanced, points, mergeStatic, props, fire } from './common.js'
+import { rng, std, mesh, disc, canvasTexture, glow, instanced, points, mergeStatic, props, fire, pineGeometry } from './common.js'
 
 // Aurora curtain: bright green hem fading upward into violet, soft at the edges.
 const auroraTexture = () => canvasTexture(64, 256, (ctx, w, h) => {
@@ -70,7 +70,7 @@ export function night() {
   group.add(disc(9, std(0x10141f, { roughness: 0.35, metalness: 0.3 })))
   group.add(disc(40, std(0x0a0d16, { roughness: 1 }), -0.02))
   const pines = 70
-  group.add(instanced(new THREE.ConeGeometry(0.9, 1, 7), std(0x05070c, { roughness: 1 }), pines, (i, d) => {
+  group.add(instanced(pineGeometry(), std(0x05070c, { roughness: 1 }), pines, (i, d) => {
     const a = r() * Math.PI * 2, rr = 14 + r() * 14, h = 3 + r() * 5
     d.position.set(Math.cos(a) * rr, h / 2, Math.sin(a) * rr)
     d.scale.set(1 + r() * 0.5, h, 1 + r() * 0.5)

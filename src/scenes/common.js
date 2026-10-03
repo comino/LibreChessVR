@@ -99,6 +99,13 @@ export function instanced(geo, mat, n, place, colors) {
   return im
 }
 
+// Tree crowns, 1 unit tall, centered (scale per instance): a pine of three stacked tiers and
+// a cypress spindle (rounded bottom, pointed top).
+export const pineGeometry = () => mergeGeometries([[0.9, -0.22], [0.68, 0.05], [0.45, 0.28]].map(([r, y]) =>
+  new THREE.ConeGeometry(r, 0.45, 8).translate(0, y, 0)))
+export const cypressGeometry = () => new THREE.LatheGeometry([[0, -0.5], [0.55, -0.42], [0.75, -0.2], [0.7, 0.05],
+  [0.5, 0.3], [0.22, 0.45], [0, 0.5]].map(([x, y]) => new THREE.Vector2(x, y)), 10)
+
 // Point cloud whose positions update() can move; returns {points, pos}.
 export function points(n, color, size, place) {
   const pos = new Float32Array(n * 3)

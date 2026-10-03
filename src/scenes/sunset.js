@@ -3,7 +3,7 @@
 
 import * as THREE from 'three'
 import { Sky } from 'three/addons/objects/Sky.js'
-import { rng, std, mesh, disc, canvasTexture, glow, instanced, mergeStatic, props, shadowBlob, shadeMat, mergeInto } from './common.js'
+import { rng, std, mesh, disc, canvasTexture, glow, instanced, mergeStatic, props, shadowBlob, shadeMat, mergeInto, cypressGeometry } from './common.js'
 
 const tiles = () => canvasTexture(256, 256, (ctx, w) => {
   const r = rng(21), n = 4, s = w / n
@@ -96,8 +96,8 @@ export function sunset() {
   group.add(instanced(new THREE.CylinderGeometry(0.08, 0.12, 1, 6), std(0x4a3222), trees,
     (i, d) => { d.position.set(spots[i].x, 0.4, spots[i].z); d.scale.set(1, 0.8, 1) }))
   const greens = [0x4a6a38, 0x3e5e32, 0x56753e].map(c => new THREE.Color(c))
-  group.add(instanced(new THREE.ConeGeometry(0.75, 1, 10), std(0xffffff, { roughness: 1 }), trees,
-    (i, d) => { d.position.set(spots[i].x, 0.7 + spots[i].h / 2, spots[i].z); d.scale.set(1, spots[i].h * 0.8, 1) },
+  group.add(instanced(cypressGeometry(), std(0xffffff, { roughness: 1 }), trees,
+    (i, d) => { d.position.set(spots[i].x, 0.5 + spots[i].h / 2, spots[i].z); d.scale.set(0.5, spots[i].h, 0.5) },
     i => greens[i % 3]))
   group.add(instanced(new THREE.SphereGeometry(1, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), std(0x6a5a78), 12, (i, d) => {
     const a = (i / 12) * Math.PI * 2 + r() * 0.3, rr = 34 + r() * 6
