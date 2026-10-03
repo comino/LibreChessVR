@@ -32,7 +32,7 @@ training, all without taking the headset off.
 **Feel**
 - Living scenes — a cozy **Study** in an old European house: antique furniture, a crackling fire,
   ticking clock and dust in the window light; a warm Mediterranean **Sunset** terrace with a day
-  bed, brass lanterns and olive trees under drifting clouds; a **Night** with aurora,
+  bed, brass lanterns and olive trees under drifting clouds; a **Night** campsite with a crackling fire pit, aurora,
   shooting stars and fireflies; or **Minimal**. Each keeps the board the clearest thing in view.
 - **Themes** — boards: walnut, green, ice, marble, midnight; piece sets: antique (scanned wood), ivory, classic, gold &
   silver, maple, neon. Pieces reflect the scene around them.

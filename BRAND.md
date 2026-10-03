@@ -69,4 +69,5 @@ selection (brass) + targets (moss) < hover (brightens whatever is below).
 Study (default) · Sunset · Night · Minimal. Each is lit so the board stays the brightest,
 highest-contrast object in view; UI never fogs or tone-maps. Study = cozy old European house
 (dark wood, fire, antique furniture); Sunset = warm, calm Mediterranean / Arabian terrace
-(terracotta, whitewash, brass lanterns, olive trees) — few objects, lots of air.
+(terracotta, whitewash, brass lanterns, olive trees) — few objects, lots of air; Night = campsite clearing in the pines (fire pit,
+lantern on a boulder, aurora).

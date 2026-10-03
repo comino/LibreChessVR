@@ -366,11 +366,13 @@ try {
 
   // scanned props: loaded after the scene shows, reflected once in, dropped when the scene is gone
   const scanned = g => { let n = 0; g.traverse(o => { if (o.isMesh && o.material.normalMap) n++ }); return n }
-  board.setEnvironment('study')
-  const rtBefore = board.envRT
-  await board.env.ready
-  check(scanned(board.envGroup) >= 9, 'study furniture loaded: ' + scanned(board.envGroup))
-  check(board.envRT !== rtBefore, 'reflections recaptured with the props')
+  for (const [env, min] of [['study', 9], ['sunset', 12], ['night', 9]]) {
+    board.setEnvironment(env)
+    const rtBefore = board.envRT
+    await board.env.ready
+    check(scanned(board.envGroup) >= min, `${env} props loaded: ${scanned(board.envGroup)}`)
+    check(board.envRT !== rtBefore, `${env}: reflections recaptured with the props`)
+  }
   board.setEnvironment('sunset')
   const oldGroup = board.envGroup, oldReady = board.env.ready, oldCount = oldGroup.children.length
   board.setEnvironment('minimal')

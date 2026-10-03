@@ -2,7 +2,7 @@
 // ticking grandfather clock with the real time, scanned antique furniture, dust in the window light.
 
 import * as THREE from 'three'
-import { rng, std, mesh, box, canvasTexture, woodTexture, glow, instanced, points, mergeStatic, shadowBlob, edgeShade, shadeMat, mergeInto, props } from './common.js'
+import { rng, std, mesh, box, canvasTexture, woodTexture, glow, instanced, points, mergeStatic, shadowBlob, edgeShade, shadeMat, mergeInto, props, flameTexture } from './common.js'
 
 const W = 8, H = 3.2, Z0 = -0.45           // room size and center z (table sits at the center)
 const BACK = Z0 - W / 2, RIGHT = W / 2, LEFT = -W / 2
@@ -79,15 +79,6 @@ function framedPicture(tex, w, h, pos, rotY = 0) {
   g.rotation.y = rotY
   return g
 }
-
-// Flame texture: warm teardrop fading upward.
-const flameTexture = () => canvasTexture(64, 128, (ctx, w, h) => {
-  const g = ctx.createRadialGradient(w / 2, h * 0.75, 2, w / 2, h * 0.6, h * 0.55)
-  g.addColorStop(0, 'rgba(255,240,200,1)'); g.addColorStop(0.3, 'rgba(255,170,60,0.9)')
-  g.addColorStop(0.7, 'rgba(200,60,10,0.4)'); g.addColorStop(1, 'rgba(120,20,0,0)')
-  ctx.fillStyle = g
-  ctx.beginPath(); ctx.ellipse(w / 2, h * 0.62, w * 0.42, h * 0.46, 0, 0, Math.PI * 2); ctx.fill()
-})
 
 function fireplace() {
   const g = new THREE.Group()

@@ -143,17 +143,14 @@ export function mergeStatic(group) {
   group.add(one)
 }
 
-// Iron lantern with a glowing body at pos; returns {group, halo} (animate halo.material.opacity).
-export function lantern([x, y, z], post = 0) {
-  const g = new THREE.Group(), iron = std(0x22242c, { roughness: 0.6 })
-  if (post) g.add(mesh(new THREE.CylinderGeometry(0.03, 0.05, post, 8), iron, [x, y - post / 2 - 0.07, z]))
-  g.add(mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.14, 8), std(0x2a2420, { emissive: 0xffa040, emissiveIntensity: 1.2 }), [x, y, z]))
-  g.add(mesh(new THREE.ConeGeometry(0.11, 0.09, 8), iron, [x, y + 0.11, z]))
-  const halo = glow(0xffb060, 0.7, 0.6)
-  halo.position.set(x, y, z)
-  g.add(halo)
-  return { group: g, halo }
-}
+// Flame texture: warm teardrop fading upward.
+export const flameTexture = () => canvasTexture(64, 128, (ctx, w, h) => {
+  const g = ctx.createRadialGradient(w / 2, h * 0.75, 2, w / 2, h * 0.6, h * 0.55)
+  g.addColorStop(0, 'rgba(255,240,200,1)'); g.addColorStop(0.3, 'rgba(255,170,60,0.9)')
+  g.addColorStop(0.7, 'rgba(200,60,10,0.4)'); g.addColorStop(1, 'rgba(120,20,0,0)')
+  ctx.fillStyle = g
+  ctx.beginPath(); ctx.ellipse(w / 2, h * 0.62, w * 0.42, h * 0.46, 0, 0, Math.PI * 2); ctx.fill()
+})
 
 // Soft dark radial blob (contact shadows / baked-looking occlusion), shared texture.
 let blobTex = null

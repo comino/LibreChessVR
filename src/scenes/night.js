@@ -1,8 +1,8 @@
-// Night: twinkling stars, shooting stars, an aurora rippling over the horizon, a haloed moon,
-// fireflies, drifting ground mist, pine silhouettes and a warm lantern by the table.
+// Night: a campsite clearing in the pines — crackling fire pit with stools, a lantern on a
+// boulder by the table, ferns; twinkling and shooting stars, aurora, haloed moon, fireflies, mist.
 
 import * as THREE from 'three'
-import { rng, std, mesh, disc, canvasTexture, glow, instanced, points, mergeStatic, lantern } from './common.js'
+import { rng, std, mesh, disc, canvasTexture, glow, instanced, points, mergeStatic, props, flameTexture } from './common.js'
 
 // Aurora curtain: bright green hem fading upward into violet, soft at the edges.
 const auroraTexture = () => canvasTexture(64, 256, (ctx, w, h) => {
@@ -90,11 +90,22 @@ export function night() {
   })
   const flyBase = flies.pos.slice()
   group.add(flies.points)
-  // stone lantern by the table: the warm point light of the scene
-  const lanternPos = [-1.5, 0.82, -1.7]
-  const lamp1 = lantern(lanternPos, 0.75)
-  group.add(lamp1.group)
-  const lanternGlow = lamp1.halo
+  // campfire (the scene's warm point light) and a lantern on a boulder by the table
+  const FIRE = [2.3, -1.7]
+  const fireTex = flameTexture()
+  const flames = [[-0.1, 0.42], [0.08, 0.5], [0.0, 0.36]].map(([dx, s]) => {
+    const f = new THREE.Sprite(new THREE.SpriteMaterial({ map: fireTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }))
+    f.position.set(FIRE[0] + dx, 0.32, FIRE[1] + dx)
+    f.userData.s = s
+    group.add(f)
+    return f
+  })
+  const embers = glow(0xff7a2a, 1.6, 0.5)
+  embers.position.set(FIRE[0], 0.2, FIRE[1])
+  group.add(embers)
+  const lanternGlow = glow(0xffb060, 0.7, 0.55)
+  lanternGlow.position.set(-1.6, 1.02, -1.8)
+  group.add(lanternGlow)
   // one shooting star at a time
   const streak = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.03), new THREE.MeshBasicMaterial({
     color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: false
@@ -108,6 +119,17 @@ export function night() {
   }
 
   mergeStatic(group)
+  const ready = props(group, [
+    ['stone_fire_pit', [FIRE[0], 0.05, FIRE[1]], 0.4, 0.8],
+    ['folding_wooden_stool', [FIRE[0] + 1.0, 0, FIRE[1] + 0.5], 0.5],
+    ['folding_wooden_stool', [FIRE[0] - 0.4, 0, FIRE[1] - 1.05], 2.4],
+    ['moon_rock_02', [-1.6, 0, -1.8], 0.7, 3.8],
+    ['wooden_lantern_01', [-1.6, 0.74, -1.8], 0.3],
+    ['moon_rock_02', [-2.7, 0, -0.5], 2.1, 2.6],
+    ['fern_02', [-2.4, 0, -2.6], 0.5],
+    ['fern_02', [3.6, 0, 0.4], 2.0],
+    ['fern_02', [-3.2, 0, 1.2], 4.0, 0.8]
+  ])
 
   function update(t, dt, { lamp }) {
     starGroups.forEach((s, k) => { s.material.opacity = 0.65 + 0.35 * Math.sin(t * (1.3 + k * 0.4) + k * 2) })
@@ -141,13 +163,18 @@ export function night() {
       streak.lookAt(0, 1.2, 0)
       streak.rotation.z = Math.atan2(shot.dir.y, shot.dir.x)
     }
-    lamp.intensity = 1.6 + 0.12 * Math.sin(t * 7) + 0.08 * Math.sin(t * 17)
+    flames.forEach((f, i) => {
+      const k = 1 + 0.2 * Math.sin(t * (7 + i) + i * 2) + 0.1 * Math.sin(t * 13.7 + i), s = f.userData.s
+      f.scale.set(s * 0.6 * (2 - k), s * 1.3 * k, 1)
+    })
+    embers.material.opacity = 0.45 + 0.1 * Math.sin(t * 3.1) + 0.05 * Math.sin(t * 11)
+    lamp.intensity = 2.2 + 0.3 * Math.sin(t * 9) + 0.2 * Math.sin(t * 23 + 1)
     lanternGlow.material.opacity = 0.55 + 0.06 * Math.sin(t * 7)
   }
 
   return {
-    group, update, background: 0x04060d, exposure: 1,
+    group, update, ready, background: 0x04060d, exposure: 1,
     hemi: [0x6a7fbf, 0x0a0c14, 0.55], sun: [0xb8c8ff, 1.4, [-1.4, 2.4, -2.2]],
-    lamp: [0xffa860, 1.6, [lanternPos[0], lanternPos[1] + 0.1, lanternPos[2]]]
+    lamp: [0xff9a4a, 2.2, [FIRE[0], 0.5, FIRE[1]]]
   }
 }
