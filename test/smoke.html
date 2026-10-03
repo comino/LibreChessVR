@@ -34,7 +34,7 @@ try {
     board.controls.target.set(0, 0.76, -0.45)
   }
   const n = board.piecesGroup.children.length
-  const king = board.templates.k
+  const king = board.templates.w.k
   const names = []
   king.traverse(m => { if (m.isMesh) names.push(m.name + (m.visible ? '' : '(hidden)')) })
   const pawn = board.pieceAt.a2

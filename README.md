@@ -86,9 +86,13 @@ tokens in [`src/theme.js`](src/theme.js).
 
 ```sh
 node test/test.js && node test/hunt-unit.js   # pure logic
-test/run-smoke.sh                              # 12 headless-Chrome suites, all must print *-OK
+test/run-smoke.sh                              # 13 headless-Chrome suites, all must print *-OK
 ```
 
 The smoke suites drive the real modules against a fake lichess (streams, reconnects, offers,
 premoves), fake hands and controllers, and the real 2D page. `hunt-*` suites are regression
 tests from adversarial bug hunts.
+
+## Credits
+
+Chess piece models: [Chess Set](https://polyhaven.com/a/chess_set) by Riley Queen, Poly Haven (CC0).

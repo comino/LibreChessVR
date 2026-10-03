@@ -1,7 +1,7 @@
 // Parallax service worker. App files: network-first (always the current version when online,
 // the cached copy offline) — never mixes old and new modules. Versioned CDN modules and fonts:
 // cache-first (their URLs change when their content does). lichess API calls are never cached.
-const CACHE = 'parallax-v7'
+const CACHE = 'parallax-v8'
 const CDN = /(^|\.)(cdn\.jsdelivr\.net|fonts\.googleapis\.com|fonts\.gstatic\.com)$/
 
 self.addEventListener('install', () => self.skipWaiting())

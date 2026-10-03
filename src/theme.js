@@ -29,6 +29,7 @@ export const BOARD = BOARD_THEMES.walnut
 // Piece sets: material params for white (w) and black (b); unset params use the defaults.
 export const PIECE_DEFAULTS = { roughness: 0.35, metalness: 0.05, emissive: 0 }
 export const PIECE_THEMES = {
+  antique: { textured: true, detail: 'none', w: { color: 0xffffff, roughness: 1, metalness: 1 }, b: { color: 0xffffff, roughness: 1, metalness: 1 } },
   ivory: { detail: 'lathe', w: { color: 0xf2ead8 }, b: { color: 0x2f2b27 } },
   classic: { detail: 'lathe', w: { color: 0xfafafa, roughness: 0.18 }, b: { color: 0x17171a, roughness: 0.18 } },
   gold: { detail: 'brushed', w: { color: 0xe0b85e, metalness: 0.85, roughness: 0.28 }, b: { color: 0xd0d4dc, metalness: 0.75, roughness: 0.3 } },

@@ -38,7 +38,7 @@ Never hardcode a color: add a token. Button labels: 1–2 words, sentence case; 
 | `src/main.js` | 2D page + in-VR menu (`menu()`: Stockfish/seek/cancel/puzzles, from persisted `settings`), event stream, resumes ongoing game. `view` = what the panel shows; `refresh()` re-renders it. `window.parallax.board` = debug handle. |
 | `src/theme.js` | Design tokens: `COLOR`, `TINT` (+`TINT_MIX`), `BOARD`, `PIECES`, `FONT`. |
 | `assets/brand/` | Logo mark + wordmark SVGs. `docs/img/` = README screenshots. |
-| `assets/chess.glb` | Piece models. Node names `Pawn/Knight/...`; each piece has `*_Plastic_0` (shown, recolored) and `*_Velvet_0` (hidden) meshes. |
+| `assets/pieces.glb` | Scanned piece set (Poly Haven `chess_set`, CC0, Riley Queen): nodes `piece_<type>_<white|black>`, PBR textures as 512 px webp. Rebuild with `tools/build-pieces.mjs` (usage in its header). |
 
 ## Key invariants & gotchas
 
@@ -102,7 +102,9 @@ Never hardcode a color: add a token. Button labels: 1–2 words, sentence case; 
   public full stop. Rush keeps its clock in `stop()`-cleared `this.clock`.
 - Coordinates are printed on the frame (`_coordinates()`: one canvas texture on a plane just
   above the frame, `BORDER` = 3.6 cm); near/left edges face white, far/right edges face black.
-- Themes: `BOARD_THEMES` / `PIECE_THEMES` in theme.js (names mirrored in settings.js).
+- Themes: `BOARD_THEMES` / `PIECE_THEMES` in theme.js (names mirrored in settings.js). Pieces are
+  one template per color (`templates.w/b`); every set keeps the scan's normal + AO maps, only
+  `textured` sets (antique, the default) also use its color/roughness/metal maps.
   `setBoardTheme` sets `tile.userData.base` (tints lerp from it) + a per-square offset of one
   shared grain texture (wood/marble/fine); `setPieceTheme` recolors `pieceMat`+`solidMat` in place.
   Settings → Look (scene, board, set, piece style, size); View = comfort (voice, table, flip, hands, FPS).
@@ -176,8 +178,10 @@ stream: optimistic moves, offers, premoves, promotion, replay…), `puzzle`, `ru
 adversarial bug-hunter agents (each check encodes a bug that was real). New bugs: write the
 failing check first, then fix. Gotchas: ray-picking freshly created objects needs a rendered
 frame (`board._tick()`); XR controllers need `updateMatrix()`; tints are `tile.userData.tint`
-(hover is emissive). Visual changes: screenshot headless Chrome (`--use-angle=swiftshader
---enable-unsafe-swiftshader --virtual-time-budget=…`) and look at it. Real games need a token.
+(hover is emissive). The runner (`test/cdp-run.mjs`) drives Chrome over DevTools in real time, one
+page at a time with storage wiped in between — `--virtual-time-budget` stalls image decoding of
+the textured GLB. Visual changes: screenshot headless Chrome (`--use-angle=swiftshader
+--enable-unsafe-swiftshader`, `Page.captureScreenshot`) and look at it. Real games need a token.
 
 ## App packaging & deploy
 

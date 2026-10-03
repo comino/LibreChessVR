@@ -109,7 +109,8 @@ async function runScenario(name) {
   }
 
   try {
-    await until(() => labels().startsWith('Stockfish L3'))
+    // real time: the textured piece GLB may take a few seconds to decode
+    await until(() => labels().startsWith('Stockfish L3') && streams['/api/stream/event'], 15000)
 
     if (name === 'staleBar') {
       // A game starts while solving puzzles; its gameFull is slow. attach() stops the puzzle

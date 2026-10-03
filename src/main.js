@@ -295,7 +295,7 @@ board.setEnvironment(localStorage.getItem('environment') || 'study')
 board.setPieceStyle(localStorage.getItem('pieceStyle') || 'solid')
 board.voice = localStorage.getItem('voice') || 'off'
 board.setBoardTheme(localStorage.getItem('boardTheme') || 'walnut')
-board.setPieceTheme(localStorage.getItem('pieceTheme') || 'ivory')
+board.setPieceTheme(localStorage.getItem('pieceTheme') || 'antique')
 board.setShowFps(!!localStorage.getItem('showFps'))
 
 // Look dropdowns on the 2D page share the in-VR setters (and their persistence).

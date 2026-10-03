@@ -17,7 +17,7 @@ import { moveToSpeech, speak } from './speech.js'
 
 const SQUARE = 0.06                      // 6cm squares -> 48cm board, tournament-ish size
 const BOARD_POS = new THREE.Vector3(0, 0.73, -0.45)
-const NODE_MAP = { Pawn: 'p', Queen: 'q', King: 'k', Rook: 'r', Knight: 'n', Bishop: 'b' }
+const NODE_TYPE = { pawn: 'p', knight: 'n', bishop: 'b', rook: 'r', queen: 'q', king: 'k' }
 const _vA = new THREE.Vector3(), _vB = new THREE.Vector3(), _vC = new THREE.Vector3()
 const _m = new THREE.Matrix4(), _tint = new THREE.Color(), _dummy = new THREE.Object3D()
 const HOVER = new THREE.Color(TINT.hover)   // added on top of the tile's tint
@@ -76,7 +76,7 @@ export class Board3D {
     this._ui()
     this._input()
     this.setBoardTheme('walnut')
-    this.setPieceTheme('ivory')
+    this.setPieceTheme('antique')
     this._captureEnv()
     this.renderer.setAnimationLoop(() => this._tick())
   }
@@ -219,28 +219,29 @@ export class Board3D {
   }
 
 
+  // Pieces: Poly Haven's scanned CC0 Staunton set (tools/build-pieces.mjs), one node per type
+  // and color. Templates are baked, stood centered on y=0 and measured once per type.
   async _loadPieces() {
-    const gltf = await new GLTFLoader().loadAsync('assets/chess.glb')
+    const gltf = await new GLTFLoader().loadAsync('assets/pieces.glb')
     gltf.scene.updateMatrixWorld(true)
-    this.templates = {}
+    this.templates = { w: {}, b: {} }
+    this.scanMaps = {}
     gltf.scene.traverse(n => {
-      if (!NODE_MAP[n.name]) return
-      const t = n.clone()
+      const m = n.name.match(/^piece_(\w+?)_(white|black)/)
+      if (!m || !NODE_TYPE[m[1]]) return
+      const c = m[2][0], t = n.clone()
       n.matrixWorld.decompose(t.position, t.quaternion, t.scale) // bake ancestor transforms
-      this.templates[NODE_MAP[n.name]] = t
+      this.templates[c][NODE_TYPE[m[1]]] = t
+      t.traverse(o => { if (o.isMesh) this.scanMaps[c] ??= o.material }) // scanned textures per color
     })
-    const missing = 'pnbrqk'.split('').filter(t => !this.templates[t])
+    const missing = ['w', 'b'].flatMap(c => [...'pnbrqk'].filter(t => !this.templates[c][t]).map(t => c + t))
     if (missing.length) throw new Error('Model missing pieces: ' + missing)
-    const kingH = new THREE.Box3().setFromObject(this.templates.k).getSize(new THREE.Vector3()).y
+    const kingH = new THREE.Box3().setFromObject(this.templates.w.k).getSize(new THREE.Vector3()).y
     this.pieceScale = (1.7 * SQUARE) / kingH
-    // Once per type: show only the Plastic shell, stand it centered on y=0, remember its height.
     this.pieceH = {}
-    for (const [type, t] of Object.entries(this.templates)) {
-      let anyPlastic = false
-      t.traverse(m => { if (m.isMesh && m.name.includes('Plastic')) anyPlastic = true })
-      t.traverse(m => { if (m.isMesh) m.visible = !anyPlastic || m.name.includes('Plastic') })
-      const box = new THREE.Box3().setFromObject(t), c = box.getCenter(new THREE.Vector3())
-      t.position.sub(c.setY(box.min.y))
+    for (const c of ['w', 'b']) for (const [type, t] of Object.entries(this.templates[c])) {
+      const box = new THREE.Box3().setFromObject(t), ctr = box.getCenter(new THREE.Vector3())
+      t.position.sub(ctr.setY(box.min.y))
       this.pieceH[type] = box.max.y - box.min.y
     }
     // Surface detail uniforms, shared by all four piece materials (one shader program).
@@ -253,8 +254,7 @@ export class Board3D {
     }
     // Shared across all pieces: pieces are rebuilt on every position change.
     const mat = color => Object.assign(new THREE.MeshStandardMaterial({
-      color, roughness: 0.35, metalness: 0.05, envMap: this.envMap, envMapIntensity: 0.6,
-      side: THREE.DoubleSide // piece shells are open at the base (felt mesh is hidden)
+      color, roughness: 0.35, metalness: 0.05, envMap: this.envMap, envMapIntensity: 0.6
     }), { onBeforeCompile: addDetail, customProgramCacheKey: () => 'piece-detail' })
     this.pieceMat = { w: mat(PIECES.white), b: mat(PIECES.black) }  // follows pieceStyle
     this.solidMat = { w: mat(PIECES.white), b: mat(PIECES.black) }  // promotion picker: always solid
@@ -262,7 +262,7 @@ export class Board3D {
   }
 
   _makePiece(type, color) {
-    const inner = this.templates[type].clone()
+    const inner = this.templates[color][type].clone()
     inner.traverse(m => {
       if (!m.isMesh) return
       m.material = this.pieceMat[color]
@@ -430,14 +430,22 @@ export class Board3D {
 
   // Piece set: recolors the shared materials in place (no piece rebuild).
   setPieceTheme(name) {
-    const t = PIECE_THEMES[name] ?? PIECE_THEMES.ivory
-    this.pieceTheme = PIECE_THEMES[name] ? name : 'ivory'
+    const t = PIECE_THEMES[name] ?? PIECE_THEMES.antique
+    this.pieceTheme = PIECE_THEMES[name] ? name : 'antique'
     this.detailU.uDetail.value = Math.max(0, DETAIL_KINDS.indexOf(t.detail))
     for (const c of ['w', 'b']) for (const m of [this.pieceMat[c], this.solidMat[c]]) {
-      const p = { ...PIECE_DEFAULTS, ...t[c] }
+      const p = { ...PIECE_DEFAULTS, ...t[c] }, scan = this.scanMaps[c]
       m.color.setHex(p.color)
       m.emissive.setHex(p.emissive)
       Object.assign(m, { roughness: p.roughness, metalness: p.metalness })
+      // every set keeps the scan's relief and occlusion; 'antique' also shows its wood and finish
+      Object.assign(m, {
+        normalMap: scan.normalMap, normalScale: scan.normalScale, aoMap: scan.aoMap,
+        map: t.textured ? scan.map : null,
+        roughnessMap: t.textured ? scan.roughnessMap : null,
+        metalnessMap: t.textured ? scan.metalnessMap : null,
+        needsUpdate: true
+      })
     }
     this.shadowsDirty = true
   }
