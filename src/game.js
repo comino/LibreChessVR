@@ -166,6 +166,8 @@ export class GameSession {
       text, actions: this._actions(), ts: this.stateTs // clocks count from the server snapshot
     }
     this.board.setStatus(this.view)
+    const hist = this.chess.history({ verbose: true })
+    this.board.setMoves(hist, (this.replayIdx ?? hist.length) - 1)
     this.onStatus?.(text, this.finished)
   }
 

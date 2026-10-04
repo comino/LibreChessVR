@@ -35,6 +35,7 @@ export function playCue(kind) {
     ctx.resume()
   } catch { return } // no audio available
   if (kind === 'move') return clack(ctx.currentTime, 1600, 1.2)
+  if (kind === 'pick') return clack(ctx.currentTime, 2600, 0.45) // light tick: piece lifted
   if (kind === 'capture') {
     clack(ctx.currentTime, 1200, 1.4)
     return clack(ctx.currentTime + 0.07, 900, 1.1)

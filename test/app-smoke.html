@@ -93,10 +93,32 @@ try {
   check(board.canPick('e7') && !board.canPick('d2'), 'free board: black to move after 1.e4')
   check(labels().includes('Reset board') && labels().endsWith('Settings'), 'reset offered: ' + labels())
   check(board.onMove('e7', 'e5') && labels().includes('Undo,Reset board,Settings'), 'undo offered: ' + labels())
+  check(board.moveList.mesh.visible && board.moveList.lines.join('|') === '1. e4 e5', 'move list: ' + board.moveList.lines)
   press('Undo')
   check(board.pieceAt.e7 && !board.pieceAt.e5 && board.pieceAt.e4 && board.canPick('e7'), 'undo takes back 1...e5 only')
+  check(board.moveList.lines.join('|') === '1. e4', 'move list after undo: ' + board.moveList.lines)
   press('Reset board')
   check(board.pieceAt.e2 && !board.pieceAt.e4 && !labels().includes('Reset board') && board.canPick('e2'), 'reset to the start')
+  check(!board.moveList.mesh.visible, 'move list hidden on the start position')
+
+  // Move list numbering and window: a list starting with black, and long games show the rows
+  // around the current move
+  {
+    const { Chess } = await import('chess.js')
+    const c = new Chess('r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 3 12')
+    for (const m of ['Nf6', 'Nc3', 'Bc5']) c.move(m)
+    board.setMoves(c.history({ verbose: true }))
+    check(board.moveList.lines.join('|') === '12… Nf6|13. Nc3 Bc5', 'black-first numbering: ' + board.moveList.lines.join('|'))
+    const g = new Chess()
+    for (let i = 0; i < 12; i++) for (const m of ['Nf3', 'Nf6', 'Ng1', 'Ng8']) g.move(m)
+    const long = g.history({ verbose: true })
+    board.setMoves(long)
+    check(board.moveList.lines.length === 10 && board.moveList.lines.at(-1).startsWith('24.'), 'long game: last rows ' + board.moveList.lines.join('|'))
+    board.setMoves(long, 0)
+    check(board.moveList.lines[0].startsWith('1.') && board.moveList.curRow === 0, 'current move kept in view')
+    board.setMoves([])
+    check(!board.moveList.mesh.visible, 'empty list hidden')
+  }
   check(board.stage.position.y === 0.2, 'table height restored')
   board.onHeightChange(-0.1)
   check(localStorage.getItem('tableHeight') === '-0.100', 'table height saved')
@@ -140,6 +162,11 @@ try {
     wtime: 6e5, btime: 6e5, status: 'mate', winner: 'black' })
   await until(() => board.panel.status.text === 'Checkmate — you lose', 'game over text')
   check(labels() === 'Rematch,Review game,Menu', 'compact menu after game, got ' + labels())
+  check(board.moveList.lines.join('|') === '1. f3 e5|2. g4 Qh4#' && board.moveList.curRow === 1, 'game move list: ' + board.moveList.lines.join('|'))
+  press('Review game'); press('Prev move'); press('Prev move')
+  check(board.moveList.cur === 1, 'review highlights the shown move, got ' + board.moveList.cur)
+  press('Done')
+  check(board.moveList.cur === 3, 'done: back to the last move')
   const aiBefore = requests.filter(r => r.path === '/api/challenge/ai').length
   const realPush = streams['/api/stream/event'].push
   press('Rematch')
@@ -248,7 +275,10 @@ try {
   check(board.panel.status.sub.startsWith('Score 1'), 'trainer scored, got ' + board.panel.status.sub)
   press('Menu')
   check(!board.onSquarePick, 'Menu stops the trainer')
+  if (labels().includes('Reset board')) press('Reset board')
+  check(board.onMove('d2', 'd4') && board.moveList.mesh.visible, 'free board move listed')
   press('Puzzles')
+  check(!board.moveList.mesh.visible, 'puzzles clear the move list')
   await until(() => labels().startsWith('Next puzzle'), 'back to puzzles, got ' + labels())
   check(!board.onSquarePick && !board.panel.status.big, 'trainer unhooked from the board')
 

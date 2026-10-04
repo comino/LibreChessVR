@@ -23,7 +23,7 @@ Never hardcode a color: add a token. Button labels: 1–2 words, sentence case; 
 |------|------|
 | `src/coords.js` | Pure: square↔XZ mapping, FEN parsing, `captured(fen)`. Unit-tested. |
 | `src/board3d.js` | Dumb 3D view. Takes FEN via `setPosition`, emits `onMove(from,to,promo?)`. Selection, promotion picker, controller/mouse/hand input, `cue(kind)` sounds. |
-| `src/panel.js` | `StatusPanel` (names, clocks, text) and `ButtonBar` (ray/click/fingertip-poke buttons, confirm-twice). |
+| `src/panel.js` | `StatusPanel` (names, clocks, text), `ButtonBar` (ray/click/fingertip-poke buttons, confirm-twice) and `MoveList` (SAN rows left of the board, mirrors the bar; `board.setMoves(verbose, cur)`, `bindBoard`/`startActivity` clear it; games pass the replay index). |
 | `src/feedback.js` | Synthesized WebAudio cues + controller haptics. No audio files. |
 | `src/bind.js` | `bindBoard(board, session)`: shared `onMove/getTargets/canPick` wiring for both sessions. |
 | `src/lichess.js` | Board API client: NDJSON streams, seek (connection must stay open!), moves, draw/takeback/abort/resign. |
@@ -242,4 +242,4 @@ Desktop pre-check for controller input: Meta's Immersive Web Emulator extension.
 ## Ideas / not yet done
 
 - Chat, requesting takebacks, claim draw when the opponent leaves, time-control picker per game
-- Move list / PGN view
+- PGN export

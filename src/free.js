@@ -19,6 +19,12 @@ export class FreeBoard {
   attach() {
     try { this.chess = new Chess(this.board.fen) } catch { this.chess = new Chess() }
     bindBoard(this.board, this)
+    this._show()
+  }
+
+  _show() {
+    this.board.setMoves(this.chess.history({ verbose: true }))
+    this.onChange()
   }
 
   tryMove(from, to, promo) {
@@ -26,7 +32,7 @@ export class FreeBoard {
     try { mv = this.chess.move({ from, to, promotion: promo || 'q' }) } catch { return false }
     this.board.setPosition(this.chess.fen(), mv)
     this.board.announce(mv, true)
-    this.onChange()
+    this._show()
     return true
   }
 
@@ -35,12 +41,12 @@ export class FreeBoard {
   undo() {
     this.chess.undo()
     this.board.setPosition(this.chess.fen(), this.chess.history({ verbose: true }).at(-1))
-    this.onChange()
+    this._show()
   }
 
   reset() {
     this.chess.reset()
     this.board.setPosition(START)
-    this.onChange()
+    this._show()
   }
 }

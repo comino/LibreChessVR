@@ -9,7 +9,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
 import { buildEnvironment, disposeGroup, woodTexture } from './environments.js'
 import { squareToXZ, xzToSquare, parseFen, captured } from './coords.js'
-import { StatusPanel, ButtonBar } from './panel.js'
+import { StatusPanel, ButtonBar, MoveList } from './panel.js'
 import { playCue, buzz } from './feedback.js'
 import { TINT, TINT_MIX, BOARD, BOARD_THEMES, PIECE_THEMES, PIECE_DEFAULTS, PIECES, COLOR, FONT, DETAIL_KINDS } from './theme.js'
 import { canvasTexture, rng, glow, blobTexture, shadowBlob } from './scenes/common.js'
@@ -607,6 +607,7 @@ export class Board3D {
     cam.right = cam.top = 0.7 * grow
     cam.updateProjectionMatrix()
     this.bar.mesh.position.x = BAR_X + (grow - 1) * 0.35
+    this.moveList.mesh.position.x = -this.bar.mesh.position.x
   }
 
   setPosition(fen, lastMove = null) {
@@ -963,6 +964,7 @@ export class Board3D {
     const from = this._reachable(local)
     if (!from) return
     this.grab = { hand, piece: this.pieceAt[from], from }
+    this.cue('pick')
     this.selected = from
     this.targets = this.getTargets(from)
     this._applyTints()
@@ -1061,7 +1063,16 @@ export class Board3D {
     this.bar = new ButtonBar()
     this.bar.mesh.position.set(BAR_X, 0.88, -0.34)
     this.bar.mesh.rotation.set(-0.5, -0.9, 0, 'YXZ')
-    this.stage.add(this.panel.mesh, this.bar.mesh)
+    // Move list on the other side, mirroring the bar.
+    this.moveList = new MoveList()
+    this.moveList.mesh.position.set(-BAR_X, 0.9, -0.34)
+    this.moveList.mesh.rotation.set(-0.5, 0.9, 0, 'YXZ')
+    this.stage.add(this.panel.mesh, this.bar.mesh, this.moveList.mesh)
+  }
+
+  // Sessions show their moves (chess.js verbose) beside the board; [] hides the list.
+  setMoves(moves, cur) {
+    this.moveList.set(moves, cur)
   }
 
   // --- frame loop ---

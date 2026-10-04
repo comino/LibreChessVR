@@ -235,6 +235,7 @@ function startActivity(make) {
   note = null
   view?.stop()
   session = null
+  board.setMoves([])
   view = make()
 }
 

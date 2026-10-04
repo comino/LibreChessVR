@@ -133,8 +133,12 @@ try {
   check(!board.grab && board.pendingGrab, 'grab waits for the hold')
   at('e2'); j2.position.x += 0.02; hold()
   check(!board.grab, 'loose pinch (2 cm) does not grab yet')
+  const cues = [], realCue = board.cue
+  board.cue = k => cues.push(k)
   j2.position.copy(j1.position); hold()
+  board.cue = realCue
   check(board.grab?.from === 'e2', 'piece chosen when the grab confirms, got ' + board.grab?.from)
+  check(cues.join() === 'pick', 'a soft tick when the grab confirms, got ' + cues)
   board._grabEnd(hand)
   check(moves.length === 1, 'dropped where it was picked: no move')
 

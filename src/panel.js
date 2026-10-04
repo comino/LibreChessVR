@@ -160,6 +160,62 @@ function wrap(ctx, text, maxW) {
 
 const BAR_W = 0.3, BAR_H = 0.18, COLS = 3, ROWS = 3, CONFIRM_MS = 3000
 
+// Move list beside the board: up to LIST_ROWS full moves in SAN around the current move (brass).
+const LIST_ROWS = 10
+export class MoveList {
+  constructor() {
+    Object.assign(this, canvasPlane(0.17, 0.26, 256))
+    this.mesh.visible = false
+    this.lines = []
+    this.key = ''
+  }
+
+  // moves: chess.js verbose moves (before = FEN, for numbering); cur: index of the shown move.
+  set(moves, cur = moves.length - 1) {
+    this.cur = cur
+    const rows = []
+    let curRow = -1
+    moves.forEach((m, i) => {
+      const num = +m.before.split(' ')[5]
+      if (m.color === 'w' || !rows.length) rows.push({ num, white: m.color === 'w', sans: [] })
+      rows.at(-1).sans.push(m.san)
+      if (i === cur) curRow = rows.length - 1
+    })
+    const start = Math.max(0, Math.min(rows.length - LIST_ROWS, curRow - LIST_ROWS + 1)) // current row in view
+    const shown = rows.slice(start, start + LIST_ROWS)
+    this.lines = shown.map(r => `${r.num}${r.white ? '.' : '…'} ${r.sans.join(' ')}`)
+    this.curRow = curRow - start
+    this.curSide = moves[cur]?.color === 'b' && shown[this.curRow]?.white ? 1 : 0
+    this.mesh.visible = moves.length > 0
+    const key = this.lines.join('|') + '#' + this.curRow + this.curSide
+    if (key !== this.key) (this.key = key, this.draw(shown))
+  }
+
+  draw(rows) {
+    const { ctx } = this, w = 256, h = this.canvas.height
+    ctx.clearRect(0, 0, w, h)
+    roundRect(ctx, 2, 2, w - 4, h - 4, 20, 'rgba(26,31,40,0.94)', COLOR.steel)
+    ctx.textBaseline = 'middle'
+    ctx.font = `600 15px ${FONT.ui}`
+    ctx.fillStyle = COLOR.mist
+    ctx.fillText('MOVES', 20, 26)
+    rows.forEach((r, i) => {
+      const y = 58 + i * 32, cells = r.white ? r.sans : ['…', ...r.sans]
+      ctx.font = `500 17px ${FONT.mono}`
+      ctx.fillStyle = COLOR.mist
+      ctx.fillText(`${r.num}.`, 20, y)
+      cells.forEach((san, k) => {
+        const x = 70 + k * 88, hot = i === this.curRow && k === (r.white ? this.curSide : 1)
+        if (hot) roundRect(ctx, x - 6, y - 13, 84, 26, 6, COLOR.brass)
+        ctx.font = `600 18px ${FONT.ui}`
+        ctx.fillStyle = hot ? COLOR.ink : COLOR.ivory
+        ctx.fillText(san, x, y)
+      })
+    })
+    this.tex.needsUpdate = true
+  }
+}
+
 export class ButtonBar {
   constructor() {
     Object.assign(this, canvasPlane(BAR_W, BAR_H, 600))

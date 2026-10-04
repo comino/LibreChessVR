@@ -9,6 +9,7 @@ export function bindBoard(board, s) {
   board.onMove = (from, to, promo) => s.tryMove(from, to, promo)
   board.onSquarePick = null
   board.setMarks({})
+  board.setMoves([])
   board.getTargets = sq => s.chess.moves({ square: sq, verbose: true }).map(m => m.to)
   board.checkSquare = () => {
     const c = s.shown ?? s.chess

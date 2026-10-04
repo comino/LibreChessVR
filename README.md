@@ -28,6 +28,8 @@ training, all without taking the headset off.
 - **Coordinates** — a square name appears, point at it; rounds alternate white's and black's view.
 - **Blindfold** — ghost or hidden pieces with a 2-second "Show pieces", plus spoken moves.
 - **Flip board** — look at your own game from the opponent's side.
+- **Move list** beside the board, following the game and post-game review; a **free board** to
+  move both sides when nothing is running (Undo / Reset).
 
 **Feel**
 - Living scenes — a cozy **Study** in an old European house: antique furniture, a crackling fire,
