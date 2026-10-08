@@ -334,16 +334,27 @@ try {
   let mem1, programs1
   const lights = () => { let n = 0; board.scene.traverse(o => { if (o.isLight) n++ }); return n }
   const lightCount = lights()
-  for (let round = 0; round < 3; round++) {
+  // Each switch costs ~15 s under SwiftShader, so the per-scene checks ride along in round 0.
+  const scanned = g => { let n = 0; g.traverse(o => { if (o.isMesh && o.material.normalMap) n++ }); return n }
+  const minProps = { study: 9, sunset: 12, night: 9 }
+  for (let round = 0; round < 2; round++) {
     for (const name of ENVIRONMENTS) {
       console.info('[smoke]', `environment cycle ${round + 1}: ${name}`)
       await new Promise(resolve => setTimeout(resolve, 0))
       board.setEnvironment(name)
+      const rtBefore = board.envRT
       await board.env.ready                           // scanned props in, then render: uploads everything
       board._tick()
       check(board.environment === name && board.scene.children.length === childCount, 'env swap keeps scene size: ' + name)
       backgrounds.add(board.scene.background.getHex())
       check(lights() === lightCount, 'constant light count (no shader recompiles): ' + name)
+      if (round) continue
+      let draws = 0
+      board.envGroup.traverse(o => { if (o.isMesh || o.isPoints || o.isSprite) draws++ })
+      check(draws <= 45, `${name}: draw calls bounded for Quest (${draws})`)
+      if (!minProps[name]) continue                   // scanned props: loaded after the scene shows, reflected once in
+      check(scanned(board.envGroup) >= minProps[name], `${name} props loaded: ${scanned(board.envGroup)}`)
+      check(board.envRT !== rtBefore, `${name}: reflections recaptured with the props`)
     }
     if (round === 0) { mem1 = snapshot(); programs1 = board.renderer.info.programs.length }
   }
@@ -394,24 +405,9 @@ try {
   let seen = false
   for (let t = 0; t < 20 && !seen; t += 0.05) { board.env.update(t, 0.05, board); seen = streak.material.opacity > 0.3 }
   check(seen, 'a shooting star crosses the sky within 20 s')
-  for (const env of ENVIRONMENTS) {
-    board.setEnvironment(env)
-    await board.env.ready
-    let draws = 0
-    board.envGroup.traverse(o => { if (o.isMesh || o.isPoints || o.isSprite) draws++ })
-    check(draws <= 45, `${env}: draw calls bounded for Quest (${draws})`)
-  }
   board.setEnvironment('minimal')
 
-  // scanned props: loaded after the scene shows, reflected once in, dropped when the scene is gone
-  const scanned = g => { let n = 0; g.traverse(o => { if (o.isMesh && o.material.normalMap) n++ }); return n }
-  for (const [env, min] of [['study', 9], ['sunset', 12], ['night', 9]]) {
-    board.setEnvironment(env)
-    const rtBefore = board.envRT
-    await board.env.ready
-    check(scanned(board.envGroup) >= min, `${env} props loaded: ${scanned(board.envGroup)}`)
-    check(board.envRT !== rtBefore, `${env}: reflections recaptured with the props`)
-  }
+  // scanned props of a scene switched away mid-load are dropped
   board.setEnvironment('sunset')
   const oldGroup = board.envGroup, oldReady = board.env.ready, oldCount = oldGroup.children.length
   board.setEnvironment('minimal')

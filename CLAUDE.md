@@ -75,9 +75,10 @@ handle `window.parallax`) remain unchanged; they are not the public name.
     node test/test.js && node test/hunt-unit.js && node test/navigation-unit.js && node test/clock-unit.js
     test/run-smoke.sh                               # every test/*-smoke.html headless; all must print *-OK
 
-On Linux set `CHROME` and `CHROME_FLAGS` (bx profile: `/usr/bin/chromium`, `--no-sandbox --disable-dev-shm-usage`).
-
-`PORT=… test/run-smoke.sh page…` runs a subset on another port (parallel agents). Suites:
+`PORT=… test/run-smoke.sh page…` runs a subset on another port (parallel agents). The runner finds Chrome
+(macOS) or Chromium (Linux) itself, or takes `CHROME=…`; `CHROME_FLAGS` adds flags (bx profile:
+`--no-sandbox --disable-dev-shm-usage`). Each page gets `SMOKE_TIMEOUT` s (default 360). A scene switch
+costs ≈ 15 s under SwiftShader on a small host, so keep scene switches in `ui-smoke` to a minimum. Suites:
 `smoke` (render), `ui` (bar/poke/picker/hover/scale/envs/styles), `grab`, `game` (fake lichess
 stream: optimistic moves, offers, premoves, promotion, replay…), `puzzle`, `rush`, `trainer`,
 `app` (real index.html + main.js vs stubbed `fetch`, navigation/state preservation),

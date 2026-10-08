@@ -3,7 +3,9 @@
 # Usage: test/run-smoke.sh [page ...]   (default: test/smoke.html + all test/*-smoke.html)
 # CHROME_FLAGS adds browser flags (bx: --no-sandbox, since Chrome gets no user namespaces in the container).
 cd "$(dirname "$0")/.."
-CHROME=${CHROME:-"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"}
+MAC_CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+[ -z "$CHROME" ] && for c in "$MAC_CHROME" google-chrome chromium chromium-browser; do
+  command -v "$c" >/dev/null 2>&1 && { CHROME=$c; break; }; done
 PORT=${PORT:-8123}
 CDP_PORT=$((PORT + 1000)); export CDP_PORT
 PROFILE=$(mktemp -d)
