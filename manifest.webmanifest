@@ -1,6 +1,6 @@
 {
-  "name": "3D Chess Practice",
-  "short_name": "3D Chess",
+  "name": "LibreChessVR",
+  "short_name": "LibreChessVR",
   "description": "Practice reading a real chessboard. A free 3D board vision tool for online players, with optional VR.",
   "start_url": "./",
   "scope": "./",

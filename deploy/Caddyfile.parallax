@@ -1,4 +1,4 @@
-# 3D Chess Practice upstream — /etc/caddy/Caddyfile on fred (auto-HTTPS).
+# LibreChessVR upstream — /etc/caddy/Caddyfile on fred (auto-HTTPS).
 parallax.46-224-133-201.sslip.io {
 	root * /opt/parallax/web
 	encode gzip

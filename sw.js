@@ -1,7 +1,7 @@
-// 3D Chess Practice service worker. App files: network-first (current version when online,
+// LibreChessVR service worker. App files: network-first (current version when online,
 // the cached copy offline) — never mixes old and new modules. Versioned CDN modules and fonts:
 // cache-first (their URLs change when their content does). lichess API calls are never cached.
-const CACHE = 'parallax-v19'
+const CACHE = 'parallax-v20'
 const CDN = /(^|\.)(cdn\.jsdelivr\.net|fonts\.googleapis\.com|fonts\.gstatic\.com)$/
 
 self.addEventListener('install', () => self.skipWaiting())

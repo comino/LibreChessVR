@@ -1,4 +1,4 @@
-// 3D Chess Practice design tokens (see BRAND.md). CSS mirrors these in index.html.
+// LibreChessVR design tokens (see BRAND.md). CSS mirrors these in index.html.
 
 export const COLOR = {
   ink: '#0F1218', slate: '#1A1F28', steel: '#2A313D', steelHi: '#3A4456', walnut: '#4A3020',

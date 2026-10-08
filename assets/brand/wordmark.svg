@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 64" role="img" aria-label="3D Chess Practice — read a real chessboard">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 64" role="img" aria-label="LibreChessVR — read a real chessboard">
   <style>
     .w { font: 700 34px 'Space Grotesk', 'Helvetica Neue', Arial, sans-serif; fill: #ECE6D6 }
     .t { font: 500 17px 'Inter', 'Helvetica Neue', Arial, sans-serif; fill: #9AA3B2 }
@@ -9,6 +9,6 @@
     <rect width="15" height="15" fill="#ECE6D6"/><rect x="15" width="15" height="15" fill="#3A4456"/>
     <rect y="15" width="15" height="15" fill="#3A4456"/><rect x="15" y="15" width="15" height="15" fill="#ECE6D6"/>
   </g>
-  <text class="w" x="84" y="34">3D Chess Practice</text>
+  <text class="w" x="84" y="34">LibreChessVR</text>
   <text class="t" x="85" y="58">Read a real chessboard</text>
 </svg>

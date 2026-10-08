@@ -1,16 +1,17 @@
-# CLAUDE.md — 3D Chess Practice
+# CLAUDE.md — LibreChessVR
 
-**3D Chess Practice** — free 3D board vision practice for online players who find physical
+**LibreChessVR** — free 3D board vision practice for online players who find physical
 boards harder to read. Browser first, optional WebXR / Meta Quest, optional Lichess games.
 Static web app, no build step, no backend,
-no npm. GitHub: `comino/parallax` (local folder still `chessvr/`).
+no npm. GitHub: `comino/LibreChessVR` (local folder still `chessvr/`).
+Project code is MIT licensed; retain the asset and dependency credits in `THIRD_PARTY_NOTICES.md`.
 
 ## Design system (read before touching any UI)
 
 `BRAND.md` is the design guide (name, voice, colors, type, shapes, scenes). All colors and
 fonts come from `src/theme.js` (3D + canvas UI) and its mirror of CSS variables in `index.html`.
 Never hardcode a color: add a token. Button labels: 1–2 words, sentence case; values as
-"Name value". The visible name is 3D Chess Practice. Lead with practice, not account creation.
+"Name value". The visible name is LibreChessVR. Lead with practice, not account creation.
 Compatibility identifiers (OAuth client, Android package, storage/cache keys and the debug
 handle `window.parallax`) remain unchanged; they are not the public name.
 

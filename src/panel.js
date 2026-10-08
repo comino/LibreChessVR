@@ -98,7 +98,7 @@ export class StatusPanel {
     } else if (s?.brand || !s) {
       drawMark(ctx, 56, 34, 64)
       ctx.textAlign = 'left'
-      this._text('3D Chess Practice', COLOR.ivory, `700 32px ${FONT.display}`, 140, 68)
+      this._text('LibreChessVR', COLOR.ivory, `700 32px ${FONT.display}`, 140, 68)
       this._text('Read a real chessboard', COLOR.mist, `500 18px ${FONT.ui}`, 142, 94)
       ctx.letterSpacing = '0px'
       ctx.textAlign = 'center'

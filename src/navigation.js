@@ -148,7 +148,7 @@ export class Navigation {
         break
     }
     this.show({ id: this.stack.map(r => r.key || r.id).join('/'), title: route.title || TITLES[route.id],
-      path: this.stack.slice(0, -1).map(r => r.title || TITLES[r.id]).join(' / ') || '3D CHESS PRACTICE',
+      path: this.stack.slice(0, -1).map(r => r.title || TITLES[r.id]).join(' / ') || 'LIBRECHESSVR',
       sub, actions, columns,
       context: `${c.label}${c.timed ? ' · Clock running' : ''}`,
       back: { id: 'back', label: '‹ Back', disabled: this.stack.length < 2, run: () => this.back() },

@@ -1,4 +1,11 @@
 .DS_Store
+.env
+.env.*
+*.keystore
+*.jks
+*.pem
+*.key
+*.pass
 
 # Android wrapper: only the config + build script are tracked; the project is generated
 android/*

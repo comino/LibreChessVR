@@ -1,6 +1,6 @@
-# 3D Chess Practice — writing and visual guide
+# LibreChessVR — writing and visual guide
 
-**3D Chess Practice** · *Get comfortable reading a real board.*
+**LibreChessVR** · *Board vision practice for online chess players.*
 A free 3D board vision practice tool for people who learned chess online and find physical
 boards harder to read. Puzzles, square drills and a free board are the main activities;
 VR and Lichess games are optional. This is a small practice project. Describe its purpose
@@ -9,8 +9,10 @@ live in one place: `src/theme.js` (3D + canvas UI) mirrored as CSS variables in 
 
 ## Name & voice
 
-- Name: **3D Chess Practice**, in title case. The compact installed-app label is **3D Chess**.
-- Main explanation: *Get comfortable reading a real board.* Short version: *Read a real chessboard.*
+- Name and installed-app label: **LibreChessVR**, with this capitalization.
+- Main explanation: *Board vision practice for online chess players.* Short version: *Read a real chessboard.*
+- LibreChessVR is an open-source community project under MIT. Use the full name consistently;
+  explain that desktop practice works too, even though VR is part of the name.
 - Say who it helps: online players who find real boards unfamiliar. Lead with practice;
   make clear that no account or headset is needed. Lichess login is only for playing games.
 - Describe exercises and intent, not proven improvements in OTB performance. No growth,

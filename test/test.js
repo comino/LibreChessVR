@@ -87,10 +87,12 @@ assert.equal(moveToSpeech(mv('p', 'e8', 'np', 'e8=N+', { promotion: 'n' })), 'Pa
 
 // --- stream watchdog: silent stream -> 'Stream stalled'; data keeps it alive; abort stays AbortError ---
 const enc = new TextEncoder()
+// Node loads its fetch implementation lazily. Do that before the 80 ms watchdog starts.
+const StreamResponse = globalThis.Response
 function fakeStream(chunks, everyMs) {  // sends chunks every everyMs, then stays open silently
   globalThis.fetch = async (url, { signal }) => {
     if (signal.aborted) throw signal.reason                // like real fetch
-    return new Response(new ReadableStream({
+    return new StreamResponse(new ReadableStream({
     start(c) {
       let i = 0
       const t = setInterval(() => { if (i < chunks.length) c.enqueue(enc.encode(chunks[i++])) }, everyMs)
