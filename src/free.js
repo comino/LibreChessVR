@@ -17,7 +17,10 @@ export class FreeBoard {
   changed() { return this.chess.fen() !== START }
 
   attach() {
-    try { this.chess = new Chess(this.board.fen) } catch { this.chess = new Chess() }
+    // Rebinding the same position must retain move history (and Undo).
+    if (this.chess.fen() !== this.board.fen) {
+      try { this.chess = new Chess(this.board.fen) } catch { this.chess = new Chess() }
+    }
     bindBoard(this.board, this)
     this._show()
   }

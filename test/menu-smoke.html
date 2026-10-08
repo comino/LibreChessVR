@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><base href="/">
+<title>Parallax menu input smoke test</title>
+<script type="importmap">{"imports":{
+  "three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+  "chess.js":"https://cdn.jsdelivr.net/npm/chess.js@1.0.0/+esm"
+}}</script></head><body><div id="result"></div>
+<script type="module">
+import * as THREE from 'three'
+import { Board3D } from './src/board3d.js'
+import { Navigation } from './src/navigation.js'
+const check = (c, m) => { if (!c) throw new Error(m) }
+try {
+  const board = new Board3D()
+  await board.init()
+  const settings = { height: 0, scale: 1, hands: 'grab' }
+  let cues = 0
+  board.cue = kind => { if (kind === 'ui') cues++ }
+  const nav = new Navigation({ context: () => ({ kind: 'free', label: 'Free board' }),
+    get: () => settings, set: p => { Object.assign(settings, p); nav.refresh() },
+    show: page => board.showMenu(page), hide: () => board.hideMenu(), start() {}, login() {}, cancelSeek() {} })
+  board.menuAction = { label: 'Menu', run: () => nav.open() }
+  board.activityTitle = 'Free board'
+  board.setStatus({ puzzle: true, text: 'Free board', actions: [] })
+  board.setPosition('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1')
+  const press = label => {
+    const ui = board.menuOpen ? board.menuPanel : board.bar, uv = ui.buttonUV(label)
+    check(uv && ui.press(uv.x, uv.y), 'Can press ' + label)
+  }
+  const { ctrl, line } = board.controllers[0]
+  ctrl.visible = true
+  ctrl.userData.isHand = true
+  const aim = (ui, label) => {
+    board.scene.updateMatrixWorld(true)
+    const uv = ui.buttonUV(label)
+    const target = ui.mesh.localToWorld(new THREE.Vector3((uv.x - 0.5) * ui.width, (uv.y - 0.5) * ui.height, 0))
+    const normal = new THREE.Vector3(0, 0, 1).applyQuaternion(ui.mesh.getWorldQuaternion(new THREE.Quaternion()))
+    ctrl.position.copy(target).addScaledVector(normal, 0.4)
+    ctrl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), normal.negate())
+    ctrl.updateMatrix(); ctrl.updateMatrixWorld(true)
+    board._controllerHover()
+  }
+  board.setHandMode('grab')
+  aim(board.bar, 'Menu')
+  check(line.visible, 'Grab mode still shows a ray when pointing at Menu')
+  ctrl.dispatchEvent({ type: 'selectstart' })
+  check(board.menuOpen && !board.bar.mesh.visible, 'hand ray opens the menu without exposing the action bar')
+  aim(board.menuPanel, 'Settings'); ctrl.dispatchEvent({ type: 'selectstart' })
+  check(board.menuPanel.page.title === 'Settings', 'hand ray navigates in Grab mode')
+  press('Comfort')
+  const m = board.menuPanel, returnUV = m.buttonUV('Return to free board')
+  const height = settings.height, uv = m.buttonUV('Table up')
+  const tip = z => m.mesh.localToWorld(new THREE.Vector3((uv.x - 0.5) * m.width, (uv.y - 0.5) * m.height, z))
+  m.poke(tip(0.05), 'test'); m.poke(tip(0.005), 'test'); m.poke(tip(0.005), 'test')
+  check(settings.height === height + 0.05, 'touch changes height once, despite redraw')
+  check(cues >= 4, 'menu actions provide audio feedback for hands')
+  check(JSON.stringify(returnUV) === JSON.stringify(m.buttonUV('Return to free board')), 'Return bounds stable after touch')
+  // A visual gap is not another button's invisible hit target.
+  const r = m.regions[1]
+  check(!m.press((r.x + r.w / 2) / 960, 1 - (r.y + r.h + 8) / 1040), 'gaps do not activate a neighboring action')
+  check(!m.press(-0.01, 0.5) && !m.press(1.01, 0.5), 'out-of-bounds rays ignored')
+  const worldPosition = m.mesh.position.clone()
+  board.setHeight(0.4); board.setScale(1.5)
+  check(m.mesh.position.equals(worldPosition), 'menu independent of board size/height')
+  // While a menu is open, even a ray aimed at a pickable piece cannot reach it.
+  board.canPick = () => true
+  board.scene.updateMatrixWorld(true)
+  const piece = board.pieceAt.e2.getWorldPosition(new THREE.Vector3())
+  board.raycaster.set(piece.clone().add(new THREE.Vector3(0, 0.4, 0)), new THREE.Vector3(0, -1, 0))
+  board._pick()
+  check(!board.selected, 'menu blocks board-ray input')
+  // Both input sources operate the same Return control.
+  ctrl.userData.isHand = false
+  aim(m, 'Return to free board'); ctrl.dispatchEvent({ type: 'selectstart' })
+  check(!board.menuOpen && board.bar.mesh.visible, 'controller returns to activity')
+  nav.open()
+  check(m.page.back.disabled, 'Back has a stable disabled slot at the root')
+  press('Settings'); press('Appearance'); press('Scene')
+  check(JSON.stringify(m.buttonUV('Return to free board')) === JSON.stringify(returnUV), 'Return stable on a choice grid')
+  // Opening with the other hand must cancel a pending or held piece without moving it.
+  nav.close()
+  const index = new THREE.Object3D(), thumb = new THREE.Object3D()
+  const hand = { joints: { 'index-finger-tip': index, 'thumb-tip': thumb } }
+  const pawn = board.pieceAt.e2, origin = pawn.position.clone()
+  const at = local => {
+    const world = board.boardGroup.localToWorld(local.clone())
+    index.position.copy(world); thumb.position.copy(world)
+  }
+  at(origin.clone().setY(0.05))
+  board._grabStart(hand)
+  check(board.pendingGrab, 'piece pinch is pending before opening Menu')
+  nav.open()
+  check(!board.pendingGrab, 'Menu cancels a pending pinch')
+  nav.close()
+  let moves = 0
+  board.getTargets = () => ['e4']
+  board.onMove = () => moves++
+  board._grabStart(hand); board.pendingGrab.t0 -= 1000; board._confirmGrab()
+  check(board.grab?.from === 'e2', 'piece held before opening Menu')
+  at(origin.clone().add(new THREE.Vector3(0, 0.08, -0.12)))
+  board._tick()
+  nav.open(); board._grabEnd(hand)
+  check(!board.grab && pawn.position.equals(origin) && moves === 0, 'Menu returns a held piece safely without emitting a move')
+  document.getElementById('result').textContent = 'MENU-OK'
+} catch (e) {
+  document.getElementById('result').textContent = 'MENU-FAIL ' + e.message + ' ' + e.stack
+}
+</script></body></html>

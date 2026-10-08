@@ -4,16 +4,18 @@ import { GameSession } from './game.js'
 import { PuzzleSession } from './puzzle.js'
 import { TrainerSession } from './trainer.js'
 import { RushSession } from './rush.js'
-import { settingsView } from './settings.js'
+import { Navigation } from './navigation.js'
 import { startLogin, finishLogin } from './auth.js'
 import { FreeBoard } from './free.js'
+import { showPiecesAction } from './bind.js'
 
 const $ = id => document.getElementById(id)
 const msg = t => { $('msg').textContent = t }
 
 let lichess = null, session = null, username = null, seekAbort = null, connecting = false
 let maiaTimer = null
-let view = null // what the VR panel shows: game session, puzzles, trainer, or null (idle menu)
+let view = null // the activity only; browsing a menu never replaces or stops it
+let activityKind = 'free', note = null
 
 const board = new Board3D()
 try {
@@ -74,55 +76,66 @@ function setSettings(patch) {
 // --- in-VR menu ---
 
 const seeking = () => seekAbort && !seekAbort.signal.aborted
-// Full menu, shown on the idle panel.
-function menu() {
-  const { time, increment, level } = settings(), tc = `${time}+${increment}`
-  const acts = [] // time control / color live on the idle panel's sub line
-  if (!username) acts.push({ label: 'Log in', run: () => startLogin(), primary: true }) // leaves VR for lichess
-  if (username) {
-    acts.push({ label: `Stockfish L${level}`, run: playAi, primary: true })
-    acts.push({ label: `Maia ${settings().maia}`, run: playMaia })
-    acts.push(seeking() ? { label: 'Cancel seek', run: cancelSeek } : { label: `Seek ${tc}`, run: seek })
-  }
-  acts.push({ label: 'Puzzles', run: startPuzzles }, { label: 'Puzzle rush', run: startRush },
-    { label: 'Coordinates', run: startTrainer })
-  if (free.canUndo()) acts.push({ label: 'Undo', run: () => free.undo() })
-  if (free.changed()) acts.push({ label: 'Reset board', run: () => free.reset() })
-  acts.push({ label: 'Settings', run: openSettings })
-  return acts
-}
-
-// Appended to every activity's own buttons: a running seek stays cancellable, Menu leaves.
+// Sessions supply their own actions; the board adds a persistent Menu footer to all of them.
 function compactMenu() {
-  return [...seeking() ? [{ label: 'Cancel seek', run: cancelSeek }] : [], { label: 'Menu', run: toMenu }]
+  return seeking() ? [{ label: 'Cancel seek', run: cancelSeek }] : []
 }
 
-function toMenu() {
+function startFree() {
+  if (gameRunning()) return
+  note = null
   view?.stop()
   view = null
+  activityKind = 'free'
   free.attach()
   board.setOrientation(board.orientation ?? 'white') // drops an in-game peek
   refresh()
 }
 
+function activityContext() {
+  const live = !!gameRunning()
+  const label = { free: 'Free board', puzzles: 'Puzzle', rush: 'Rush', coordinates: 'Coordinates',
+    game: session?.reviewing ? 'Game review' : 'Game' }[activityKind]
+  return { kind: activityKind, label, username, live, seeking: !!seeking(), notice: note,
+    timed: live || activityKind === 'rush' && !view?.over || activityKind === 'coordinates' && !!view?.running,
+    progress: activityKind === 'free' ? free.changed() : live || !!view?.running || activityKind === 'rush' && !view?.over }
+}
+
+const navigation = new Navigation({
+  show: page => board.showMenu(page), hide: () => board.hideMenu(), context: activityContext,
+  get: settings, set: setSettings, login: () => startLogin(), cancelSeek,
+  start: kind => ({ free: startFree, puzzles: startPuzzles, rush: startRush, coordinates: startTrainer,
+    stockfish: playAi, maia: playMaia, human: seek })[kind]()
+})
+window.parallax.navigation = navigation
+board.menuAction = { id: 'menu', label: 'Menu', run: () => navigation.open() }
+board.onStatus = () => {
+  const title = activityContext().label
+  if (board.activityTitle !== title) {
+    board.activityTitle = board.bar.title = title
+    board.bar.draw()
+  }
+  navigation.refresh()
+}
+
 // Message on the 2D page and, where the current view can show one, on the VR panel.
-let note = null
 function notify(text) {
+  note = text
   msg(text)
   if (view?.say) view.say(text)
-  else if (!view) { note = text; refresh() }
+  else if (!view) refresh()
+  navigation.refresh()
 }
 
 function refresh() {
   $('seek').textContent = seeking() ? 'Cancel seek' : 'Seek human'
   if (view) view.render()
-  else board.setStatus({ puzzle: true, brand: true, text: seeking() ? 'Seeking opponent…' : note || 'Choose how to play',
-    sub: username ? idleSub() : 'Free board · training needs no account', actions: menu() })
-}
-
-function idleSub() {
-  const { time, increment, color, rated } = settings()
-  return `${username} · ${time}+${increment} · ${color} · ${rated ? 'rated' : 'casual'}`
+  else board.setStatus({ puzzle: true, text: seeking() ? 'Seeking opponent…' : note || 'Free board',
+    sub: `${free.color === 'white' ? 'White' : 'Black'} to move · Move both sides`, actions: [
+      { label: 'Undo', disabled: !free.canUndo(), run: () => free.undo(), slot: 0 },
+      { label: 'Reset board', disabled: !free.changed(), confirm: true, run: () => free.reset(), slot: 8 },
+      { label: 'Flip board', run: () => board.togglePeek() }, ...showPiecesAction(board), ...compactMenu()
+    ] })
 }
 
 // --- lichess connection & games ---
@@ -188,6 +201,7 @@ function attach(gameId) {
   note = null
   clearTimeout(maiaTimer)
   view?.stop()
+  activityKind = 'game'
   session = view = new GameSession({ lichess, board, username, gameId, onStatus: t => msg(t), menu: compactMenu })
   session.start().catch(e => { if (e.name !== 'AbortError') msg('Game stream lost: ' + e.message) })
 }
@@ -216,6 +230,8 @@ async function seek() {
 function cancelSeek() {
   seekAbort?.abort()
   msg('Seek cancelled')
+  note = null
+  refresh()
 }
 
 async function playAi() {
@@ -230,13 +246,15 @@ async function playAi() {
 }
 
 // Puzzles and the trainer need no login; they replace whatever the board shows.
-function startActivity(make) {
+function startActivity(kind, make) {
   if (gameRunning()) return msg('Finish or resign the game first')
   note = null
   view?.stop()
   session = null
+  activityKind = kind
   board.setMoves([])
   view = make()
+  refresh()
 }
 
 // Maia: human-like lichess bots (maia1/5/9), challenged directly; they accept on their own.
@@ -255,7 +273,7 @@ async function playMaia() {
 }
 
 function startPuzzles() {
-  startActivity(() => {
+  startActivity('puzzles', () => {
     // Anonymous on purpose: a board:play token lacks puzzle:read and would get 403.
     const p = new PuzzleSession({ lichess: new Lichess(), board, onStatus: msg, menu: compactMenu,
       options: () => ({ difficulty: val('pdiff'), angle: val('ptheme') === 'mix' ? undefined : val('ptheme') }) })
@@ -264,15 +282,8 @@ function startPuzzles() {
   })
 }
 
-function openSettings() {
-  startActivity(() => settingsView({
-    board, get: settings, set: setSettings, onBack: toMenu
-  }))
-  refresh()
-}
-
 function startRush() {
-  startActivity(() => {
+  startActivity('rush', () => {
     const r = new RushSession({ lichess: new Lichess(), board, onStatus: msg, menu: compactMenu })
     r.start()
     return r
@@ -280,7 +291,7 @@ function startRush() {
 }
 
 function startTrainer() {
-  startActivity(() => {
+  startActivity('coordinates', () => {
     const t = new TrainerSession({ board, onStatus: msg, menu: compactMenu })
     t.start()
     return t
@@ -330,12 +341,12 @@ $('connect').onclick = () => {
   const t = $('token').value.trim()
   t ? connect(t) : msg('Paste a lichess API token first')
 }
-$('seek').onclick = () => seeking() ? cancelSeek() : seek()
-$('ai').onclick = playAi
-$('maiaBtn').onclick = playMaia
-$('puzzle').onclick = startPuzzles
-$('coords').onclick = startTrainer
-$('rush').onclick = startRush
+$('seek').onclick = () => seeking() ? cancelSeek() : navigation.requestStart('human')
+$('ai').onclick = () => navigation.requestStart('stockfish')
+$('maiaBtn').onclick = () => navigation.requestStart('maia')
+$('puzzle').onclick = () => navigation.requestStart('puzzles')
+$('coords').onclick = () => navigation.requestStart('coordinates')
+$('rush').onclick = () => navigation.requestStart('rush')
 // Resign asks twice here too (3 s window), like the in-VR button.
 let resignArmed = 0
 $('resign').onclick = () => {
@@ -379,6 +390,7 @@ board.xrSupported().then(ok => {
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js')
 
 refresh()
+navigation.open()
 finishLogin().then(token => {
   const t = token || localStorage.getItem('lichessToken')
   if (t) {

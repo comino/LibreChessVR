@@ -95,6 +95,7 @@ async function runScenario(name) {
     return json({ ok: true })
   }
 
+  localStorage.setItem('environment', 'minimal')
   const html = await (await realFetch('/index.html')).text()
   document.body.append(new DOMParser().parseFromString(html, 'text/html').getElementById('ui'))
   if (name === 'bullet') nowPlaying = [{ gameId: 'b1', speed: 'bullet', perf: 'bullet', variant: { key: 'standard' } }]
@@ -102,15 +103,20 @@ async function runScenario(name) {
   let loaded = true
   try { await import('/src/main.js') } catch { loaded = false }
   const board = window.parallax?.board, $ = id => document.getElementById(id)
-  const labels = () => board?.bar.mesh.visible ? board.bar.buttons.map(b => b.label).join() : ''
+  const labels = () => (board?.menuOpen ? board.menuPanel : board?.bar)?.buttons.map(b => b.label).join() || ''
   const text = () => board?.panel.status.text
-  const press = label => board.bar.buttons.find(b => b.label === label)?.run()
+  const press = label => {
+    const desktop = { 'Stockfish L3': 'ai', 'Maia 5': 'maiaBtn', 'Seek 10+5': 'seek' }[label]
+    if (desktop) return $(desktop).click()
+    const ui = board.menuOpen ? board.menuPanel : board.bar
+    ui.buttons.find(b => b.label === label)?.run()
+  }
 
   try {
     if (name === 'corrupt') {
       // Valid JSON but not an object: loadSettings's try only guards the parse,
       // `id in 42` then throws and the whole app dies at load.
-      check(loaded && await until(() => labels().includes('Puzzles')), 'corrupt settings (non-object JSON) kill app load')
+      check(loaded && await until(() => labels().includes('Train')), 'corrupt settings (non-object JSON) kill app load')
     }
 
     if (name === 'bullet') {
@@ -122,7 +128,7 @@ async function runScenario(name) {
     }
 
     if (name === 'main') {
-      await until(() => labels().startsWith('Stockfish L3'))
+      await until(() => $('play').style.display !== 'none')
 
       // Stockfish challenge rejected: the VR user must see why (Maia does this via notify).
       routes['/api/challenge/ai'] = () => json({ error: 'Invalid clock' }, 400)
@@ -147,9 +153,9 @@ async function runScenario(name) {
       await until(() => streams['/api/board/game/stream/m1'] && labels().includes('Abort'))
       streams['/api/board/game/stream/m1'].push({ type: 'gameState', moves: 'e2e4 e7e5', wtime: 6e5, btime: 6e5,
         status: 'resign', winner: 'white' })
-      await until(() => labels().includes('Menu'))
+      await until(() => labels().includes('Rematch'))
       press('Menu')
-      check(labels().includes('Puzzles'), 'Menu after game shows idle menu')
+      check(labels().includes('Train'), 'Menu after game shows idle menu')
       check(text() !== 'Challenging Maia 5…', 'stale "Challenging Maia 5…" on idle panel after the Maia game ended')
     }
   } catch (e) {

@@ -14,8 +14,8 @@ live in one place: `src/theme.js` (3D + canvas UI) mirrored as CSS variables in 
   "Seeks need rapid or slower (10+0, 5+5). Blitz works vs Stockfish."
 - Button labels: 1–2 words, sentence case ("Offer draw", "Puzzle rush"). A value shown on a
   button reads as `Name value` ("Board 125%", "Voice opponent", "Seek 10+5"). Context that
-  doesn't fit (time control, color, rating) goes on the panel's sub line. Leaving any screen
-  is always "Menu". Separator: " · ". No exclamation marks.
+  doesn't fit (time control, color, rating) goes on the panel's sub line. "Menu" opens navigation without ending an activity. "Back" goes up one menu level;
+  "Return to …" closes navigation. Only explicit End / Resign / Start actions replace an activity. Separator: " · ". No exclamation marks.
 
 ## Logo
 
@@ -59,10 +59,18 @@ selection (brass) + targets (moss) < hover (brightens whatever is below).
 ## In-VR UI
 
 - **Status panel** (far, readable): names + clocks (mono), one status line, one sub line.
-- **Button bar** (near, reachable): 3×3 max; hover = lighter steel; armed confirm = ember;
-  primary action of a screen may use brass text.
+- **Activity bar** (near, reachable): current activity title, up to 3×3 actions, and a fixed
+  full-width Menu footer. Board tools and destructive game actions keep their slots.
+- **Menu panel**: one bounded surface with breadcrumb, title, helper text and controls together.
+  Back stays at the top left; Return to the current activity stays at the bottom. Settings use
+  visible choices with selected states. Opening or backing out preserves the board, history,
+  game stream and clocks. Timed activities keep running with their status visible.
+- Menu placement is fixed while open, independently of table height and board size. Both
+  pointing and fingertip touch work regardless of the piece-grabbing preference. Hover =
+  lighter steel with a brass outline; primary = brass; destructive = ember; disabled = mist.
+  Every accepted UI press has an audible tick; controllers also provide haptics.
 - Sounds: wooden clack for moves, two clacks for captures, soft two-tone for start/solve,
-  low buzz for errors. Voice announcements are optional (Settings → View).
+  low buzz for errors. Voice announcements are optional (Settings → Input & audio).
 
 ## Scenes
 

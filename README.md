@@ -29,7 +29,7 @@ training, all without taking the headset off.
 - **Blindfold** — ghost or hidden pieces with a 2-second "Show pieces", plus spoken moves.
 - **Flip board** — look at your own game from the opponent's side.
 - **Move list** beside the board, following the game and post-game review; a **free board** to
-  move both sides when nothing is running (Undo / Reset).
+  move both sides (Undo / Reset), with history preserved while browsing menus.
 
 **Feel**
 - Living scenes — a cozy **Study** in an old European house: antique furniture, a crackling fire,
@@ -39,7 +39,7 @@ training, all without taking the headset off.
 - **Themes** — boards: walnut, green, ice, marble, midnight; piece sets: antique (scanned wood), ivory, classic, gold &
   silver, maple, neon. Pieces reflect the scene around them.
 - Board size 80–150 %, table height by thumbstick or buttons, wooden move sounds, haptics,
-  and an FPS readout for tuning (Settings → View).
+  and an FPS readout for tuning (Settings → Advanced).
 - Controllers (point + trigger), hand tracking (point & pinch from afar, or just pinch a piece to pick it up), fingertip-poke
   buttons, or mouse on desktop.
 
@@ -69,8 +69,10 @@ Or skip the APK: open the URL in the Quest Browser and use *Install app* from th
 3. **Log in with lichess** (optional for training) — one click, no token to copy (or paste an
    API token with `board:play` + `challenge:write` under *Use an API token instead*).
    The login stays in your browser.
-4. **Enter VR.** The button bar right of the board has everything: start a game, puzzles,
-   rush, coordinates and settings (Play, Puzzles, View — incl. scene, pieces, voice and hands).
+4. **Enter VR.** Open **Menu** beside the board: **Play**, **Train**, **Free board**, or **Settings**.
+   **Back** goes up one level; **Return to your activity** takes you straight back without
+   losing your position or progress. Menus work during games and timed drills; clocks keep running.
+   Appearance, Comfort, Input & audio, and Advanced settings stay available while you play.
 
 ![The 2D page doubles as setup and desktop view](docs/img/landing.jpg)
 
@@ -88,8 +90,8 @@ invariants and gotchas: [`CLAUDE.md`](CLAUDE.md). Brand & design system: [`BRAND
 tokens in [`src/theme.js`](src/theme.js).
 
 ```sh
-node test/test.js && node test/hunt-unit.js   # pure logic
-test/run-smoke.sh                              # 13 headless-Chrome suites, all must print *-OK
+node test/test.js && node test/hunt-unit.js && node test/navigation-unit.js   # pure logic
+test/run-smoke.sh                              # 14 headless-Chrome suites, all must print *-OK
 ```
 
 The smoke suites drive the real modules against a fake lichess (streams, reconnects, offers,

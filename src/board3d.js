@@ -9,7 +9,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
 import { buildEnvironment, disposeGroup, woodTexture } from './environments.js'
 import { squareToXZ, xzToSquare, parseFen, captured } from './coords.js'
-import { StatusPanel, ButtonBar, MoveList } from './panel.js'
+import { StatusPanel, ButtonBar, MenuPanel, MoveList } from './panel.js'
 import { playCue, buzz } from './feedback.js'
 import { TINT, TINT_MIX, BOARD, BOARD_THEMES, PIECE_THEMES, PIECE_DEFAULTS, PIECES, COLOR, FONT, DETAIL_KINDS } from './theme.js'
 import { canvasTexture, rng, glow, blobTexture, shadowBlob } from './scenes/common.js'
@@ -471,7 +471,7 @@ export class Board3D {
   _captureEnv() {
     if (!this.pieceMat) return
     this.pmrem ??= new THREE.PMREMGenerator(this.renderer)
-    const hide = [this.boardGroup, this.panel?.mesh, this.bar?.mesh].filter(Boolean)
+    const hide = [this.boardGroup, this.panel?.mesh, this.bar?.mesh, this.menuPanel?.mesh].filter(Boolean)
     const was = hide.map(o => o.visible)
     hide.forEach(o => { o.visible = false })
     const pos = new THREE.Vector3(BOARD_POS.x, BOARD_POS.y + 0.35 + this.stage.position.y, BOARD_POS.z)
@@ -664,8 +664,49 @@ export class Board3D {
 
   // state: see StatusPanel.set, plus actions: [{label, run, confirm?}] for the button bar
   setStatus(state) {
+    this.status = state
     this.panel.set(state)
-    this.bar.set(state.actions)
+    let actions = state.actions || []
+    if (this.menuAction) {
+      // Reserve locations for game responses, board tools and destructive actions.
+      // The Menu has its own footer and never consumes a game-action slot.
+      const slots = { 'Offer draw': 0, 'Accept draw': 0, 'Decline draw': 1,
+        'Accept takeback': 2, 'Decline takeback': 3, 'Claim win': 4, 'Cancel seek': 4,
+        'Cancel premove': 5, 'Show pieces': 6, 'Flip board': 7, Resign: 8, Abort: 8, 'End rush': 8 }
+      actions = actions.filter(a => a.label !== 'Menu').map(a => ({ ...a, slot: slots[a.label] ?? a.slot,
+        danger: a.danger || ['Resign', 'Abort', 'End rush', 'Reset board'].includes(a.label),
+        confirm: a.confirm || a.label === 'End rush' }))
+    }
+    this.bar.set(actions, this.menuAction, this.activityTitle)
+    if (this.menuOpen) this.bar.mesh.visible = false
+    this.onStatus?.(state)
+  }
+
+  get menuOpen() { return !!this.menuPanel?.mesh.visible }
+
+  showMenu(page) {
+    if (!this.menuOpen) {
+      this.pendingGrab = null
+      if (this.grab) this._drop(true)
+      this.deselect()
+      this._clearHover(...Object.keys(this.hover))
+      // Place once per opening; resizing/raising the board never moves a live target.
+      this.menuPanel.mesh.position.set(Math.max(0.54, this.bar.mesh.position.x + 0.12),
+        1.08 + this.stage.position.y, -0.58)
+      this.menuPanel.mesh.rotation.set(-0.18, -0.7, 0, 'YXZ')
+      this.menuPanel.mesh.updateMatrixWorld(true)
+    }
+    this.bar.mesh.visible = false
+    this.menuPanel.setPage(page)
+    this._updateLines()
+  }
+
+  hideMenu() {
+    this.menuPanel.mesh.visible = false
+    this.menuPanel.armedPoke = {}
+    this.menuPanel.hovered = {}
+    this.bar.mesh.visible = this.bar.buttons.length > 0
+    this._updateLines()
   }
 
   cue(kind) { playCue(kind) }
@@ -706,6 +747,7 @@ export class Board3D {
     for (const k of keys) {
       this._setHover(k, null)
       this.bar.hover(k, null)
+      this.menuPanel?.hover(k, null)
     }
   }
 
@@ -718,6 +760,7 @@ export class Board3D {
   }
 
   _select(square) {
+    if (this.menuOpen) return
     if (this.onSquarePick) {
       if (!square) return
       buzz(this.source)
@@ -806,9 +849,17 @@ export class Board3D {
       })
       ctrl.addEventListener('disconnected', () => { ctrl.userData.source = null })
       ctrl.addEventListener('selectstart', () => {
-        if (ctrl.userData.isHand && this._handGrabs(this.hands[i])) return // pinch-grab handles it
         this.source = ctrl.userData.source
         this._rayFrom(ctrl)
+        if (ctrl.userData.isHand) {
+          const hand = this.hands[i]
+          // A pinch at a piece belongs to the grab. Otherwise menus remain pointable
+          // even when the player's piece interaction preference is Grab.
+          if (this.grab?.hand === hand || this.pendingGrab?.hand === hand) return
+          if (!this.menuOpen && !this.picker && this._reachable(this._pinchLocal(hand))) return
+          const hit = this._cast()
+          if (!hit?.ui && this._handGrabs(hand)) return
+        }
         this._pick()
       })
       this.scene.add(ctrl)
@@ -864,12 +915,19 @@ export class Board3D {
     this.controllers.forEach(({ ctrl, line, dot }, i) => {
       const key = 'c' + i
       let dist
-      if (line.visible && ctrl.visible) {
+      if (ctrl.visible) {
         this._rayFrom(ctrl)
-        dist = this._hoverRay(key)
+        line.visible = !(this.handMode === 'grab' && ctrl.userData.isHand) || !!this._cast()?.ui
+        if (line.visible) dist = this._hoverRay(key)
+        else {
+          this._setHover(key, null)
+          this.bar.hover(key, null)
+          this.menuPanel.hover(key, null)
+        }
       } else {
         this._setHover(key, null)
         this.bar.hover(key, null)
+        this.menuPanel.hover(key, null)
       }
       line.scale.z = dist ?? RAY_LEN
       dot.visible = dist !== undefined
@@ -891,7 +949,7 @@ export class Board3D {
 
   _updateLines() {
     for (const { ctrl, line } of this.controllers)
-      line.visible = !(this.handMode === 'grab' && ctrl.userData.isHand)
+      line.visible = this.menuOpen || !(this.handMode === 'grab' && ctrl.userData.isHand)
   }
 
   // --- hand grab ---
@@ -931,6 +989,7 @@ export class Board3D {
   }
 
   _grabStart(hand) {
+    if (this.menuOpen) return
     if (this.grab || this.pendingGrab) return
     const local = this._pinchLocal(hand)
     if (!local) return
@@ -947,7 +1006,7 @@ export class Board3D {
   // The piece a pinch would grab right now lights up (hover 'h0'/'h1'), so a grab never surprises.
   _reachHover() {
     this.hands.forEach((hand, i) => {
-      const idle = !this.grab && !this.picker && !this.onSquarePick
+      const idle = !this.menuOpen && !this.grab && !this.picker && !this.onSquarePick
       this._setHover('h' + i, idle ? this._reachable(this._pinchLocal(hand)) : null)
     })
   }
@@ -1006,13 +1065,16 @@ export class Board3D {
   // A ray through a proxy but beside the real piece (see _touches) goes on to what is behind it.
   _cast() {
     const proxies = group => group.children.map(g => g.userData.proxy ?? g.children[1].userData.proxy)
-    const objs = this.picker ? proxies(this.picker.group)
+    const objs = this.menuOpen ? [this.menuPanel.mesh] : this.picker ? proxies(this.picker.group)
       : [...Object.values(this.tiles), ...proxies(this.piecesGroup), ...(this.bar.mesh.visible ? [this.bar.mesh] : [])]
     const hits = this.raycaster.intersectObjects(objs, false)
     const h = this.picker ? hits[0] : hits.find(h => this._touches(h)) ?? hits[0]
     if (!h) return null
     const hit = { dist: h.distance }
-    if (h.object === this.bar.mesh) hit.uv = h.uv
+    if (h.object === this.bar.mesh || h.object === this.menuPanel.mesh) {
+      hit.uv = h.uv
+      hit.ui = h.object === this.bar.mesh ? this.bar : this.menuPanel
+    }
     else if (this.picker) hit.promo = h.object.parent.parent.userData.promo
     else hit.square = h.object.userData.square
     return hit
@@ -1040,8 +1102,9 @@ export class Board3D {
   // Acts on the current ray: picker choice (a miss cancels), bar button, or square.
   _pick() {
     const hit = this._cast()
+    if (this.menuOpen) return hit?.ui?.press(hit.uv.x, hit.uv.y) && buzz(this.source)
     if (this.picker) return this._closePicker(hit?.promo ?? null)
-    if (hit?.uv) return this.bar.press(hit.uv.x, hit.uv.y) && buzz(this.source)
+    if (hit?.uv) return hit.ui.press(hit.uv.x, hit.uv.y) && buzz(this.source)
     this._select(hit?.square ?? null)
   }
 
@@ -1049,7 +1112,8 @@ export class Board3D {
   _hoverRay(key) {
     const hit = this._cast()
     this._setHover(key, hit?.square)
-    this.bar.hover(key, hit?.uv)
+    this.bar.hover(key, hit?.ui === this.bar ? hit.uv : null)
+    this.menuPanel.hover(key, hit?.ui === this.menuPanel ? hit.uv : null)
     return hit?.dist
   }
 
@@ -1061,6 +1125,7 @@ export class Board3D {
     this.panel.mesh.rotation.x = -0.15
     // Button bar right of the board, within arm's reach, turned toward the player.
     this.bar = new ButtonBar()
+    this.bar.onPress = () => this.cue('ui')
     this.bar.mesh.position.set(BAR_X, 0.88, -0.34)
     this.bar.mesh.rotation.set(-0.5, -0.9, 0, 'YXZ')
     // Move list on the other side, mirroring the bar.
@@ -1068,6 +1133,9 @@ export class Board3D {
     this.moveList.mesh.position.set(-BAR_X, 0.9, -0.34)
     this.moveList.mesh.rotation.set(-0.5, 0.9, 0, 'YXZ')
     this.stage.add(this.panel.mesh, this.bar.mesh, this.moveList.mesh)
+    this.menuPanel = new MenuPanel()
+    this.menuPanel.onPress = () => this.cue('ui')
+    this.scene.add(this.menuPanel.mesh)
   }
 
   // Sessions show their moves (chess.js verbose) beside the board; [] hides the list.
@@ -1129,9 +1197,11 @@ export class Board3D {
       const tip = hand.joints['index-finger-tip']
       // disconnect hides the hand group but leaves joint flags as they were
       this.bar.poke(hand.visible !== false && tip?.visible ? tip.getWorldPosition(_vC) : null, i)
+      this.menuPanel.poke(hand.visible !== false && tip?.visible ? tip.getWorldPosition(_vC) : null, i)
     })
     this.panel.tick()
     this.bar.tick()
+    this.menuPanel.tick()
     if (this.shadowsDirty || this.anim || this.grab) {
       this.renderer.shadowMap.needsUpdate = true
       this.shadowsDirty = false

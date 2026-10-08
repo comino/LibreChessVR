@@ -90,27 +90,31 @@ async function runScenario(name) {
     return json({ ok: true })
   }
 
+  localStorage.setItem('environment', 'minimal')
   const html = await (await realFetch('/index.html')).text()
   document.body.append(new DOMParser().parseFromString(html, 'text/html').getElementById('ui'))
   await import('/src/main.js')
   const board = window.parallax.board, $ = id => document.getElementById(id)
-  const labels = () => board.bar.mesh.visible ? board.bar.buttons.map(b => b.label).join() : ''
+  const labels = () => (board.menuOpen ? board.menuPanel : board.bar).buttons.map(b => b.label).join()
   const text = () => board.panel.status?.text
   const press = label => {
-    const b = board.bar.buttons.find(b => b.label === label)
+    const desktop = { Puzzles: 'puzzle', 'Puzzle rush': 'rush', 'Seek 10+5': 'seek' }[label]
+    if (desktop) return $(desktop).click()
+    const b = (board.menuOpen ? board.menuPanel : board.bar).buttons.find(b => b.label === label)
     if (!b) throw new Error(`no button "${label}" in [${labels()}]`)
     b.run()
   }
   const gameStart = id => streams['/api/stream/event'].push({ type: 'gameStart', game: { gameId: id, speed: 'rapid' } })
   // Starts a Stockfish-like game and waits until it is live on the board.
   async function startGame(id) {
+    window.parallax.navigation.close()
     gameStart(id)
     await until(() => labels().includes('Abort') || labels().includes('Resign'))
   }
 
   try {
     // real time: the textured piece GLB may take a few seconds to decode
-    await until(() => labels().startsWith('Stockfish L3') && streams['/api/stream/event'], 15000)
+    await until(() => $('play').style.display !== 'none' && streams['/api/stream/event'], 15000)
 
     if (name === 'staleBar') {
       // A game starts while solving puzzles; its gameFull is slow. attach() stops the puzzle
@@ -156,9 +160,9 @@ async function runScenario(name) {
       board._select('g1')
       const picked = board.selected === 'g1'
       g.push({ type: 'gameState', moves: 'e2e4 e7e5', wtime: 6e5, btime: 6e5, status: 'resign', winner: 'white' })
-      await until(() => labels().includes('Menu'))
+      await until(() => labels().includes('Rematch'))
       press('Menu')
-      check(picked && labels().startsWith('Stockfish') && board.selected == null,
+      check(picked && labels().includes('Train') && board.selected == null,
         `selection from the finished game leaks into the idle menu (selected=${board.selected})`)
     }
 
@@ -182,7 +186,7 @@ async function runScenario(name) {
       press('Seek 10+5')
       await until(() => labels().includes('Cancel seek'))
       press('Cancel seek')
-      await until(() => labels().includes('Seek human'))
+      await until(() => !labels().includes('Cancel seek'))
       await sleep(50)
       check(!text()?.includes('Seek failed'), `stale "${text()}" on idle panel after cancelling a new seek`)
     }

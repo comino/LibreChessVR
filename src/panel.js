@@ -217,9 +217,11 @@ export class MoveList {
 }
 
 export class ButtonBar {
-  constructor() {
-    Object.assign(this, canvasPlane(BAR_W, BAR_H, 600))
+  constructor(width = BAR_W, height = BAR_H, pixels = 600) {
+    Object.assign(this, canvasPlane(width, height, pixels), { width, height })
     this.buttons = []
+    this.regions = []
+    this.mesh.visible = false
     this.armed = null
     this.armedPoke = {} // pointer key -> tip was seen in front of the bar
     this.hovered = {} // pointer key -> button index
@@ -229,17 +231,41 @@ export class ButtonBar {
 
   // buttons: [{label, run, confirm?, primary?}] — confirm buttons need a second press within 3 s;
   // primary = the screen's main action (brass).
-  set(buttons = []) {
+  set(buttons = [], navigation = null, title = '') {
     if (buttons.length > COLS * ROWS) console.warn('ButtonBar: dropping', buttons.slice(COLS * ROWS).map(b => b.label))
     this.buttons = buttons.slice(0, COLS * ROWS)
+    this.navigation = navigation
+    this.title = title
+    this.resize(BAR_W, navigation ? 0.26 : BAR_H)
+    const top = navigation ? 64 : 0
+    this.regions = this.buttons.map((b, i) => {
+      const slot = b.slot ?? i
+      return { x: (slot % COLS) * 200 + 6, y: top + Math.floor(slot / COLS) * 120 + 6, w: 188, h: 108 }
+    })
+    if (navigation) {
+      this.buttons.push(navigation)
+      this.regions.push({ x: 6, y: 434, w: 588, h: 80 })
+    }
     this.armed = this.buttons.find(b => b.label === this.armed?.label) || null
+    this.mesh.visible = this.buttons.length > 0
     this.draw()
+  }
+
+  resize(width, height) {
+    if (width === this.width && height === this.height) return
+    Object.assign(this, { width, height })
+    this.mesh.geometry.dispose()
+    this.mesh.geometry = new THREE.PlaneGeometry(width, height)
+    this.canvas.height = Math.round(this.canvas.width * height / width)
   }
 
   // u,v: texture coords (v = 1 at the top). Returns true if a button was hit.
   press(u, v) {
     const b = this.buttons[this._index(u, v)]
-    if (!b) return false
+    if (!b || b.disabled) return false
+    this.onPress?.()
+    this.pressed = b.id ?? b.label
+    this.pressedAt = performance.now()
     if (b.confirm && this.armed !== b) {
       this.armed = b
       this.armedAt = performance.now()
@@ -259,23 +285,42 @@ export class ButtonBar {
     this.draw()
   }
 
-  _index(u, v) { return Math.min(COLS - 1, Math.floor(u * COLS)) + COLS * Math.floor((1 - v) * ROWS) }
+  _index(u, v) {
+    const x = u * this.canvas.width, y = (1 - v) * this.canvas.height
+    return this.regions.findIndex(r => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h)
+  }
+
+  // The same bounds drive drawing, rays, touch and interaction tests.
+  buttonUV(label) {
+    const r = this.regions[this.buttons.findIndex(b => b.label === label)]
+    return r && { x: (r.x + r.w / 2) / this.canvas.width, y: 1 - (r.y + r.h / 2) / this.canvas.height }
+  }
 
   // Fingertip poke: arms while the tip is in front of the bar, presses when it reaches the
   // surface (only from the front: a hand pulling back out through the bar never presses).
   poke(worldPos, key) {
-    if (!worldPos || !this.mesh.visible) return void (this.armedPoke[key] = false)
+    if (!worldPos || !this.mesh.visible) {
+      this.armedPoke[key] = false
+      this.hover('poke' + key, null)
+      return
+    }
     const p = this.mesh.worldToLocal(_p.copy(worldPos))
-    const inside = Math.abs(p.x) < BAR_W / 2 && Math.abs(p.y) < BAR_H / 2
+    const inside = Math.abs(p.x) < this.width / 2 && Math.abs(p.y) < this.height / 2
+    this.hover('poke' + key, inside && p.z > -0.04 && p.z < 0.15
+      ? { x: p.x / this.width + 0.5, y: p.y / this.height + 0.5 } : null)
     if (!inside || p.z > 0.025) this.armedPoke[key] = inside && p.z < 0.15
     else if (p.z <= -0.04) this.armedPoke[key] = false // went through: must come back out front
     else if (this.armedPoke[key] && p.z < 0.01) {
       this.armedPoke[key] = false
-      this.press(p.x / BAR_W + 0.5, p.y / BAR_H + 0.5)
+      this.press(p.x / this.width + 0.5, p.y / this.height + 0.5)
     }
   }
 
   tick() {
+    if (this.pressed && performance.now() - this.pressedAt > 180) {
+      this.pressed = null
+      this.draw()
+    }
     if (this.armed && performance.now() - this.armedAt > CONFIRM_MS) {
       this.armed = null
       this.draw()
@@ -284,21 +329,95 @@ export class ButtonBar {
 
   draw() {
     const { ctx, canvas: { width: w, height: h } } = this
-    const bw = w / COLS, bh = h / ROWS
     ctx.clearRect(0, 0, w, h)
+    if (this.navigation) {
+      roundRect(ctx, 0, 0, w, h, 24, COLOR.slate, COLOR.steel)
+      Object.assign(ctx, { textAlign: 'left', textBaseline: 'middle', font: `600 25px ${FONT.ui}`, fillStyle: COLOR.ivory })
+      ctx.fillText(this.title, 20, 32)
+    }
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.font = `600 27px ${FONT.ui}`
     this.buttons.forEach((b, i) => {
-      const x = (i % COLS) * bw, y = Math.floor(i / COLS) * bh
+      const { x, y, w: bw, h: bh } = this.regions[i]
       const hot = Object.values(this.hovered).includes(i), armed = b === this.armed
-      const fill = armed ? COLOR.ember : b.primary ? COLOR.brass : hot ? COLOR.steelHi : COLOR.steel
-      roundRect(ctx, x + 6, y + 6, bw - 12, bh - 12, 18, fill, hot && !armed ? COLOR.brass : null)
-      ctx.fillStyle = b.primary && !armed ? COLOR.ink : COLOR.ivory
+      const pressed = this.pressed === (b.id ?? b.label)
+      const fill = armed ? COLOR.ember : b.primary ? COLOR.brass : hot || pressed ? COLOR.steelHi : COLOR.steel
+      roundRect(ctx, x, y, bw, bh, 18, fill, hot && !armed ? COLOR.brass : null)
+      ctx.fillStyle = b.disabled ? COLOR.mist : armed ? COLOR.ivory : b.primary ? COLOR.ink : b.danger ? COLOR.ember : COLOR.ivory
       const lines = armed ? ['Confirm?'] : wrap(ctx, b.label, bw - 36)
       lines.forEach((l, j) => ctx.fillText(l, x + bw / 2, y + bh / 2 + (j - (lines.length - 1) / 2) * 32))
     })
-    this.mesh.visible = this.buttons.length > 0
+    this.tex.needsUpdate = true
+  }
+}
+
+function fit(ctx, text, maxWidth) {
+  let value = String(text || '')
+  if (ctx.measureText(value).width <= maxWidth) return value
+  while (value && ctx.measureText(value + '…').width > maxWidth) value = value.slice(0, -1)
+  return value + '…'
+}
+
+// One stable surface for navigation. The Back and Return bounds never depend on content.
+export class MenuPanel extends ButtonBar {
+  constructor() { super(0.48, 0.52, 960) }
+
+  setPage(page) {
+    if (page.id !== this.page?.id) {
+      this.hovered = {}
+      this.armedPoke = {}
+      this.armed = null
+      this.pressed = null
+    }
+    this.page = page
+    const cols = page.columns || 1, gap = 20, cellW = (904 - gap * (cols - 1)) / cols
+    const cellH = cols === 1 ? 78 : 132
+    this.buttons = [page.back, ...page.actions, page.returnAction]
+    this.regions = [{ x: 28, y: 24, w: 168, h: 66 }, ...page.actions.map((_, i) => ({
+      x: 28 + i % cols * (cellW + gap), y: 244 + Math.floor(i / cols) * (cellH + gap), w: cellW, h: cellH
+    })), { x: 28, y: 920, w: 904, h: 92 }]
+    this.mesh.visible = true
+    this.draw()
+  }
+
+  draw() {
+    const { ctx, page } = this
+    if (!page) return
+    ctx.clearRect(0, 0, 960, 1040)
+    roundRect(ctx, 2, 2, 956, 1036, 36, COLOR.slate, COLOR.steelHi)
+    Object.assign(ctx, { textAlign: 'left', textBaseline: 'middle', fillStyle: COLOR.mist, font: `500 26px ${FONT.ui}` })
+    ctx.fillText(fit(ctx, page.path, 688), 224, 56)
+    Object.assign(ctx, { fillStyle: COLOR.ivory, font: `700 44px ${FONT.display}` })
+    ctx.fillText(page.title, 36, 136)
+    Object.assign(ctx, { fillStyle: COLOR.mist, font: `500 26px ${FONT.ui}` })
+    wrap(ctx, page.sub || '', 888).slice(0, 2).forEach((line, i) => ctx.fillText(line, 36, 185 + i * 32))
+    ctx.fillStyle = COLOR.steelHi
+    ctx.fillRect(28, 850, 904, 2)
+    ctx.fillStyle = COLOR.mist
+    ctx.fillText(fit(ctx, page.context, 888), 36, 884)
+    this.buttons.forEach((b, i) => {
+      const r = this.regions[i], hot = !b.disabled && Object.values(this.hovered).includes(i)
+      const pressed = this.pressed === (b.id ?? b.label)
+      const fill = b.disabled ? COLOR.ink : b.primary ? COLOR.brass : hot || pressed ? COLOR.steelHi : COLOR.steel
+      roundRect(ctx, r.x, r.y, r.w, r.h, 18, fill, b.selected || hot ? COLOR.brass : null)
+      const center = (page.columns > 1 && i > 0 && i < this.buttons.length - 1) || i === this.buttons.length - 1
+      Object.assign(ctx, { textAlign: center ? 'center' : 'left', font: `600 32px ${FONT.ui}`,
+        fillStyle: b.disabled ? COLOR.mist : b.primary ? COLOR.ink : b.selected ? COLOR.brass : b.danger ? COLOR.ember : COLOR.ivory })
+      const x = center ? r.x + r.w / 2 : r.x + 22
+      const label = (b.selected ? '✓ ' : '') + b.label
+      const lines = wrap(ctx, label, r.w - 58)
+      const y = r.y + r.h / 2 - (b.detail ? 15 : 0)
+      lines.slice(0, 2).forEach((line, j) => ctx.fillText(line, x, y + (j - (Math.min(lines.length, 2) - 1) / 2) * 36))
+      if (b.detail) {
+        Object.assign(ctx, { font: `500 24px ${FONT.ui}`, fillStyle: b.primary ? COLOR.ink : COLOR.mist })
+        ctx.fillText(fit(ctx, b.detail, r.w - 70), x, r.y + r.h / 2 + 20)
+      }
+      if (b.navigation) {
+        Object.assign(ctx, { textAlign: 'right', font: `500 40px ${FONT.ui}`, fillStyle: COLOR.mist })
+        ctx.fillText('›', r.x + r.w - 20, r.y + r.h / 2)
+      }
+    })
     this.tex.needsUpdate = true
   }
 }
