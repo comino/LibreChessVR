@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <base href="/">
-<title>Parallax app bug hunt</title>
+<title>3D Chess Practice app bug hunt</title>
 <style>body { margin: 0 } iframe { width: 400px; height: 300px }</style>
 <script type="importmap">
 {
@@ -116,7 +116,7 @@ async function runScenario(name) {
     if (name === 'corrupt') {
       // Valid JSON but not an object: loadSettings's try only guards the parse,
       // `id in 42` then throws and the whole app dies at load.
-      check(loaded && await until(() => labels().includes('Train')), 'corrupt settings (non-object JSON) kill app load')
+      check(loaded && await until(() => labels().includes('Practice')), 'corrupt settings (non-object JSON) kill app load')
     }
 
     if (name === 'bullet') {
@@ -155,7 +155,7 @@ async function runScenario(name) {
         status: 'resign', winner: 'white' })
       await until(() => labels().includes('Rematch'))
       press('Menu')
-      check(labels().includes('Train'), 'Menu after game shows idle menu')
+      check(labels().includes('Practice'), 'Menu after game shows idle menu')
       check(text() !== 'Challenging Maia 5…', 'stale "Challenging Maia 5…" on idle panel after the Maia game ended')
     }
   } catch (e) {

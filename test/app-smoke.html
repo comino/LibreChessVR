@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <base href="/">
-<title>Parallax app smoke test</title>
+<title>3D Chess Practice app smoke test</title>
 <style>body { margin: 0 }</style>
 <script type="importmap">
 {
@@ -90,7 +90,7 @@ try {
   const menuSlot = () => JSON.stringify(board.bar.buttonUV('Menu'))
 
   await until(() => $('play').style.display !== 'none' && streams['/api/stream/event'], 'logged in')
-  check(board.menuPanel.page.title === 'Menu' && labels().includes('Play,Train,Free board,Settings'), 'clear home categories')
+  check(board.menuPanel.page.title === 'Menu' && labels().includes('Practice,Free board,Play,Settings'), 'clear home categories')
   check($('time').value === '5' && $('ailevel').value === '2', 'settings restored into form')
   const returnBounds = JSON.stringify(board.menuPanel.buttonUV('Return to free board'))
   resume()
@@ -133,7 +133,7 @@ try {
   const ai = requests.find(r => r.path === '/api/challenge/ai')
   check(/level=2/.test(ai.body) && /clock.limit=600/.test(ai.body) && /color=white/.test(ai.body), 'game uses chosen settings')
   press('Menu')
-  check(board.menuPanel.buttons.find(b => b.label === 'Train').disabled, 'cannot replace live game')
+  check(board.menuPanel.buttons.find(b => b.label === 'Practice').disabled, 'cannot replace live game')
   press('Settings'); press('Input & audio'); press('Spoken moves'); press('Opponent only'); back()
   check(board.voice === 'opponent' && localStorage.getItem('voice') === 'opponent', 'audio adjustable in game')
   const menuPage = board.menuPanel.page.id
@@ -168,7 +168,7 @@ try {
   streams['/api/stream/event'].push({ type: 'challengeDeclined', challenge: { id: 'x' } })
   await until(() => board.panel.status.text.includes('Challenge declined'), 'decline visible')
 
-  home(); press('Train'); press('Puzzles'); press('Difficulty'); press('Harder'); back()
+  home(); press('Practice'); press('Puzzles'); press('Difficulty'); press('Harder'); back()
   press('Theme'); press('Mate in 2'); back(); press('Start puzzles')
   await until(() => labels().includes('Hint'), 'puzzle ready')
   check(requests.some(r => r.path === '/api/puzzle/next?difficulty=harder&angle=mateIn2'), 'puzzle settings used in fetch')
@@ -177,9 +177,9 @@ try {
   press('Menu'); press('Settings'); press('Comfort'); resume()
   check(board.fen === puzzleFen && labels().includes('Hint'), 'return resumes same puzzle')
   check(requests.filter(r => r.path.startsWith('/api/puzzle/next')).length === fetched, 'browsing did not fetch a new puzzle')
-  home(); press('Train'); press('Coordinates')
+  home(); press('Practice'); press('Coordinates')
   check(board.menuPanel.page.title === 'Switch activity?', 'replacing an unfinished puzzle is explicit')
-  back(); check(board.menuPanel.page.title === 'Train', 'Back cancels replacement')
+  back(); check(board.menuPanel.page.title === 'Practice', 'Back cancels replacement')
   press('Coordinates'); press('Start coordinates')
   check(board.panel.status.big && board.bar.title === 'Coordinates', 'coordinate round started')
   board._select(board.panel.status.big)
@@ -189,7 +189,7 @@ try {
   await sleep(1100)
   check(board.menuPanel.page.title === 'Comfort' && board.panel.status.big === target, 'timer ticks preserve menu and target')
   resume(); check(board.onSquarePick && board.panel.status.sub.startsWith('Score 1'), 'trainer progress survives navigation')
-  home(); press('Train'); press('Puzzle rush'); press('Start rush')
+  home(); press('Practice'); press('Puzzle rush'); press('Start rush')
   await until(() => labels().includes('End rush') && board.pieceAt.e4, 'rush puzzle loaded')
   check(labels().includes('Menu'), 'running rush has menu')
   press('Menu'); press('Settings'); press('Advanced'); press('Resolution'); press('Normal'); back()
@@ -208,14 +208,14 @@ try {
   check(board.boardTheme === 'green' && board.pieceTheme === 'ivory' && $('boardTheme').value === 'green', 'appearance shared with desktop')
   $('pieceTheme').value = 'neon'; $('pieceTheme').dispatchEvent(new Event('change'))
   check(board.pieceTheme === 'neon' && board.menuPanel.page.actions.find(b => b.label === 'Piece set').detail === 'Neon', 'desktop changes reflected in menu')
-  home(); press('Free board')
+  $('freeBoard').click()
   check(!board.menuOpen && !board.onSquarePick && board.bar.title === 'Free board', 'free board explicit after finished training')
   press('Reset board'); press('Reset board')
 
   // Seeking can coexist with training and remains cancellable from every menu.
   home(); press('Play'); press('Online player'); press('Find opponent')
   await until(() => streams['/api/board/seek'] && labels().includes('Cancel seek'), 'seek started')
-  home(); press('Train'); press('Puzzles'); press('Start puzzles')
+  home(); press('Practice'); press('Puzzles'); press('Start puzzles')
   await until(() => labels().includes('Hint') && labels().includes('Cancel seek'), 'training while seeking')
   press('Menu'); press('Settings'); press('Comfort')
   const beforeMatchPage = board.menuPanel.page.id

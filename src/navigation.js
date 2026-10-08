@@ -6,7 +6,7 @@ import { isRapid } from './lichess.js'
 
 const name = s => String(s).charAt(0).toUpperCase() + String(s).slice(1)
 const TITLES = { home: 'Menu', play: 'Play', stockfish: 'Stockfish', maia: 'Maia', human: 'Online game',
-  train: 'Train', puzzles: 'Puzzles', settings: 'Settings', appearance: 'Appearance', comfort: 'Comfort',
+  train: 'Practice', puzzles: 'Puzzles', settings: 'Settings', appearance: 'Appearance', comfort: 'Comfort',
   input: 'Input & audio', advanced: 'Advanced', account: 'Lichess account', confirm: 'Switch activity?' }
 const START_LABELS = { free: 'Open free board', puzzles: 'Start puzzles', rush: 'Start rush',
   coordinates: 'Start coordinates', stockfish: 'Start game', maia: 'Start game', human: 'Find opponent' }
@@ -59,10 +59,10 @@ export class Navigation {
     let actions = [], sub = '', columns = 1
     switch (route.id) {
       case 'home':
-        sub = c.notice || (c.username ? `Connected as ${c.username}` : 'Training and the free board need no account.')
-        actions = [link('Play', 'play', c.live ? 'Finish the current game first' : 'Stockfish, Maia or another player', !!c.live),
-          link('Train', 'train', c.live ? 'Finish the current game first' : 'Puzzles, rush and coordinates', !!c.live),
+        sub = c.notice || (c.username ? `Connected as ${c.username}` : 'Practice reading a real chessboard. No account needed.')
+        actions = [link('Practice', 'train', c.live ? 'Finish the current game first' : 'Puzzles, rush and square drills', !!c.live),
           action('Free board', () => this.requestStart('free'), 'Move both sides, undo and explore', { disabled: !!c.live }),
+          link('Play', 'play', c.live ? 'Finish the current game first' : 'Stockfish, Maia or another player', !!c.live),
           link('Settings', 'settings', 'Appearance, comfort and input'),
           link('Account', 'account', c.username || 'Connect to lichess')]
         if (c.seeking) actions.push(action('Cancel seek', this.cancelSeek, 'Stop looking for an opponent'))
@@ -85,7 +85,7 @@ export class Navigation {
         }
         break
       case 'train':
-        sub = 'Practice seeing the board in depth.'
+        sub = 'Get used to reading pieces and squares in 3D.'
         actions = [link('Puzzles', 'puzzles', 'Choose a theme and difficulty'),
           action('Puzzle rush', () => this.requestStart('rush'), '3 minutes · 3 lives'),
           action('Coordinates', () => this.requestStart('coordinates'), 'Find squares · 30 seconds')]
@@ -148,7 +148,7 @@ export class Navigation {
         break
     }
     this.show({ id: this.stack.map(r => r.key || r.id).join('/'), title: route.title || TITLES[route.id],
-      path: this.stack.slice(0, -1).map(r => r.title || TITLES[r.id]).join(' / ') || 'PARALLAX',
+      path: this.stack.slice(0, -1).map(r => r.title || TITLES[r.id]).join(' / ') || '3D CHESS PRACTICE',
       sub, actions, columns,
       context: `${c.label}${c.timed ? ' · Clock running' : ''}`,
       back: { id: 'back', label: '‹ Back', disabled: this.stack.length < 2, run: () => this.back() },

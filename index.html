@@ -3,8 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Parallax — chess in depth</title>
-<meta name="description" content="Parallax: play lichess and train 3D board vision in VR.">
+<title>3D Chess Practice — board vision for online players</title>
+<meta name="description" content="A free 3D board vision practice tool for online chess players who find real boards harder to read. Puzzles, square drills and a free board. No account or headset needed.">
+<link rel="canonical" href="https://chess.janasven.de/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="3D Chess Practice">
+<meta property="og:description" content="Comfortable online, but a real board feels unfamiliar? Practice reading chess positions in 3D. Free in your browser, with optional VR.">
+<meta property="og:url" content="https://chess.janasven.de/">
+<meta property="og:image" content="https://chess.janasven.de/assets/brand/preview.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="3D Chess Practice showing a chessboard from a seated perspective">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="assets/brand/mark.svg" type="image/svg+xml">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0F1218">
@@ -31,8 +41,10 @@
   }
   .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 4px }
   .brand img { width: 40px; height: 40px }
-  .brand h1 { margin: 0; font: 700 22px var(--display); letter-spacing: .15em }
-  .tagline { margin: 0 0 18px; color: var(--mist); font-size: 12px; letter-spacing: .2em; text-transform: uppercase }
+  .brand h1 { margin: 0; font: 700 24px/1.1 var(--display); letter-spacing: -.02em }
+  .tagline { margin: 14px 0 6px; font-size: 15px; font-weight: 600 }
+  .intro { margin: 0 0 14px; color: var(--mist); font-size: 13px }
+  .practice-note { margin: 8px 0; color: var(--mist); font-size: 12px }
   h2 { margin: 18px 0 8px; font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--mist) }
   .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0 }
   input, select, button {
@@ -54,13 +66,14 @@
   #msg { margin-top: 14px; padding: 10px 12px; min-height: 40px; border-radius: var(--r-btn);
     background: var(--ink); color: var(--ivory); font-size: 13px }
   .hint { color: var(--mist); font-size: 12px; margin: 6px 0 0 }
-  /* launch screen (headsets): brand + one big Enter VR */
+  /* Headset launch: the purpose of the tool, then Enter VR. */
   #launch {
     position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; align-items: center;
     justify-content: center; gap: 28px; background: radial-gradient(ellipse at center, rgba(15,18,24,.72), rgba(15,18,24,.96));
   }
   #launch[hidden], #ui[hidden], [hidden] { display: none }
   #launch img { width: min(520px, 80vw) }
+  #launch p { max-width: 440px; margin: 0 24px; text-align: center; color: var(--mist); font-size: 16px }
   #launch .big { font-size: 20px; padding: 18px 48px; border-radius: 999px; letter-spacing: .06em }
   #launch .link { background: none; color: var(--mist) }
   #launch .link:hover { color: var(--ivory) }
@@ -81,31 +94,85 @@
 </head>
 <body>
 <div id="launch" hidden>
-  <img src="assets/brand/wordmark.svg" alt="Parallax — chess in depth">
+  <img src="assets/brand/wordmark.svg" alt="3D Chess Practice — read a real chessboard">
+  <p>For online chess players who find real boards harder to read. Practice puzzles and squares from a seated view.</p>
   <button id="enter" class="primary big">Enter VR</button>
-  <button id="setup" class="link">Account &amp; settings</button>
+  <button id="setup" class="link">Practice without VR</button>
 </div>
 <div id="ui">
-  <div class="brand"><img src="assets/brand/mark.svg" alt=""><h1>PARALLAX</h1></div>
-  <p class="tagline">Chess in depth</p>
+  <div class="brand"><img src="assets/brand/mark.svg" alt=""><h1>3D Chess Practice</h1></div>
+  <p class="tagline">Get comfortable reading a real board.</p>
+  <p class="intro">A 3D board vision practice tool for online chess players who find physical boards harder to read.</p>
 
   <button id="enterSide" class="primary" hidden>Enter VR</button>
+
+  <h2>Start practicing</h2>
+  <p class="practice-note">Free. No account or headset needed.</p>
+  <div class="row">
+    <button id="puzzle" class="primary">Practice puzzles</button>
+    <select id="pdiff" aria-label="Puzzle difficulty">
+      <option value="easiest">Easiest</option><option value="easier">Easier</option>
+      <option value="normal" selected>Normal</option><option value="harder">Harder</option>
+      <option value="hardest">Hardest</option>
+    </select>
+    <select id="ptheme" aria-label="Puzzle theme">
+      <option value="mix">Mixed themes</option><option value="mateIn1">Mate in 1</option><option value="mateIn2">Mate in 2</option>
+      <option value="mateIn3">Mate in 3</option><option value="fork">Forks</option><option value="pin">Pins</option>
+      <option value="skewer">Skewers</option><option value="endgame">Endgames</option><option value="opening">Openings</option>
+    </select>
+  </div>
+  <div class="row">
+    <button id="coords">Find squares</button>
+    <button id="rush">Puzzle rush</button>
+    <button id="freeBoard">Free board</button>
+  </div>
+  <p class="hint">Read the position from the player's seat. Drag to change your view; click a piece, then its destination.</p>
+
+  <div id="msg" role="status">Loading board…</div>
+
+  <h2>Board &amp; scene</h2>
+  <div class="row">
+    <select id="scene" aria-label="Scene">
+      <option value="study">Study</option><option value="sunset">Sunset</option>
+      <option value="night">Night</option><option value="minimal">Minimal</option>
+    </select>
+    <select id="boardTheme" aria-label="Board theme">
+      <option value="walnut">Walnut board</option><option value="green">Green board</option><option value="ice">Ice board</option>
+      <option value="marble">Marble board</option><option value="midnight">Midnight board</option>
+    </select>
+    <select id="pieceTheme" aria-label="Piece set">
+      <option value="antique">Antique pieces</option><option value="ivory">Ivory pieces</option><option value="classic">Classic pieces</option><option value="gold">Gold &amp; silver</option>
+      <option value="maple">Maple pieces</option><option value="neon">Neon pieces</option>
+    </select>
+  </div>
+
+  <details>
+    <summary>VR hand controls</summary>
+    <div class="row">
+      <select id="handmode" aria-label="Hand interaction">
+        <option value="ray" selected>Point &amp; pinch</option>
+        <option value="grab">Grab pieces</option>
+      </select>
+    </div>
+    <p class="hint">In VR, use Menu beside the board for Practice, Play and Settings. Back goes up one level; Return takes you straight to your activity.</p>
+  </details>
+
   <div id="auth">
-    <h2>Lichess account</h2>
-    <button id="login" class="primary">Log in with lichess</button>
-    <p class="hint">Training works without an account.</p>
+    <h2>Optional: play a game</h2>
+    <p class="hint">Connect Lichess to play Stockfish, Maia or another player on this board.</p>
+    <div class="row"><button id="login">Log in with Lichess</button></div>
     <details>
       <summary>Use an API token instead</summary>
       <input id="token" type="password" placeholder="Paste your lichess API token" autocomplete="off">
       <div class="row">
         <button id="connect">Connect</button>
-        <small><a href="https://lichess.org/account/oauth/token/create?scopes[]=board:play&scopes[]=challenge:write&description=Parallax" target="_blank">Create a token</a></small>
+        <small><a href="https://lichess.org/account/oauth/token/create?scopes[]=board:play&scopes[]=challenge:write&description=3D%20Chess%20Practice" target="_blank" rel="noopener">Create a token</a></small>
       </div>
     </details>
   </div>
 
   <div id="play" style="display:none">
-    <h2>Play</h2>
+    <h2>Play on this board</h2>
     <div class="row">
       <label><input id="time" type="number" value="10" min="3"> min</label>
       <label>+ <input id="inc" type="number" value="5" min="0"> s</label>
@@ -129,52 +196,7 @@
     </div>
   </div>
 
-  <h2>Train</h2>
-  <div class="row">
-    <button id="puzzle">Puzzles</button>
-    <select id="pdiff">
-      <option value="easiest">Easiest</option><option value="easier">Easier</option>
-      <option value="normal" selected>Normal</option><option value="harder">Harder</option>
-      <option value="hardest">Hardest</option>
-    </select>
-    <select id="ptheme">
-      <option value="mix">Mixed themes</option><option value="mateIn1">Mate in 1</option><option value="mateIn2">Mate in 2</option>
-      <option value="mateIn3">Mate in 3</option><option value="fork">Forks</option><option value="pin">Pins</option>
-      <option value="skewer">Skewers</option><option value="endgame">Endgames</option><option value="opening">Openings</option>
-    </select>
-  </div>
-  <div class="row">
-    <button id="rush">Puzzle rush</button>
-    <button id="coords">Coordinates</button>
-  </div>
-
-  <h2>Look</h2>
-  <div class="row">
-    <select id="scene" title="Scene">
-      <option value="study">Study</option><option value="sunset">Sunset</option>
-      <option value="night">Night</option><option value="minimal">Minimal</option>
-    </select>
-    <select id="boardTheme" title="Board">
-      <option value="walnut">Walnut board</option><option value="green">Green board</option><option value="ice">Ice board</option>
-      <option value="marble">Marble board</option><option value="midnight">Midnight board</option>
-    </select>
-    <select id="pieceTheme" title="Pieces">
-      <option value="antique">Antique pieces</option><option value="ivory">Ivory pieces</option><option value="classic">Classic pieces</option><option value="gold">Gold &amp; silver</option>
-      <option value="maple">Maple pieces</option><option value="neon">Neon pieces</option>
-    </select>
-  </div>
-
-  <h2>Hands</h2>
-  <div class="row">
-    <select id="handmode">
-      <option value="ray" selected>Point &amp; pinch</option>
-      <option value="grab">Grab pieces</option>
-    </select>
-  </div>
-
-  <div id="msg">Loading…</div>
-  <p class="hint">In VR, open <b>Menu</b> beside the board for Play, Train and Settings. Back goes up one level; Return takes you straight to your activity.
-    VR needs https or localhost (see README).</p>
+  <p class="hint">A small, free practice project. Puzzles come from Lichess; your practice results stay in this browser.</p>
 </div>
 <script type="module" src="src/main.js"></script>
 </body>

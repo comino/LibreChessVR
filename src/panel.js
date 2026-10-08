@@ -96,12 +96,10 @@ export class StatusPanel {
       this._text(s.text, COLOR.ivory, `600 28px ${FONT.ui}`, 256, 190)
       this._text(s.sub, COLOR.mist, `500 20px ${FONT.ui}`, 256, 226)
     } else if (s?.brand || !s) {
-      drawMark(ctx, 150, 34, 64)
+      drawMark(ctx, 56, 34, 64)
       ctx.textAlign = 'left'
-      ctx.letterSpacing = '5px'
-      this._text('PARALLAX', COLOR.ivory, `700 34px ${FONT.display}`, 230, 72)
-      ctx.letterSpacing = '3px'
-      this._text('CHESS IN DEPTH', COLOR.mist, `500 13px ${FONT.ui}`, 232, 94)
+      this._text('3D Chess Practice', COLOR.ivory, `700 32px ${FONT.display}`, 140, 68)
+      this._text('Read a real chessboard', COLOR.mist, `500 18px ${FONT.ui}`, 142, 94)
       ctx.letterSpacing = '0px'
       ctx.textAlign = 'center'
       this._text(s?.text, COLOR.ivory, `600 26px ${FONT.ui}`, 256, 170)

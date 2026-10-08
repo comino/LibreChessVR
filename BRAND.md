@@ -1,14 +1,20 @@
-# Parallax — brand & design guide
+# 3D Chess Practice — writing and visual guide
 
-**Parallax** · *Chess in depth.*
-A VR chess client for lichess that trains the one thing flat screens can't: seeing the board in
-three dimensions. Every surface — repo, 2D page, headset UI — follows this guide. Design tokens
+**3D Chess Practice** · *Get comfortable reading a real board.*
+A free 3D board vision practice tool for people who learned chess online and find physical
+boards harder to read. Puzzles, square drills and a free board are the main activities;
+VR and Lichess games are optional. This is a small practice project. Describe its purpose
+plainly, without a sales pitch or promises of rating gains. Design tokens
 live in one place: `src/theme.js` (3D + canvas UI) mirrored as CSS variables in `index.html`.
 
 ## Name & voice
 
-- Product name: **Parallax** (wordmark in caps: PARALLAX). Never "ChessVR" in user-facing text.
-- Tagline: *Chess in depth.*
+- Name: **3D Chess Practice**, in title case. The compact installed-app label is **3D Chess**.
+- Main explanation: *Get comfortable reading a real board.* Short version: *Read a real chessboard.*
+- Say who it helps: online players who find real boards unfamiliar. Lead with practice;
+  make clear that no account or headset is needed. Lichess login is only for playing games.
+- Describe exercises and intent, not proven improvements in OTB performance. No growth,
+  subscription, premium or launch-hype language.
 - Voice: calm, precise, a good coach. Short sentences, chess vocabulary, no exclamation spam.
   "Your move", "Premove Nf3", "Rush over — 12 solved". Errors say what happened and what to do:
   "Seeks need rapid or slower (10+0, 5+5). Blitz works vs Stockfish."
@@ -20,8 +26,9 @@ live in one place: `src/theme.js` (3D + canvas UI) mirrored as CSS variables in 
 ## Logo
 
 `assets/brand/mark.svg` — a 2×2 board square with a brass frame offset up-right: the same square
-seen from a second viewpoint. `assets/brand/wordmark.svg` — mark + PARALLAX + tagline.
+seen from a second viewpoint. `assets/brand/wordmark.svg` — mark + name + short explanation.
 Keep the mark on Ink; minimum size 16 px; don't recolor the frame.
+`assets/brand/preview.png` is the 1200×630 sharing image, made from the practice board.
 
 ## Color
 
@@ -46,7 +53,7 @@ selection (brass) + targets (moss) < hover (brightens whatever is below).
 
 ## Type
 
-- Display / wordmark: **Space Grotesk** 700, tracking +0.15em, caps.
+- Display / wordmark: **Space Grotesk** 700, title case, normal or slightly tight tracking.
 - UI and body: **Inter** 400/500/600. Clocks: **JetBrains Mono** 600 (tabular digits).
 - Fallbacks: system-ui / monospace. Canvas UI (panel, button bar) redraws once fonts load.
 

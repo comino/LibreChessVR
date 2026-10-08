@@ -347,6 +347,7 @@ $('maiaBtn').onclick = () => navigation.requestStart('maia')
 $('puzzle').onclick = () => navigation.requestStart('puzzles')
 $('coords').onclick = () => navigation.requestStart('coordinates')
 $('rush').onclick = () => navigation.requestStart('rush')
+$('freeBoard').onclick = () => navigation.requestStart('free')
 // Resign asks twice here too (3 s window), like the in-VR button.
 let resignArmed = 0
 $('resign').onclick = () => {
@@ -396,5 +397,5 @@ finishLogin().then(token => {
   if (t) {
     $('token').value = t
     connect(t)
-  } else msg('Log in with lichess to play — training works without an account')
+  } else msg('Ready to practice. Try a puzzle, find squares, or explore the free board.')
 }).catch(e => msg(e.message))

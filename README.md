@@ -1,87 +1,66 @@
-<p align="center"><img src="assets/brand/wordmark.svg" width="420" alt="Parallax — chess in depth"></p>
+<p align="center"><img src="assets/brand/wordmark.svg" width="420" alt="3D Chess Practice — read a real chessboard"></p>
 
-<p align="center"><b>Play lichess in VR and train the one thing flat screens can't: seeing the board in depth.</b><br>
-Meta Quest · any WebXR browser · your real lichess account · no install, no build, no backend</p>
+**A free 3D board vision practice tool for online chess players who find physical boards harder to read.**
 
-![Parallax — a game against Maia in the Study](docs/img/game.jpg)
+If you are used to a flat online board, reading the same position from a player's seat can
+feel unfamiliar. This small project gives you a 3D board to practice on: solve puzzles,
+find squares, or move pieces around. It works in a desktop browser and optionally in VR.
 
-## Why
+[**Start practicing at chess.janasven.de**](https://chess.janasven.de/)
 
-Most of us learned chess on a 2D diagram. Over a real board — or in VR — the same position
-suddenly looks different. Parallax puts a tournament-size board on a table in front of you and
-gives you everything you need to get fluent in 3D: real games, puzzles, drills and blindfold
-training, all without taking the headset off.
+No account, installation or headset is needed for practice. A Lichess account is only needed
+if you want to play games against Stockfish, Maia or another person.
 
-## Features
+![The practice board and menu](docs/img/practice.png)
 
-**Play**
-- **Your lichess account** — Stockfish (levels 1–8), the human-like **Maia** bots (1/5/9) or a
-  seek against people. Resumes an ongoing game on load; survives headset sleep and network blips.
-- **Premoves**, draw offers, answering takeback requests, abort/resign (resign asks twice), claim the win when
-  your opponent leaves, **Rematch** and a **Review** of the finished game on the board.
-- **Promotion picker** — Q/R/B/N float over the last rank; underpromote in one pinch.
+## Try it
 
-**Train**
-- **Puzzles** from lichess with themes (mate in 1/2/3, forks, pins, skewers, endgames,
-  openings), difficulty, hints and a streak counter.
-- **Puzzle rush** — 3 minutes, 3 lives, rising difficulty.
-- **Coordinates** — a square name appears, point at it; rounds alternate white's and black's view.
-- **Blindfold** — ghost or hidden pieces with a 2-second "Show pieces", plus spoken moves.
-- **Flip board** — look at your own game from the opponent's side.
-- **Move list** beside the board, following the game and post-game review; a **free board** to
-  move both sides (Undo / Reset), with history preserved while browsing menus.
+1. Open [3D Chess Practice](https://chess.janasven.de/).
+2. Choose **Practice puzzles**, **Find squares**, or **Free board**.
+3. Read the position from the player's seat. Drag to change the view; click a piece and then
+   its destination. You can change the board, pieces and scene.
+4. On a compatible headset, choose **Enter VR** to sit at the board. Point with a controller,
+   point and pinch with your hands, or pick pieces up directly.
 
-**Feel**
-- Living scenes — a cozy **Study** in an old European house: antique furniture, a crackling fire,
-  ticking clock and dust in the window light; a warm Mediterranean **Sunset** terrace with a day
-  bed, brass lanterns and olive trees under drifting clouds; a **Night** campsite with a crackling fire pit, aurora,
-  shooting stars and fireflies; or **Minimal**. Each keeps the board the clearest thing in view.
-- **Themes** — boards: walnut, green, ice, marble, midnight; piece sets: antique (scanned wood), ivory, classic, gold &
-  silver, maple, neon. Pieces reflect the scene around them.
-- Board size 80–150 %, table height by thumbstick or buttons, wooden move sounds, haptics,
-  and an FPS readout for tuning (Settings → Advanced).
-- Controllers (point + trigger), hand tracking (point & pinch from afar, or just pinch a piece to pick it up), fingertip-poke
-  buttons, or mouse on desktop.
+In VR, **Menu** opens Practice, Free board, Play and Settings. **Back** goes up one level;
+**Return** takes you back to the same activity and position. Timed games and drills keep
+running while you browse settings.
 
-| | | |
-|---|---|---|
-| ![Sunset puzzle](docs/img/sunset.jpg) | ![Night rush](docs/img/night.jpg) | ![Blindfold ghost pieces](docs/img/ghost.jpg) |
-| Puzzles at sunset | Puzzle rush at night | Blindfold: ghost pieces |
+## Practice modes
 
-## Install on the Quest (app)
+- **Puzzles:** Lichess puzzles on a 3D board, with difficulty, themes, hints and a streak counter.
+- **Find squares:** 30-second coordinate drills from both White's and Black's perspective.
+- **Free board:** move both sides, Undo and Reset. Menu navigation preserves your move history.
+- **Puzzle rush:** three minutes and three lives, with difficulty increasing as you solve.
+- **Blindfold practice:** ghost or hide pieces, reveal them briefly, and optionally hear moves.
+  These controls are under Practice → Puzzles → Piece visibility and Settings → Input & audio.
 
-Parallax runs as a Quest app: it sits in your Library, launches into its own window and offers
-VR right away. Open **chess.janasven.de** in the Quest Browser (it forwards to the app at
-https://parallax.46-224-133-201.sslip.io) and choose *Install app*.
+## Optional games and VR
 
-1. Headset in developer mode, connected by USB (or wireless adb).
-2. `adb install -r android/app-release-signed.apk` (build it with `android/build.sh`).
-3. Library → Unknown Sources → **Parallax**. Log in with lichess once; the app remembers you.
+Connect Lichess to play Stockfish, the Maia bots or another player on the same 3D board.
+Games support premoves, draw and takeback responses, promotion, rematches and post-game review.
+Seeks against humans require rapid or slower; blitz works for direct engine challenges.
 
-Or skip the APK: open the URL in the Quest Browser and use *Install app* from the menu.
+In VR you can adjust table height and board size, switch between hand and controller input,
+and use the same settings without leaving a game. Scenes include Study, Sunset, Night and
+Minimal. Appearance changes are previews on the board, with visible setting choices.
 
-## Run it yourself
+On Quest, open [chess.janasven.de](https://chess.janasven.de/) in the browser. You can also use
+*Install app*. The optional Android wrapper can be built with `android/build.sh` and installed
+with `adb install -r android/app-release-signed.apk`.
 
-1. **Serve the folder** (any static server): `python3 -m http.server 8123`
-2. **On the Quest** — WebXR needs a secure origin:
-   - dev mode: `adb reverse tcp:8123 tcp:8123`, then open `http://localhost:8123` in the Quest browser;
-   - or host the folder on any HTTPS server.
-3. **Log in with lichess** (optional for training) — one click, no token to copy (or paste an
-   API token with `board:play` + `challenge:write` under *Use an API token instead*).
-   The login stays in your browser.
-4. **Enter VR.** Open **Menu** beside the board: **Play**, **Train**, **Free board**, or **Settings**.
-   **Back** goes up one level; **Return to your activity** takes you straight back without
-   losing your position or progress. Menus work during games and timed drills; clocks keep running.
-   Appearance, Comfort, Input & audio, and Advanced settings stay available while you play.
+## Data
 
-![The 2D page doubles as setup and desktop view](docs/img/landing.jpg)
+Practice needs no login. Puzzles are fetched anonymously from Lichess. Puzzle results and
+practice records stay in your browser and are not sent to your Lichess account. If you connect
+Lichess for games, the login token stays in your browser.
 
-## Good to know
+## Run locally
 
-- Seeks against humans must be rapid or slower (minutes + ⅔ × increment ≥ 8); blitz works
-  against Stockfish and Maia. Bullet isn't available to third-party boards on lichess.
-- Puzzle results aren't recorded to your lichess account.
-- Supported variants: standard and from-position.
+1. Serve this folder: `python3 -m http.server 8123`.
+2. Open `http://localhost:8123` in your browser.
+3. WebXR requires HTTPS or localhost. For a Quest in developer mode, use
+   `adb reverse tcp:8123 tcp:8123`, then visit `http://localhost:8123` on the headset.
 
 ## Development
 

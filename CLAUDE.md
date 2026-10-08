@@ -1,7 +1,8 @@
-# CLAUDE.md — Parallax
+# CLAUDE.md — 3D Chess Practice
 
-**Parallax** (*chess in depth*) — VR chess client for lichess (WebXR, Meta Quest). Goal: train
-3D board vision for a player who normally plays 2D. Static web app, no build step, no backend,
+**3D Chess Practice** — free 3D board vision practice for online players who find physical
+boards harder to read. Browser first, optional WebXR / Meta Quest, optional Lichess games.
+Static web app, no build step, no backend,
 no npm. GitHub: `comino/parallax` (local folder still `chessvr/`).
 
 ## Design system (read before touching any UI)
@@ -9,7 +10,9 @@ no npm. GitHub: `comino/parallax` (local folder still `chessvr/`).
 `BRAND.md` is the design guide (name, voice, colors, type, shapes, scenes). All colors and
 fonts come from `src/theme.js` (3D + canvas UI) and its mirror of CSS variables in `index.html`.
 Never hardcode a color: add a token. Button labels: 1–2 words, sentence case; values as
-"Name value". The product name is Parallax everywhere users can see it.
+"Name value". The visible name is 3D Chess Practice. Lead with practice, not account creation.
+Compatibility identifiers (OAuth client, Android package, storage/cache keys and the debug
+handle `window.parallax`) remain unchanged; they are not the public name.
 
 ## Stack
 
@@ -36,10 +39,10 @@ Never hardcode a color: add a token. Button labels: 1–2 words, sentence case; 
 | `src/environments.js` | Scene registry (`buildEnvironment`, `disposeGroup`) + minimal. |
 | `src/scenes/` | One file per scene (`study`, `sunset`, `night`) + `common.js` helpers (seeded `rng`, canvas textures, `glow` sprites, `instanced`, `points`, `fire` (flames + sparks), `pineGeometry`/`cypressGeometry`, `mergeStatic`, `props`). Builders may return `update(t, dt, {lamp})` — called every frame by the board for scene life. |
 | `src/settings.js` | Pure shared lists of setting values and the unit-tested `cycle()` helper. |
-| `src/navigation.js` | `Navigation`: route stack and page models independent of the activity; visible choices, Back, Return, and confirmation when replacing unfinished work. Play/Train own their setup; Settings has Appearance, Comfort, Input & audio, Advanced. |
+| `src/navigation.js` | `Navigation`: route stack and page models independent of the activity; visible choices, Back, Return, and confirmation when replacing unfinished work. Play/Practice own their setup; Settings has Appearance, Comfort, Input & audio, Advanced. |
 | `src/main.js` | 2D page + activity lifecycle, navigation adapters, settings persistence, event stream and resume. `view` only holds a game/training activity; opening a menu never stops or rebinds it. `window.parallax` exposes `board` and `navigation` for debugging. |
 | `src/theme.js` | Design tokens: `COLOR`, `TINT` (+`TINT_MIX`), `BOARD`, `PIECES`, `FONT`. |
-| `assets/brand/` | Logo mark + wordmark SVGs. `docs/img/` = README screenshots. |
+| `assets/brand/` | Logo mark + wordmark SVGs, app icons and sharing preview. `docs/img/` = README screenshots. |
 | `assets/props/` | Scanned CC0 scene furniture (Poly Haven), one GLB per model, built by `tools/build-props.mjs <id[@256]>…` (joins meshes per material, 512 px WebP). Watch the real triangle count it prints: the site's listed polycount can be wrong (`wooden_candlestick` = 213k). |
 | `assets/pieces.glb` | Scanned piece set (Poly Haven `chess_set`, CC0, Riley Queen): nodes `piece_<type>_<white|black>`, PBR textures as 512 px webp. Rebuild with `tools/build-pieces.mjs` (usage in its header). |
 
@@ -118,7 +121,7 @@ Never hardcode a color: add a token. Button labels: 1–2 words, sentence case; 
   `textured` sets (antique, the default) also use its color/roughness/metal maps.
   `setBoardTheme` sets `tile.userData.base` (tints lerp from it) + a per-square offset of one
   shared grain texture (wood/marble/fine); `setPieceTheme` recolors `pieceMat`+`solidMat` in place.
-  Settings → Appearance (scene, board, piece set); Comfort (table, size, orientation); Input & audio; Advanced (FPS, resolution). Train → Puzzles includes piece visibility for blindfold training.
+  Settings → Appearance (scene, board, piece set); Comfort (table, size, orientation); Input & audio; Advanced (FPS, resolution). Practice → Puzzles includes piece visibility for blindfold training.
 - Reflections: `_captureEnv()` renders the scene once into a PMREM env map at each scene switch
   (board/UI hidden during capture) — never per frame.
 - Piece surface detail: `PIECE_DETAIL` shader chunks via `onBeforeCompile` on the 4 piece
@@ -212,8 +215,10 @@ the textured GLB. Visual changes: screenshot headless Chrome (`--use-angle=swift
 - Hosted on fred: `deploy/deploy.sh` → `/opt/parallax/web`, Caddy site in
   `deploy/Caddyfile.parallax` (appended to `/etc/caddy/Caddyfile`; backups `Caddyfile.bak-parallax-*`).
   URL https://parallax.46-224-133-201.sslip.io. Bump `CACHE` in `sw.js` on each ship.
-- Short address **chess.janasven.de**: nginx 301 on janasven (`/etc/nginx/sites-available/chess`,
-  certbot TLS; `*.janasven.de` wildcard at netcup) → the fred URL. The app's origin stays fred.
+- Public address **https://chess.janasven.de**: nginx on janasven proxies HTTPS to fred
+  (`/etc/nginx/sites-available/chess`; checked-in config `deploy/nginx-chess.conf`). Visitors
+  stay on the public address. The old fred origin still serves installed wrappers and links.
+  Storage is origin-specific; an existing user may need to log in again on the public address.
 - Caching: Caddy sends `Cache-Control: no-cache` on every file (revalidate → 304s); `sw.js` is
   network-first for app files (cache only offline) and cache-first for versioned CDN modules.
   Never go back to stale-while-revalidate for app modules: it mixed old and new ES modules
