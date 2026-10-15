@@ -76,6 +76,7 @@ try {
   localStorage.setItem('environment', 'minimal')
   await import('/src/main.js')
   const { board, navigation } = window.parallax, $ = id => document.getElementById(id)
+  check(board.knightFacing === 'right' && $('knightFacing').value === 'right', 'sideways knights are the default in the app and desktop control')
   const surface = () => board.menuOpen ? board.menuPanel : board.bar
   const labels = () => surface().buttons.map(b => b.label).join()
   const press = label => {
@@ -208,6 +209,13 @@ try {
   check(board.boardTheme === 'green' && board.pieceTheme === 'ivory' && $('boardTheme').value === 'green', 'appearance shared with desktop')
   $('pieceTheme').value = 'neon'; $('pieceTheme').dispatchEvent(new Event('change'))
   check(board.pieceTheme === 'neon' && board.menuPanel.page.actions.find(b => b.label === 'Piece set').detail === 'Neon', 'desktop changes reflected in menu')
+  const facingFen = board.fen
+  press('Knight facing'); press('Forward'); back()
+  check(board.knightFacing === 'forward' && $('knightFacing').value === 'forward' && localStorage.getItem('knightFacing') === 'forward',
+    'VR knight preference applies, persists and updates desktop')
+  $('knightFacing').value = 'right'; $('knightFacing').dispatchEvent(new Event('change'))
+  check(board.knightFacing === 'right' && board.menuPanel.page.actions.find(b => b.label === 'Knight facing').detail === 'Right'
+    && localStorage.getItem('knightFacing') === 'right' && board.fen === facingFen, 'desktop knight preference updates menu without changing position')
   $('freeBoard').click()
   check(!board.menuOpen && !board.onSquarePick && board.bar.title === 'Free board', 'free board explicit after finished training')
   press('Reset board'); press('Reset board')

@@ -59,6 +59,9 @@ Seeks against humans require rapid or slower; blitz works for direct engine chal
 In VR you can adjust table height and board size, switch between hand and controller input,
 and use the same settings without leaving a game. Scenes include Study, Sunset, Night and
 Minimal. Appearance changes are previews on the board, with visible setting choices.
+Knights show their side profile by default. **Settings → Appearance → Knight facing**
+offers Right, Forward, Left and Backward, from each player's side. The desktop sidebar
+has the same setting, and your choice is remembered.
 
 On Quest, open [librechessvr.com](https://librechessvr.com/) in the browser. You can also use
 *Install app*. The optional Android wrapper can be built with `android/build.sh` and installed

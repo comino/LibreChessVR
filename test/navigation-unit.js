@@ -5,7 +5,7 @@ let page, hidden = 0, starts = []
 let context = { kind: 'puzzles', label: 'Puzzle', progress: true, username: 'me' }
 let settings = { height: 0, scale: 1, environment: 'study', level: 3, time: 10, increment: 5,
   color: 'random', rated: false, maia: 5, pdiff: 'normal', ptheme: 'mix', hands: 'grab',
-  voice: 'off', boardTheme: 'walnut', pieceTheme: 'antique', pieces: 'solid' }
+  voice: 'off', boardTheme: 'walnut', pieceTheme: 'antique', pieces: 'solid', knightFacing: 'right' }
 const nav = new Navigation({
   show: p => { page = p }, hide: () => hidden++, context: () => context,
   get: () => settings, set: p => { Object.assign(settings, p); nav.refresh() },
@@ -41,6 +41,13 @@ assert.equal(page.returnAction.label, 'Return to game')
 context = { ...context, live: false, progress: false, label: 'Game review' }
 nav.refresh()
 assert.equal(page.title, 'Scene', 'activity updates do not replace the menu route')
+page.back.run(); press('Knight facing')
+assert.deepEqual(page.actions.map(a => a.label), ['Right', 'Forward', 'Left', 'Backward'])
+assert.ok(page.actions.find(a => a.label === 'Right').selected)
+press('Forward')
+assert.equal(settings.knightFacing, 'forward')
+assert.ok(page.actions.find(a => a.label === 'Forward').selected)
+assert.deepEqual(starts, ['coordinates'], 'knight appearance never replaces the activity')
 page.returnAction.run()
 nav.open(); press('Play'); press('Stockfish'); press('Level'); press('2')
 assert.equal(settings.level, 2, 'difficulty is selected directly, including decreasing it')

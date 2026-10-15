@@ -28,6 +28,7 @@ async function until(condition, label, timeout = 90000) {
 function fixtures() {
   localStorage.clear()
   localStorage.setItem('environment', 'minimal')
+  localStorage.setItem('knightFacing', 'left')
   const streams = {}, requests = [], original = window.fetch
   const json = data => new Response(JSON.stringify(data), { headers: { 'content-type': 'application/json' } })
   const full = { type: 'gameFull', initialFen: 'startpos', white: { id: 'me', name: 'You' }, black: { aiLevel: 3 },
@@ -66,6 +67,7 @@ try {
   const win = frame.contentWindow, doc = frame.contentDocument, $ = id => doc.getElementById(id)
   ;({ board } = win.parallax)
   const { navigation } = win.parallax
+  check(board.knightFacing === 'left' && $('knightFacing').value === 'left', 'saved knight preference restored in scene and desktop')
   await until(() => board.renderer.info.render.frame > 0, 'first rendered frame')
   board.renderer.setAnimationLoop(null)
   const action = label => [...$('desktopActions').children].find(b => b.dataset.action === label)

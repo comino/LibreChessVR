@@ -14,10 +14,13 @@ import { playCue, buzz } from './feedback.js'
 import { TINT, TINT_MIX, BOARD, BOARD_THEMES, PIECE_THEMES, PIECE_DEFAULTS, PIECES, COLOR, FONT, DETAIL_KINDS } from './theme.js'
 import { canvasTexture, rng, glow, blobTexture, shadowBlob } from './scenes/common.js'
 import { moveToSpeech, speak } from './speech.js'
+import { KNIGHT_FACINGS } from './settings.js'
 
 const SQUARE = 0.06                      // 6cm squares -> 48cm board, tournament-ish size
 const BOARD_POS = new THREE.Vector3(0, 0.73, -0.45)
 const NODE_TYPE = { pawn: 'p', knight: 'n', bishop: 'b', rook: 'r', queen: 'q', king: 'k' }
+// The scans face their own players (+Z white, -Z black); the black turn is baked in.
+const KNIGHT_YAW = { right: Math.PI / 2, forward: Math.PI, left: -Math.PI / 2, backward: 0 }
 const _vA = new THREE.Vector3(), _vB = new THREE.Vector3(), _vC = new THREE.Vector3()
 const _m = new THREE.Matrix4(), _tint = new THREE.Color(), _dummy = new THREE.Object3D(), _ray = new THREE.Ray()
 const BANDS = 12                         // silhouette resolution for picking (height bands)
@@ -67,6 +70,7 @@ export class Board3D {
   boardScale = 1
   shadowsDirty = true
   pieceStyle = 'solid'
+  knightFacing = 'right'
   voice = 'off'              // 'off' | 'opponent' | 'all': spoken moves
   flipped = false
   onHeightChange = null      // (offset) => after a thumbstick height adjustment ends
@@ -293,12 +297,25 @@ export class Board3D {
     proxy.position.y = h / 2
     const group = new THREE.Group()
     group.add(inner, proxy)
-    group.userData.proxy = proxy
+    Object.assign(group.userData, { proxy, type, color })
     group.scale.setScalar(this.pieceScale)
+    this._faceKnight(group)
     return group
   }
 
   // --- public API ---
+
+  _faceKnight(piece) {
+    if (piece.userData.type === 'n') piece.rotation.y = KNIGHT_YAW[this.knightFacing]
+  }
+
+  setKnightFacing(facing) {
+    this.knightFacing = KNIGHT_FACINGS.includes(facing) ? facing : 'right'
+    // Rotate in place: keep selection, grabs and moves, including an open promotion picker.
+    for (const group of [this.piecesGroup, this.capturedGroup, this.picker?.group])
+      group?.traverse(piece => this._faceKnight(piece))
+    this.shadowsDirty = true
+  }
 
   // Captured pieces stand beside the board at the capturer's right hand, 8 per column.
   _showCaptured(fen) {
@@ -623,7 +640,7 @@ export class Board3D {
       const piece = this._makePiece(p.type, p.color)
       const { x, z } = squareToXZ(p.square, SQUARE)
       piece.position.set(x, 0.005, z)
-      Object.assign(piece.userData, { square: p.square, type: p.type, color: p.color })
+      piece.userData.square = p.square
       piece.userData.proxy.userData.square = p.square
       this.pieceAt[p.square] = piece
       this.piecesGroup.add(piece)

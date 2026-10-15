@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Knights show their side profile by default. Choose Right, Forward, Left or Backward
+  under Appearance or in the desktop sidebar; the preference is saved. Directions follow
+  each player's side, including captured pieces and promoted knights. Fixes #2.
+
 ## 0.1.0-beta.1 — 2026-10-15
 
 First public beta of LibreChessVR: free 3D board vision practice, with optional

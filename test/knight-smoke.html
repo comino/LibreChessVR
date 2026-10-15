@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<base href="/">
+<title>LibreChessVR knight facing test</title>
+<style>body { margin: 0 }</style>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/","chess.js":"https://cdn.jsdelivr.net/npm/chess.js@1.0.0/+esm"}}
+</script>
+</head>
+<body>
+<pre id="result"></pre>
+<script type="module">
+import * as THREE from 'three'
+import { Chess } from 'chess.js'
+import { Board3D } from './src/board3d.js'
+import { bindBoard } from './src/bind.js'
+import { FreeBoard } from './src/free.js'
+import { squareToXZ } from './src/coords.js'
+const check = (condition, label) => { if (!condition) throw new Error(label) }
+let board
+try {
+  board = new Board3D()
+  await board.init()
+  board.renderer.setAnimationLoop(null)
+  const free = new FreeBoard(board, () => {})
+  board.setPosition(new Chess().fen())
+  free.attach()
+
+  // Read the actual scanned muzzle relative to its base. This catches baked-in
+  // color transforms as well as instance rotations; both assets originally faced home.
+  const facing = piece => {
+    piece.updateWorldMatrix(true, true)
+    const origin = piece.getWorldPosition(new THREE.Vector3())
+    const height = board.pieceH.n * piece.getWorldScale(new THREE.Vector3()).y
+    const base = new THREE.Vector3(), nose = new THREE.Vector3()
+    let bases = 0, noses = 0
+    piece.children[0].traverse(mesh => {
+      const points = mesh.isMesh && mesh.geometry.attributes.position
+      for (let i = 0; points && i < points.count; i++) {
+        const p = new THREE.Vector3().fromBufferAttribute(points, i).applyMatrix4(mesh.matrixWorld)
+        const y = (p.y - origin.y) / height
+        if (y < 0.1) { base.add(p); bases++ }
+        if (y >= 0.5 && y < 0.7) { nose.add(p); noses++ }
+      }
+    })
+    check(bases && noses, 'scanned knight has base and muzzle vertices')
+    return nose.divideScalar(noses).sub(base.divideScalar(bases)).setY(0).normalize()
+  }
+  const faces = (piece, x, z, label) => check(facing(piece).dot(new THREE.Vector3(x, 0, z)) > 0.99, label)
+  faces(board.pieceAt.b1, 1, 0, 'default white knight shows its side profile, facing player’s right')
+  faces(board.pieceAt.b8, -1, 0, 'default black knight faces black player’s right')
+  check(board.knightFacing === 'right', 'default setting is right')
+
+  for (const [choice, x, z] of [['right', 1, 0], ['forward', 0, -1], ['left', -1, 0], ['backward', 0, 1]]) {
+    board.setKnightFacing(choice)
+    for (const side of ['white', 'black']) for (const flipped of [false, true]) {
+      board.setOrientation(side); board.setFlipped(flipped)
+      const sign = board.viewSide() === 'white' ? 1 : -1
+      for (const square of ['b1', 'g1', 'b8', 'g8']) {
+        const piece = board.pieceAt[square], colorSign = piece.userData.color === 'w' ? 1 : -1
+        faces(piece, sign * colorSign * x, sign * colorSign * z, `${choice}: ${square} from ${side}, flip ${flipped}`)
+        const origin = piece.getWorldPosition(new THREE.Vector3())
+        board.raycaster.set(origin.clone().add(new THREE.Vector3(0, 0.3, 0)), new THREE.Vector3(0, -1, 0))
+        board.boardGroup.updateMatrixWorld(true)
+        check(board._cast()?.square === square, `${choice}: ray still picks ${square}`)
+      }
+    }
+  }
+  board.setOrientation('white'); board.setFlipped(false)
+  board.setKnightFacing('right')
+  board._select('g1')
+  const selected = board.selected, knight = board.pieceAt.g1, proxy = knight.userData.proxy
+  const position = knight.position.clone(), pawn = board.pieceAt.e2.quaternion.clone(), fen = board.fen
+  board.shadowsDirty = false
+  board.setKnightFacing('forward')
+  check(board.selected === selected && board.fen === fen && board.pieceAt.g1 === knight,
+    'changing facing preserves selection, position and piece instances')
+  check(knight.position.equals(position) && knight.userData.proxy === proxy && board.pieceAt.e2.quaternion.equals(pawn),
+    'changing facing preserves piece centers, shared picking proxies and other pieces')
+  check(board.shadowsDirty, 'orientation refreshes shadows')
+  board._select('f3')
+  check(board.pieceAt.f3?.userData.type === 'n' && board.anim, 'selected knight can move and animate')
+  const animation = board.anim
+  board.setKnightFacing('left')
+  check(board.anim === animation, 'changing facing preserves an active move')
+  animation.t0 -= 1000; board._tick()
+  faces(board.pieceAt.f3, -1, 0, 'moved knight retains facing after animation')
+  board.togglePeek()
+  faces(board.pieceAt.f3, 1, 0, 'temporary board flip rotates the knight with the board')
+  board.togglePeek()
+
+  board.setPosition(new Chess().fen()); free.attach()
+  board.setHandMode('grab'); board.setKnightFacing('forward')
+  const finger = new THREE.Object3D(), thumb = new THREE.Object3D()
+  const hand = { joints: { 'index-finger-tip': finger, 'thumb-tip': thumb } }
+  const handAt = square => {
+    const { x, z } = squareToXZ(square, 0.06)
+    const p = board.boardGroup.localToWorld(new THREE.Vector3(x, 0.05, z))
+    finger.position.copy(p); thumb.position.copy(p)
+  }
+  handAt('b1'); board._grabStart(hand)
+  check(board.pendingGrab, 'rotated knight can be grabbed')
+  board.pendingGrab.t0 -= 1000; board._tick()
+  check(board.grab?.from === 'b1', 'pinch holds the rotated knight')
+  const grab = board.grab
+  board.setKnightFacing('right')
+  check(board.grab === grab, 'changing facing preserves a held knight')
+  handAt('c3'); board._tick(); board._grabEnd(hand)
+  check(free.chess.get('c3')?.type === 'n' && !board.grab, 'grabbed knight completes its legal move')
+  faces(board.pieceAt.c3, 1, 0, 'dropped knight keeps the new facing')
+  board.setHandMode('ray')
+
+  // Captures, both promotion pickers and actual underpromotions share the preference.
+  for (const color of ['w', 'b']) {
+    const chess = new Chess(color === 'w' ? '7k/1P6/8/8/8/8/8/7K w - - 0 1' : '7k/8/8/8/8/8/1p6/7K b - - 0 1')
+    const from = color === 'w' ? 'b7' : 'b2', to = color === 'w' ? 'b8' : 'b1', sign = color === 'w' ? 1 : -1
+    board.setPosition(chess.fen())
+    bindBoard(board, { chess, color: color === 'w' ? 'white' : 'black', active: () => true, tryMove(f, t, promotion) {
+      const move = chess.move({ from: f, to: t, promotion })
+      board.setPosition(chess.fen(), move)
+      return true
+    } })
+    board.setKnightFacing('right')
+    board._select(from); board._select(to)
+    check(board.picker, `${color}: pawn opens promotion picker`)
+    const slot = board.picker.group.children.find(p => p.userData.promo === 'n')
+    const preview = slot.children[1]
+    faces(preview, sign, 0, `${color}: promotion preview inherits facing`)
+    board.setKnightFacing('forward')
+    faces(preview, 0, -sign, `${color}: open promotion preview updates`)
+    for (const captured of board.capturedGroup.children.filter(p => p.userData.type === 'n'))
+      faces(captured, 0, captured.userData.color === 'w' ? -1 : 1, 'captured knight updates in place')
+    const at = preview.getWorldPosition(new THREE.Vector3())
+    board.raycaster.set(at.clone().add(new THREE.Vector3(0, 0.3, 0)), new THREE.Vector3(0, -1, 0))
+    board.boardGroup.updateMatrixWorld(true)
+    check(board._cast()?.promo === 'n', `${color}: rotated promotion preview remains pickable`)
+    board._pick()
+    check(!board.picker && chess.get(to)?.type === 'n', `${color}: ray chooses knight underpromotion`)
+    faces(board.pieceAt[to], 0, -sign, `${color}: promoted knight inherits facing`)
+  }
+  board.setKnightFacing('invalid')
+  check(board.knightFacing === 'right', 'invalid saved setting falls back to sideways')
+  document.getElementById('result').textContent = 'KNIGHT-OK'
+} catch (e) {
+  document.getElementById('result').textContent = 'KNIGHT-FAIL ' + e.message + ' ' + e.stack
+} finally { board?.renderer.setAnimationLoop(null) }
+</script>
+</body>
+</html>

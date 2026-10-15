@@ -9,6 +9,7 @@ export const PIECE_STYLES = ['solid', 'ghost', 'hidden']
 export const VOICES = ['off', 'opponent', 'all']
 export const BOARD_THEME_NAMES = ['walnut', 'green', 'ice', 'marble', 'midnight'] // see theme.js
 export const PIECE_THEME_NAMES = ['antique', 'ivory', 'classic', 'gold', 'maple', 'neon']
+export const KNIGHT_FACINGS = ['right', 'forward', 'left', 'backward'] // relative to each player's side
 export const DIFFICULTIES = ['easiest', 'easier', 'normal', 'harder', 'hardest']
 // lichess puzzle angles -> button label ('mix' = no theme filter)
 export const THEMES = {

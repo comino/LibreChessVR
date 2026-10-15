@@ -50,7 +50,8 @@ const settings = () => ({
   maia: [1, 5, 9].includes(+val('maia')) ? +val('maia') : 5, pdiff: val('pdiff'), ptheme: val('ptheme'),
   height: board.stage.position.y, scale: board.boardScale, flipped: !!board.flipped,
   environment: board.environment, pieces: board.pieceStyle, voice: board.voice, hands: board.handMode,
-  boardTheme: board.boardTheme, pieceTheme: board.pieceTheme, fps: !!board.showFps, resolution: board.resolution
+  boardTheme: board.boardTheme, pieceTheme: board.pieceTheme, knightFacing: board.knightFacing,
+  fps: !!board.showFps, resolution: board.resolution
 })
 const FIELD_OF = { time: 'time', increment: 'inc', color: 'color', rated: 'rated', level: 'ailevel', maia: 'maia', pdiff: 'pdiff', ptheme: 'ptheme' }
 // View settings live on the board and persist in their own localStorage keys.
@@ -62,6 +63,7 @@ const VIEW_SETTERS = {
   hands: h => { $('handmode').value = h; $('handmode').onchange() },
   boardTheme: t => { board.setBoardTheme(t); localStorage.setItem('boardTheme', t) },
   pieceTheme: t => { board.setPieceTheme(t); localStorage.setItem('pieceTheme', t) },
+  knightFacing: f => { board.setKnightFacing(f); localStorage.setItem('knightFacing', board.knightFacing) },
   fps: f => { board.setShowFps(f); localStorage.setItem('showFps', f ? '1' : '') },
   resolution: r => { board.setResolution(r); localStorage.setItem('resolution', r) },
   pieces: p => { board.setPieceStyle(p); localStorage.setItem('pieceStyle', p) },
@@ -317,11 +319,12 @@ board.setPieceStyle(localStorage.getItem('pieceStyle') || 'solid')
 board.voice = localStorage.getItem('voice') || 'off'
 board.setBoardTheme(localStorage.getItem('boardTheme') || 'walnut')
 board.setPieceTheme(localStorage.getItem('pieceTheme') || 'antique')
+board.setKnightFacing(localStorage.getItem('knightFacing'))
 board.setShowFps(!!localStorage.getItem('showFps'))
 board.setResolution(localStorage.getItem('resolution') === 'normal' ? 'normal' : 'native')
 
 // Look dropdowns on the 2D page share the in-VR setters (and their persistence).
-const LOOK = { scene: 'environment', boardTheme: 'boardTheme', pieceTheme: 'pieceTheme' }
+const LOOK = { scene: 'environment', boardTheme: 'boardTheme', pieceTheme: 'pieceTheme', knightFacing: 'knightFacing' }
 function syncLook() {
   const s = settings()
   for (const [id, key] of Object.entries(LOOK)) if ($(id)) $(id).value = s[key]

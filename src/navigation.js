@@ -1,7 +1,7 @@
 // Menu routes are independent of the activity on the board. Opening, going back and
 // returning never stop a session; only an explicit start can replace one.
 import { TIME_PRESETS, COLORS, MAIA_LEVELS, BOARD_SCALES, PIECE_STYLES, VOICES,
-  BOARD_THEME_NAMES, PIECE_THEME_NAMES, DIFFICULTIES, THEMES, ENVIRONMENTS } from './settings.js'
+  BOARD_THEME_NAMES, PIECE_THEME_NAMES, KNIGHT_FACINGS, DIFFICULTIES, THEMES, ENVIRONMENTS } from './settings.js'
 import { isRapid } from './lichess.js'
 
 const name = s => String(s).charAt(0).toUpperCase() + String(s).slice(1)
@@ -104,7 +104,8 @@ export class Navigation {
       case 'appearance':
         sub = 'Preview changes on the board.'
         actions = [field('Scene', 'environment', ENVIRONMENTS), field('Board theme', 'boardTheme', BOARD_THEME_NAMES),
-          field('Piece set', 'pieceTheme', PIECE_THEME_NAMES)]
+          field('Piece set', 'pieceTheme', PIECE_THEME_NAMES),
+          field('Knight facing', 'knightFacing', KNIGHT_FACINGS, name, 'From each player’s side. Right is the default side profile.')]
         break
       case 'comfort': {
         const cm = Math.round(s.height * 100)

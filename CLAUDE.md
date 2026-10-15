@@ -124,7 +124,11 @@ handle `window.parallax`) remain unchanged; they are not the public name.
   `textured` sets (antique, the default) also use its color/roughness/metal maps.
   `setBoardTheme` sets `tile.userData.base` (tints lerp from it) + a per-square offset of one
   shared grain texture (wood/marble/fine); `setPieceTheme` recolors `pieceMat`+`solidMat` in place.
-  Settings → Appearance (scene, board, piece set); Comfort (table, size, orientation); Input & audio; Advanced (FPS, resolution). Practice → Puzzles includes piece visibility for blindfold training.
+  Settings → Appearance (scene, board, piece set, knight facing); Comfort (table, size, orientation); Input & audio; Advanced (FPS, resolution). Practice → Puzzles includes piece visibility for blindfold training.
+- Knight facing is relative to each player: right (side profile, default), forward, left,
+  backward. The scanned white and black knights already face opposite directions, toward
+  their own players; rotate both instances by the same quarter-turn offset. `setKnightFacing`
+  updates existing pieces, captures and promotion previews without rebuilding game state.
 - Reflections: `_captureEnv()` renders the scene once into a PMREM env map at each scene switch
   (board/UI hidden during capture) — never per frame.
 - Piece surface detail: `PIECE_DETAIL` shader chunks via `onBeforeCompile` on the 4 piece
