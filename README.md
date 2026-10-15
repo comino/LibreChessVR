@@ -4,6 +4,9 @@
 
 LibreChessVR is a small open-source practice project, licensed under [MIT](LICENSE).
 
+**Current beta: [v0.1.0-beta.1](https://github.com/comino/LibreChessVR/releases/tag/v0.1.0-beta.1).**
+See the [changelog](CHANGELOG.md) for release details and beta limitations.
+
 If you are used to a flat online board, reading the same position from a player's seat can
 feel unfamiliar. This small project gives you a 3D board to practice on: solve puzzles,
 find squares, or move pieces around. It works in a desktop browser and optionally in VR.
@@ -86,6 +89,10 @@ To host your own copy, serve `index.html`, `manifest.webmanifest`, `sw.js`, `LIC
 `THIRD_PARTY_NOTICES.md`, `src/` and `assets/` on any static HTTPS host. Libraries and fonts
 load from their CDNs; puzzles and optional games use Lichess. The configurations in `deploy/`
 and `android/` describe the maintained instance; use your own host and signing key for a fork.
+
+The [beta release](https://github.com/comino/LibreChessVR/releases/tag/v0.1.0-beta.1)
+also includes a static web ZIP and SHA-256 checksums. Extract the ZIP and serve its
+contents; no build step is needed. See [installation instructions](INSTALL.md).
 
 ## Development
 
