@@ -3,14 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script>
+  // Let pending OAuth returns finish with the verifier stored on the old origin.
+  const loginReturn = new URLSearchParams(location.search)
+  if (location.hostname === 'chess.janasven.de' && !loginReturn.has('code') && !loginReturn.has('error')) {
+    location.replace('https://librechessvr.com' + location.pathname + location.search + location.hash)
+  }
+</script>
 <title>LibreChessVR — board vision for online players</title>
 <meta name="description" content="A free 3D board vision practice tool for online chess players who find real boards harder to read. Puzzles, square drills and a free board. No account or headset needed.">
-<link rel="canonical" href="https://chess.janasven.de/">
+<link rel="canonical" href="https://librechessvr.com/">
 <meta property="og:type" content="website">
 <meta property="og:title" content="LibreChessVR">
 <meta property="og:description" content="Comfortable online, but a real board feels unfamiliar? Practice reading chess positions in 3D. Free in your browser, with optional VR.">
-<meta property="og:url" content="https://chess.janasven.de/">
-<meta property="og:image" content="https://chess.janasven.de/assets/brand/preview.png">
+<meta property="og:url" content="https://librechessvr.com/">
+<meta property="og:image" content="https://librechessvr.com/assets/brand/preview.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="LibreChessVR showing a chessboard from a seated perspective">

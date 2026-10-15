@@ -1,5 +1,6 @@
-# LibreChessVR upstream — /etc/caddy/Caddyfile on fred (auto-HTTPS).
-parallax.46-224-133-201.sslip.io {
+# LibreChessVR — /etc/caddy/Caddyfile on fred (auto-HTTPS).
+# Keep the sslip host available for existing Quest wrappers.
+librechessvr.com, parallax.46-224-133-201.sslip.io {
 	root * /opt/parallax/web
 	encode gzip
 	# every app file revalidates (cheap 304s): a deploy is visible on the next load, never mixed
@@ -7,4 +8,8 @@ parallax.46-224-133-201.sslip.io {
 	header /.well-known/assetlinks.json Content-Type application/json
 	header /manifest.webmanifest Content-Type application/manifest+json
 	file_server
+}
+
+www.librechessvr.com {
+	redir https://librechessvr.com{uri} permanent
 }

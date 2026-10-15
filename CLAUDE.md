@@ -222,10 +222,13 @@ the textured GLB. Visual changes: screenshot headless Chrome (`--use-angle=swift
 - Hosted on fred: `deploy/deploy.sh` → `/opt/parallax/web`, Caddy site in
   `deploy/Caddyfile.parallax` (appended to `/etc/caddy/Caddyfile`; backups `Caddyfile.bak-parallax-*`).
   URL https://parallax.46-224-133-201.sslip.io. Bump `CACHE` in `sw.js` on each ship.
-- Public address **https://chess.janasven.de**: nginx on janasven proxies HTTPS to fred
-  (`/etc/nginx/sites-available/chess`; checked-in config `deploy/nginx-chess.conf`). Visitors
-  stay on the public address. The old fred origin still serves installed wrappers and links.
-  Storage is origin-specific; an existing user may need to log in again on the public address.
+- Public address **https://librechessvr.com**: apex and `www` A/AAAA records point to fred;
+  Caddy serves the app and redirects `www` to the apex. The sslip origin stays available for
+  existing Quest wrappers. Storage is origin-specific: users moving from an earlier address
+  sign in to Lichess again, with separate local settings and practice records.
+- `chess.janasven.de` still proxies to fred (`deploy/nginx-chess.conf`). `index.html`
+  redirects ordinary visits to the new domain, preserving the path, query and fragment.
+  OAuth returns (`code` or `error`) stay on the old origin to finish with its stored verifier.
 - Caching: Caddy sends `Cache-Control: no-cache` on every file (revalidate → 304s); `sw.js` is
   network-first for app files (cache only offline) and cache-first for versioned CDN modules.
   Never go back to stale-while-revalidate for app modules: it mixed old and new ES modules

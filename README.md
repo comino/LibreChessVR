@@ -8,7 +8,7 @@ If you are used to a flat online board, reading the same position from a player'
 feel unfamiliar. This small project gives you a 3D board to practice on: solve puzzles,
 find squares, or move pieces around. It works in a desktop browser and optionally in VR.
 
-[**Start practicing at chess.janasven.de**](https://chess.janasven.de/)
+[**Start practicing at librechessvr.com**](https://librechessvr.com/)
 
 No account, installation or headset is needed for practice. A Lichess account is only needed
 if you want to play games against Stockfish, Maia or another person.
@@ -17,7 +17,7 @@ if you want to play games against Stockfish, Maia or another person.
 
 ## Try it
 
-1. Open [LibreChessVR](https://chess.janasven.de/).
+1. Open [LibreChessVR](https://librechessvr.com/).
 2. Choose **Practice puzzles**, **Find squares**, or **Free board**.
 3. Read the position from the player's seat. Drag to change the view; click a piece and then
    its destination. You can change the board, pieces and scene.
@@ -51,7 +51,7 @@ In VR you can adjust table height and board size, switch between hand and contro
 and use the same settings without leaving a game. Scenes include Study, Sunset, Night and
 Minimal. Appearance changes are previews on the board, with visible setting choices.
 
-On Quest, open [chess.janasven.de](https://chess.janasven.de/) in the browser. You can also use
+On Quest, open [librechessvr.com](https://librechessvr.com/) in the browser. You can also use
 *Install app*. The optional Android wrapper can be built with `android/build.sh` and installed
 with `adb install -r android/app-release-signed.apk`.
 
@@ -60,6 +60,9 @@ with `adb install -r android/app-release-signed.apk`.
 Practice needs no login. Puzzles are fetched anonymously from Lichess. Puzzle results and
 practice records stay in your browser and are not sent to your Lichess account. If you connect
 Lichess for games, the login token stays in your browser.
+
+When moving from an earlier address to librechessvr.com, sign in to Lichess again.
+Browser settings and practice records are stored separately for each address.
 
 ## Run locally
 
