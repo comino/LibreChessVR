@@ -13,7 +13,11 @@ find squares, or move pieces around. It works in a desktop browser and optionall
 No account, installation or headset is needed for practice. A Lichess account is only needed
 if you want to play games against Stockfish, Maia or another person.
 
-![The practice board and menu](docs/img/practice.png)
+## Trailer
+
+https://github.com/user-attachments/assets/623278da-af77-43e4-8354-50ba6d3ac7af
+
+*30 seconds. Your Lichess. In VR. Free, open source, MIT.*
 
 ## Try it
 
@@ -31,6 +35,8 @@ stay visible beside the play area as you rotate or zoom the board.
 In VR, **Menu** opens Practice, Free board, Play and Settings. **Back** goes up one level;
 **Return** takes you back to the same activity and position. Timed games and drills keep
 running while you browse settings.
+
+![The practice board and menu](docs/img/practice.png)
 
 ## Practice modes
 
