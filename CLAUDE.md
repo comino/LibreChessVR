@@ -223,17 +223,21 @@ the textured GLB. Visual changes: screenshot headless Chrome (`--use-angle=swift
 
 ## App packaging & deploy
 
-- Hosted on fred: `deploy/deploy.sh` → `/opt/parallax/web`, Caddy site in
-  `deploy/Caddyfile.parallax` (appended to `/etc/caddy/Caddyfile`; backups `Caddyfile.bak-parallax-*`).
-  URL https://parallax.46-224-133-201.sslip.io. Bump `CACHE` in `sw.js` on each ship.
-- Public address **https://librechessvr.com**: apex and `www` A/AAAA records point to fred;
-  Caddy serves the app and redirects `www` to the apex. The sslip origin stays available for
-  existing Quest wrappers. Storage is origin-specific: users moving from an earlier address
-  sign in to Lichess again, with separate local settings and practice records.
-- `chess.janasven.de` still proxies to fred (`deploy/nginx-chess.conf`). `index.html`
+- Hosted on **Janasven** (SSH alias `janasven`, 157.90.174.133): `deploy/deploy.sh`
+  uploads a complete release under `/var/www/librechessvr/releases` and atomically switches
+  the `current` symlink, retaining earlier releases for rollback. nginx serves `current` via
+  `/etc/nginx/snippets/librechessvr-static.conf`; the site is `/etc/nginx/sites-available/librechessvr`.
+  Bump `CACHE` in `sw.js` on each ship. Verify the public URL after deploying.
+- Public address **https://librechessvr.com**: nginx serves the app and redirects `www` to
+  the apex. Fred's Caddy proxies old-IP requests and the sslip origin to Janasven for existing
+  Quest wrappers. `/opt/parallax/web` on fred is no longer the public document root.
+  The Caddy/nginx examples in `deploy/` predate this hosting move; inspect the active server
+  configuration before changing hosting. Storage is origin-specific: users moving from an
+  earlier address sign in to Lichess again, with separate local settings and practice records.
+- `chess.janasven.de` serves the same release directory on Janasven. `index.html`
   redirects ordinary visits to the new domain, preserving the path, query and fragment.
   OAuth returns (`code` or `error`) stay on the old origin to finish with its stored verifier.
-- Caching: Caddy sends `Cache-Control: no-cache` on every file (revalidate → 304s); `sw.js` is
+- Caching: nginx sends `Cache-Control: no-cache` on every file (revalidate → 304s); `sw.js` is
   network-first for app files (cache only offline) and cache-first for versioned CDN modules.
   Never go back to stale-while-revalidate for app modules: it mixed old and new ES modules
   after a deploy (old settings page inside a new scene).
