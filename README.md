@@ -15,7 +15,7 @@ if you want to play games against Stockfish, Maia or another person.
 
 ## Trailer
 
-https://github.com/user-attachments/assets/623278da-af77-43e4-8354-50ba6d3ac7af
+https://github.com/user-attachments/assets/50765291-0f96-4ddf-828c-3ca078cba171
 
 *30 seconds. Your Lichess. In VR. Free, open source, MIT.*
 
