@@ -3,6 +3,7 @@
 
 import * as THREE from 'three'
 import { COLOR, FONT, PIECE_CSS } from './theme.js'
+import { clockTime, clockState } from './clock.js'
 
 function canvasPlane(w, h, px) {
   const canvas = document.createElement('canvas')
@@ -16,13 +17,6 @@ function canvasPlane(w, h, px) {
 }
 
 const _p = new THREE.Vector3()
-const LOW_TIME = 20000 // ms: clock turns ember
-
-const fmt = ms => {
-  const t = Math.ceil(ms / 1000)
-  return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0')
-}
-
 // Canvas text doesn't trigger web-font downloads: load the brand fonts explicitly, then redraw.
 const fontsReady = globalThis.document?.fonts
   ? Promise.all([`600 30px Inter`, `500 30px Inter`, `700 40px 'Space Grotesk'`, `600 40px 'JetBrains Mono'`]
@@ -78,13 +72,13 @@ export class StatusPanel {
   tick() {
     const s = this.status
     if (!s?.running) return
-    const left = (s.turn === 'w' ? s.wtime : s.btime) - (performance.now() - s.ts)
+    const left = clockTime(s, s.turn)
     if (Math.ceil(left / 1000) !== this.shownSec) this.draw()
   }
 
   draw() {
     const { ctx } = this, s = this.status
-    if (s?.running) this.shownSec = Math.ceil(((s.turn === 'w' ? s.wtime : s.btime) - (performance.now() - s.ts)) / 1000)
+    if (s?.running) this.shownSec = Math.ceil(clockTime(s, s.turn) / 1000)
     ctx.clearRect(0, 0, 512, 256)
     roundRect(ctx, 2, 2, 508, 252, 28, 'rgba(26,31,40,0.94)', COLOR.steel)
     ctx.textAlign = 'center'
@@ -122,9 +116,7 @@ export class StatusPanel {
 
   // One player row (top y): color dot, name, clock pill (brass = running, ember = low).
   _clockRow(y, c) {
-    const s = this.status, ctx = this.ctx, active = s.turn === c && s.running
-    const left = Math.max(0, (c === 'w' ? s.wtime : s.btime) - (active ? performance.now() - s.ts : 0))
-    const low = left < LOW_TIME
+    const s = this.status, ctx = this.ctx, { active, low, text } = clockState(s, c)
     ctx.beginPath()
     ctx.arc(46, y + 30, 11, 0, Math.PI * 2)
     ctx.fillStyle = PIECE_CSS[c]
@@ -135,7 +127,7 @@ export class StatusPanel {
     const pill = this.pills[c] = low ? COLOR.ember : active ? COLOR.brass : COLOR.steel
     roundRect(ctx, 330, y + 4, 156, 52, 14, pill)
     ctx.textAlign = 'center'
-    this._text(fmt(left), active || low ? COLOR.ink : COLOR.ivory, `600 34px ${FONT.mono}`, 408, y + 43)
+    this._text(text, active || low ? COLOR.ink : COLOR.ivory, `600 34px ${FONT.mono}`, 408, y + 43)
   }
 
   _text(text, color, font, x, y) {

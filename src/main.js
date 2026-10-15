@@ -8,9 +8,11 @@ import { Navigation } from './navigation.js'
 import { startLogin, finishLogin } from './auth.js'
 import { FreeBoard } from './free.js'
 import { showPiecesAction } from './bind.js'
+import { DesktopView } from './desktop.js'
 
 const $ = id => document.getElementById(id)
-const msg = t => { $('msg').textContent = t }
+let desktop = null
+const msg = t => { $('msg').textContent = t; desktop?.setMessage(t) }
 
 let lichess = null, session = null, username = null, seekAbort = null, connecting = false
 let maiaTimer = null
@@ -116,6 +118,7 @@ board.onStatus = () => {
     board.bar.draw()
   }
   navigation.refresh()
+  desktop?.setStatus()
 }
 
 // Message on the 2D page and, where the current view can show one, on the VR panel.
@@ -305,9 +308,7 @@ for (const id of FIELDS) $(id).onchange = saveSettings
 
 board.setPosition('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1') // idle: the start position
 free.attach()
-const sidebar = () => board.setViewShift(innerWidth > 720 ? $('ui').offsetWidth + 16 : 0)
-sidebar()
-addEventListener('resize', sidebar)
+desktop = new DesktopView(board, navigation, $('ui'))
 board.setHeight(+localStorage.getItem('tableHeight') || 0)
 board.setScale(+localStorage.getItem('boardScale') || 1)
 board.setFlipped(!!localStorage.getItem('flipped'))
@@ -368,12 +369,11 @@ $('logout').onclick = () => { localStorage.removeItem('lichessToken'); location.
 // --- launch: a headset gets a full-screen Enter VR screen (plus the browser's own VR offer) ---
 
 function showLaunch(on) {
-  if (!$('launch')) return
-  $('launch').hidden = !on
-  $('ui').hidden = on
+  if ($('launch')) $('launch').hidden = !on
+  desktop.setLaunch(on)
 }
-board.renderer.xr.addEventListener('sessionstart', () => showLaunch(false))
-board.renderer.xr.addEventListener('sessionend', () => board.xrSupported().then(showLaunch))
+board.renderer.xr.addEventListener('sessionstart', () => { desktop.setImmersive(true); showLaunch(false) })
+board.renderer.xr.addEventListener('sessionend', () => { desktop.setImmersive(false); board.xrSupported().then(showLaunch) })
 const enter = () => board.enterVR().catch(e => { showLaunch(false); msg('Enter VR failed: ' + e.message) })
 if ($('enter')) {
   $('enter').onclick = enter
@@ -391,7 +391,7 @@ board.xrSupported().then(ok => {
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js')
 
 refresh()
-navigation.open()
+if (!desktop.collapsed) navigation.open()
 finishLogin().then(token => {
   const t = token || localStorage.getItem('lichessToken')
   if (t) {

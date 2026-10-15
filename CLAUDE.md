@@ -28,6 +28,8 @@ handle `window.parallax`) remain unchanged; they are not the public name.
 | `src/coords.js` | Pure: square↔XZ mapping, FEN parsing, `captured(fen)`. Unit-tested. |
 | `src/board3d.js` | Dumb 3D view. Takes FEN via `setPosition`, emits `onMove(from,to,promo?)`. Selection, promotion picker, controller/mouse/hand input, `cue(kind)` sounds. |
 | `src/panel.js` | `StatusPanel` (names, clocks, text), `ButtonBar` (activity actions + Menu footer), `MenuPanel` (persistent navigation frame; shared ray/click/poke bounds) and `MoveList` (SAN rows left of the board, mirrors the bar; `board.setMoves(verbose, cur)`, `bindBoard`/`startActivity` clear it; games pass the replay index). |
+| `src/desktop.js` | Desktop controls toggle, screen-space player clocks, activity status and actions. Remembers sidebar visibility; uses the existing `ButtonBar` callbacks and confirmation. Hidden during headset launch and immersive XR. |
+| `src/clock.js` | Pure timestamp-based clock calculation and formatting shared by desktop and in-scene clocks. |
 | `src/feedback.js` | Synthesized WebAudio cues + controller haptics. No audio files. |
 | `src/bind.js` | `bindBoard(board, session)`: shared `onMove/getTargets/canPick` wiring for both sessions. |
 | `src/lichess.js` | Board API client: NDJSON streams, seek (connection must stay open!), moves, draw/takeback/abort/resign. |
@@ -189,6 +191,8 @@ handle `window.parallax`) remain unchanged; they are not the public name.
 - Game takebacks are detected by the *server* move count shrinking (`serverMoves`), not by
   `moves < applied` — a state sent before our optimistic move is merely stale.
 - Clocks count from `stateTs` (server snapshot time), so re-renders don't make them jump.
+  Desktop clocks use the same status snapshot and timestamp; hiding controls, changing the
+  camera or opening menus must never reset them. Player rows follow `myColor`, not board flipping.
 - Puzzles always use an anonymous client (a board:play token lacks `puzzle:read` → 403).
 - Streams die on headset sleep/network blips → both the event stream (`main.js runEvents`)
   and the game stream (`game.js start`) auto-reconnect in a loop; a game-stream
@@ -196,13 +200,15 @@ handle `window.parallax`) remain unchanged; they are not the public name.
 
 ## Testing (do this after changes)
 
-    node test/test.js && node test/hunt-unit.js && node test/navigation-unit.js     # pure logic (Node)
+    node test/test.js && node test/hunt-unit.js && node test/navigation-unit.js && node test/clock-unit.js
     test/run-smoke.sh                               # every test/*-smoke.html headless; all must print *-OK
 
 `PORT=… test/run-smoke.sh page…` runs a subset on another port (parallel agents). Suites:
 `smoke` (render), `ui` (bar/poke/picker/hover/scale/envs/styles), `grab`, `game` (fake lichess
 stream: optimistic moves, offers, premoves, promotion, replay…), `puzzle`, `rush`, `trainer`,
-`app` (real index.html + main.js vs stubbed `fetch`, navigation/state preservation), `menu` (UI rays/poke and input-mode transitions), and `hunt-*` — regression suites written by
+`app` (real index.html + main.js vs stubbed `fetch`, navigation/state preservation),
+`desktop` (complete page/CSS, controls, clocks, actions, mobile layout and simulated XR),
+`menu` (UI rays/poke and input-mode transitions), and `hunt-*` — regression suites written by
 adversarial bug-hunter agents (each check encodes a bug that was real). New bugs: write the
 failing check first, then fix. Gotchas: ray-picking freshly created objects needs a rendered
 frame (`board._tick()`); XR controllers need `updateMatrix()`; tints are `tile.userData.tint`

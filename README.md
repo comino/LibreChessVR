@@ -24,6 +24,10 @@ if you want to play games against Stockfish, Maia or another person.
 4. On a compatible headset, choose **Enter VR** to sit at the board. Point with a controller,
    point and pinch with your hands, or pick pieces up directly.
 
+On desktop, **Hide controls** recenters the board and keeps activity actions within reach.
+**Show controls** restores the sidebar; your choice is remembered. During games, player clocks
+stay visible beside the play area as you rotate or zoom the board.
+
 In VR, **Menu** opens Practice, Free board, Play and Settings. **Back** goes up one level;
 **Return** takes you back to the same activity and position. Timed games and drills keep
 running while you browse settings.
@@ -84,8 +88,8 @@ Tests need Node.js 22 or newer and Chrome/Chromium. If Chrome is not in the defa
 location, set `CHROME` to your browser executable when running the smoke script.
 
 ```sh
-node test/test.js && node test/hunt-unit.js && node test/navigation-unit.js   # pure logic
-test/run-smoke.sh                              # 14 headless-Chrome suites, all must print *-OK
+node test/test.js && node test/hunt-unit.js && node test/navigation-unit.js && node test/clock-unit.js
+test/run-smoke.sh                              # 15 headless-Chrome suites, all must print *-OK
 ```
 
 The smoke suites drive the real modules against a fake lichess (streams, reconnects, offers,

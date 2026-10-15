@@ -32,6 +32,8 @@ const S = 0.06
 try {
   const board = new Board3D()
   await board.init()
+  // Checks render explicitly; avoid unasserted background frames on software GPUs.
+  board.renderer.setAnimationLoop(null)
   const runs = []
   const bar = board.bar
 
@@ -41,12 +43,32 @@ try {
   board._pick = () => { picks++; realPick() }
   const canvas = board.renderer.domElement
   const ev = (type, x, y) => canvas.dispatchEvent(new MouseEvent(type, { clientX: x, clientY: y, bubbles: true }))
-  const pev = (type, x, y) => canvas.dispatchEvent(new PointerEvent(type, { clientX: x, clientY: y, bubbles: true }))
-  pev('pointerdown', 100, 100); ev('click', 180, 140)
-  check(picks === 0, 'drag-click ignored')
-  pev('pointerdown', 100, 100); ev('click', 102, 101)
-  check(picks === 1, 'plain click picks')
-  board._pick = realPick
+  // Synthetic events do not create a native active pointer. Model capture for
+  // these gestures, then restore the browser methods before the remaining checks.
+  const captures = new Set()
+  canvas.setPointerCapture = id => captures.add(id)
+  canvas.releasePointerCapture = id => captures.delete(id)
+  const pev = (type, x, y) => canvas.dispatchEvent(new PointerEvent(type, {
+    pointerId: 1, pointerType: 'mouse', isPrimary: true, button: 0,
+    buttons: type === 'pointerup' ? 0 : 1, clientX: x, clientY: y, bubbles: true
+  }))
+  const gesture = (x, y) => {
+    pev('pointerdown', 100, 100)
+    check(captures.has(1), 'pointer captured')
+    pev('pointerup', x, y)
+    check(!captures.size, 'pointer released')
+    ev('click', x, y)
+  }
+  try {
+    gesture(180, 140)
+    check(picks === 0, 'drag-click ignored')
+    gesture(102, 101)
+    check(picks === 1, 'plain click picks')
+  } finally {
+    delete canvas.setPointerCapture
+    delete canvas.releasePointerCapture
+    board._pick = realPick
+  }
 
   // Button bar via controller ray, confirm flow and expiry
   board.setStatus({ puzzle: true, text: 't', actions: [
@@ -233,7 +255,9 @@ try {
   board.lastTick = performance.now() - 100; board._tick()   // 0.1 s at 0.25 m/s
   check(Math.abs(board.stage.position.y - 0.025) < 0.003, 'raised 2.5 cm, got ' + board.stage.position.y)
   check(saved.length === 0, 'not saved while adjusting')
-  for (let i = 0; i < 40; i++) { board.lastTick = performance.now() - 100; board._tick() }
+  // Advance input to the clamp, then render to check the resulting world matrices.
+  for (let i = 0; i < 40; i++) board._thumbstick(0.1)
+  board._tick()
   check(board.stage.position.y === 0.45, 'clamped at +45 cm, got ' + board.stage.position.y)
   const y1 = board.tiles.e4.getWorldPosition(new THREE.Vector3()).y
   check(Math.abs(y1 - y0 - 0.45) < 1e-6, 'board moved with stage')
@@ -242,7 +266,8 @@ try {
   board._tick(); board._tick()
   check(saved.length === 1 && saved[0] === 0.45, 'saved once on release: ' + saved)
   stick.gamepad.axes[3] = 1                                  // pull back: lower
-  for (let i = 0; i < 80; i++) { board.lastTick = performance.now() - 100; board._tick() }
+  for (let i = 0; i < 80; i++) board._thumbstick(0.1)
+  board._tick()
   check(board.stage.position.y === -0.45, 'clamped at -45 cm')
   board.controllers[1].ctrl.userData.source = null
   board._tick()
@@ -311,6 +336,8 @@ try {
   const lightCount = lights()
   for (let round = 0; round < 3; round++) {
     for (const name of ENVIRONMENTS) {
+      console.info('[smoke]', `environment cycle ${round + 1}: ${name}`)
+      await new Promise(resolve => setTimeout(resolve, 0))
       board.setEnvironment(name)
       await board.env.ready                           // scanned props in, then render: uploads everything
       board._tick()

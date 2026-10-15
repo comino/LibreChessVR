@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<base href="/">
+<title>LibreChessVR desktop view test</title>
+<link rel="icon" href="/assets/brand/mark.svg">
+<style>body { margin: 0 } iframe { width: 1100px; height: 760px; border: 0 } #result { white-space: pre-wrap }</style>
+</head>
+<body>
+<pre id="result"></pre>
+<script type="module">
+import { clockState } from '../src/clock.js'
+const check = (condition, label) => { if (!condition) throw new Error(label) }
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+async function until(condition, label, timeout = 90000) {
+  const start = performance.now()
+  while (true) {
+    const value = condition()
+    if (value) return value
+    if (performance.now() - start > timeout) throw new Error('timeout: ' + label)
+    await sleep(25)
+  }
+}
+
+// The complete production document/CSS/module entry, with anonymous Lichess fixtures.
+// This script is inserted before main.js so no live account or API traffic is used.
+function fixtures() {
+  localStorage.clear()
+  localStorage.setItem('environment', 'minimal')
+  const streams = {}, requests = [], original = window.fetch
+  const json = data => new Response(JSON.stringify(data), { headers: { 'content-type': 'application/json' } })
+  const full = { type: 'gameFull', initialFen: 'startpos', white: { id: 'me', name: 'You' }, black: { aiLevel: 3 },
+    clock: { initial: 600000, increment: 5000 },
+    state: { type: 'gameState', moves: 'e2e4 e7e5', wtime: 590000, btime: 589000, status: 'started' } }
+  window.__desktopTest = { streams, requests, full }
+  window.fetch = async (url, opts = {}) => {
+    if (typeof url !== 'string' || !url.startsWith('https://lichess.org')) return original(url, opts)
+    const path = url.replace('https://lichess.org', '')
+    requests.push(path)
+    if (path === '/api/account') return json({ username: 'me' })
+    if (path === '/api/account/playing') return json({ nowPlaying: [] })
+    if (path === '/api/stream/event' || path.startsWith('/api/board/game/stream/')) {
+      let controller
+      const stream = new ReadableStream({ start: c => { controller = c } })
+      const encoder = new TextEncoder()
+      const push = value => controller.enqueue(encoder.encode(JSON.stringify(value) + '\n'))
+      streams[path] = push
+      const heartbeat = setInterval(() => controller.enqueue(encoder.encode('\n')), 1000)
+      opts.signal?.addEventListener('abort', () => { clearInterval(heartbeat); controller.close() })
+      if (path.startsWith('/api/board/game/stream/')) setTimeout(() => push(full), 10)
+      return new Response(stream)
+    }
+    return json({ ok: true })
+  }
+}
+
+let board
+try {
+  const html = await (await fetch('/index.html')).text()
+  const frame = document.createElement('iframe')
+  frame.title = 'Desktop view under test'
+  frame.srcdoc = html.replace('<head>', `<head><base href="/"><script>(${fixtures.toString()})()<\/script>`)
+  document.body.append(frame)
+  await until(() => frame.contentWindow.parallax?.navigation?.isOpen, 'production initialization')
+  const win = frame.contentWindow, doc = frame.contentDocument, $ = id => doc.getElementById(id)
+  ;({ board } = win.parallax)
+  const { navigation } = win.parallax
+  await until(() => board.renderer.info.render.frame > 0, 'first rendered frame')
+  board.renderer.setAnimationLoop(null)
+  const action = label => [...$('desktopActions').children].find(b => b.dataset.action === label)
+  const visible = node => !node.hidden && win.getComputedStyle(node).display !== 'none'
+  check(visible($('ui')) && $('controlsToggle').getAttribute('aria-expanded') === 'true', 'controls open initially')
+  check(board.viewShift === 336 && !visible($('desktopStatus')), 'sidebar offset and quiet free-board HUD')
+
+  $('controlsToggle').focus()
+  $('controlsToggle').click()
+  check($('ui').hidden && board.viewShift === 0 && !board.menuOpen, 'hide controls recenters and returns to activity')
+  check($('controlsToggle').textContent === 'Show controls' && $('controlsToggle').getAttribute('aria-expanded') === 'false', 'accessible restore control')
+  check(doc.activeElement === $('controlsToggle'), 'toggle keeps keyboard focus')
+  check(win.localStorage.getItem('controlsHidden') === '1', 'preference saved')
+  check(visible($('desktopStatus')) && $('desktopClocks').hidden, 'practice status without empty game clocks')
+  check(board.onMove('e2', 'e4') && board.onMove('e7', 'e5'), 'play with controls hidden')
+  await until(() => action('Undo') && !action('Undo').disabled, 'free-board actions')
+  action('Undo').click()
+  check(board.pieceAt.e7 && board.pieceAt.e4, 'desktop action uses existing free-board session')
+  const position = board.fen
+  $('controlsToggle').click()
+  check(board.fen === position && board.viewShift === 336, 'show controls preserves board and restores framing')
+
+  $('token').value = 'desktop-test'
+  $('connect').click()
+  await until(() => win.__desktopTest.streams['/api/stream/event'], 'fixture login')
+  win.__desktopTest.streams['/api/stream/event']({ type: 'gameStart', game: { gameId: 'desktop-game' } })
+  await until(() => board.panel.status?.names && visible($('desktopClocks')), 'game clocks')
+  const clockText = color => doc.querySelector(`.desktop-clock[data-color="${color}"] .clock-value`).textContent
+  const status = board.panel.status, stamp = status.ts
+  await until(() => clockText('white') === clockState(status, 'w', win.performance.now()).text, 'shared white clock')
+  check(clockText('black') === '9:49', 'inactive clock stays at server value')
+  check(doc.querySelector('[data-player=self]').dataset.color === 'white', 'own clock below opponent')
+  $('controlsToggle').click()
+  check(board.panel.status.ts === stamp && board.viewShift === 0, 'hiding does not restart clock')
+  board.controls.rotateLeft?.(0.2)
+  board.camera.position.x += 0.2
+  board.controls.update()
+  check(visible($('desktopClocks')), 'clock independent of camera')
+  const before = clockText('white')
+  await until(() => clockText('white') !== before, 'running clock ticks', 5000)
+  check(clockText('black') === '9:49', 'opponent clock remains stopped')
+
+  action('Menu').click()
+  check(board.menuOpen && action('Return'), 'navigation reachable from collapsed controls')
+  check(board.panel.status.ts === stamp && visible($('desktopClocks')), 'menu preserves live clocks')
+  action('Return').click()
+  check(!board.menuOpen, 'return restores game actions')
+  const push = win.__desktopTest.streams['/api/board/game/stream/desktop-game']
+  push({ type: 'gameState', moves: 'e2e4 e7e5 g1f3', wtime: 595000, btime: 15000, status: 'started' })
+  await until(() => doc.querySelector('[data-color=black]').classList.contains('active'), 'turn switches')
+  check(clockText('white') === '9:55' && doc.querySelector('[data-color=black]').classList.contains('low'), 'increment and low-time display')
+  board.setFlipped(true)
+  check(doc.querySelector('[data-player=self]').dataset.color === 'white', 'flipping board does not swap player identities')
+  board.setStatus({ ...board.panel.status, myColor: 'black' })
+  check(doc.querySelector('[data-player=self]').dataset.color === 'black', 'black player has own clock below opponent')
+
+  const resigns = () => win.__desktopTest.requests.filter(p => p.endsWith('/resign')).length
+  action('Resign').focus()
+  action('Resign').click()
+  check(resigns() === 0 && action('Resign').textContent === 'Confirm resign', 'resign requires confirmation')
+  check(doc.activeElement === action('Resign'), 'confirmation keeps keyboard focus')
+  board.bar.armedAt = win.performance.now() - 3100
+  board.bar.tick()
+  await until(() => action('Resign').textContent === 'Resign', 'confirmation expires')
+  action('Resign').click(); action('Resign').click()
+  check(resigns() === 1, 'confirmed resign sends exactly one request')
+
+  frame.style.width = '390px'
+  await until(() => win.innerWidth === 390, 'mobile resize')
+  check(board.viewShift === 0 && visible($('desktopClocks')), 'mobile clocks remain visible when collapsed')
+  for (const id of ['controlsToggle', 'desktopStatus', 'desktopActions']) {
+    const rect = $(id).getBoundingClientRect()
+    check(rect.left >= 0 && rect.right <= win.innerWidth && rect.bottom <= win.innerHeight, `${id} fits mobile viewport`)
+  }
+  check($('desktopStatus').getBoundingClientRect().top >= $('controlsToggle').getBoundingClientRect().bottom, 'mobile clocks clear toggle')
+  $('controlsToggle').click()
+  check(visible($('ui')) && !visible($('desktopStatus')), 'mobile setup has no overlapping clocks')
+  $('controlsToggle').click()
+
+  board.renderer.xr.dispatchEvent({ type: 'sessionstart' })
+  check($('desktop').hidden && $('ui').hidden, 'desktop overlays hidden in XR')
+  board.xrSupported = async () => false
+  board.renderer.xr.dispatchEvent({ type: 'sessionend' })
+  await until(() => !$('desktop').hidden, 'XR return')
+  check($('ui').hidden && $('controlsToggle').textContent === 'Show controls', 'XR preserves desktop preference')
+
+  push({ type: 'gameState', moves: 'e2e4 e7e5 g1f3', wtime: 595000, btime: 12000, status: 'resign', winner: 'black' })
+  await until(() => !board.panel.status.running && clockText('black') === '0:12', 'finished game clocks stop')
+  await sleep(1100)
+  check(clockText('black') === '0:12', 'finished time remains fixed')
+  navigation.close()
+  doc.getElementById('result')?.remove()
+  document.getElementById('result').textContent = 'DESKTOP-OK'
+} catch (error) {
+  document.getElementById('result').textContent = 'DESKTOP-FAIL ' + (error.stack || error.message)
+} finally {
+  board?.renderer.setAnimationLoop(null)
+}
+</script>
+</body>
+</html>
