@@ -1,20 +1,24 @@
-<p align="center"><img src="assets/brand/wordmark.svg" width="420" alt="LibreChessVR — read a real chessboard"></p>
+<p align="center"><img src="assets/brand/wordmark.svg" width="420" alt="LibreChessVR — chess in VR, in your browser"></p>
 
-**A free 3D board vision practice tool for online chess players who find physical boards harder to read.**
+**Chess in VR, straight from your headset's browser. Nothing to install.**
 
-LibreChessVR is a small open-source practice project, licensed under [MIT](LICENSE).
+Open [librechessvr.com](https://librechessvr.com/) in the Meta Quest browser, choose
+**Enter VR**, and you are seated at a 3D board. Play your Lichess games against people,
+Stockfish or Maia, or practice puzzles and square drills. No store, no download, and no
+account for practice.
+
+The same board runs in a desktop browser, so it also suits online players who want to get
+used to reading a physical board.
+
+LibreChessVR is a small open-source project, licensed under [MIT](LICENSE).
 
 **Current beta: [v0.1.0-beta.1](https://github.com/comino/LibreChessVR/releases/tag/v0.1.0-beta.1).**
 See the [changelog](CHANGELOG.md) for release details and beta limitations.
 
-If you are used to a flat online board, reading the same position from a player's seat can
-feel unfamiliar. This small project gives you a 3D board to practice on: solve puzzles,
-find squares, or move pieces around. It works in a desktop browser and optionally in VR.
+[**Open librechessvr.com**](https://librechessvr.com/)
 
-[**Start practicing at librechessvr.com**](https://librechessvr.com/)
-
-No account, installation or headset is needed for practice. A Lichess account is only needed
-if you want to play games against Stockfish, Maia or another person.
+A Lichess account is only needed to play games. Puzzles, square drills and the free board
+work without one, with or without a headset.
 
 ## Trailer
 

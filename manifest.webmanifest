@@ -1,7 +1,7 @@
 {
   "name": "LibreChessVR",
   "short_name": "LibreChessVR",
-  "description": "Practice reading a real chessboard. A free 3D board vision tool for online players, with optional VR.",
+  "description": "Chess in VR, straight from your browser. Play your Lichess games or practice puzzles on a 3D board. No install needed.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

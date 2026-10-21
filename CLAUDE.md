@@ -1,7 +1,8 @@
 # CLAUDE.md — LibreChessVR
 
-**LibreChessVR** — free 3D board vision practice for online players who find physical
-boards harder to read. Browser first, optional WebXR / Meta Quest, optional Lichess games.
+**LibreChessVR** — chess in VR, straight from the browser, nothing to install. Also 3D board
+vision practice on desktop for online players who find physical boards harder to read.
+Browser first, WebXR / Meta Quest, optional Lichess games.
 Static web app, no build step, no backend,
 no npm. GitHub: `comino/LibreChessVR` (`main`; Linear project PRJ | LibreChessVR).
 Project code is MIT licensed; retain the asset and dependency credits in `THIRD_PARTY_NOTICES.md`.

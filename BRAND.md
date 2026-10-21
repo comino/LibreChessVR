@@ -1,20 +1,24 @@
 # LibreChessVR — writing and visual guide
 
-**LibreChessVR** · *Board vision practice for online chess players.*
-A free 3D board vision practice tool for people who learned chess online and find physical
-boards harder to read. Puzzles, square drills and a free board are the main activities;
-VR and Lichess games are optional. This is a small practice project. Describe its purpose
+**LibreChessVR** · *Chess in VR, straight from your browser.*
+A free 3D chess board that opens in a headset's browser with nothing to install: play Lichess
+games or practice puzzles, square drills and a free board. It also runs on desktop, where it
+helps online players who find physical boards harder to read. This is a small practice project. Describe its purpose
 plainly, without a sales pitch or promises of rating gains. Design tokens
 live in one place: `src/theme.js` (3D + canvas UI) mirrored as CSS variables in `index.html`.
 
 ## Name & voice
 
 - Name and installed-app label: **LibreChessVR**, with this capitalization.
-- Main explanation: *Board vision practice for online chess players.* Short version: *Read a real chessboard.*
+- Main explanation: *Chess in VR, straight from your browser.* Short version: *No install, just chess in VR.*
+  Lead with "no install": it is what sets LibreChessVR apart from store VR chess apps.
 - LibreChessVR is an open-source community project under MIT. Use the full name consistently;
   explain that desktop practice works too, even though VR is part of the name.
-- Say who it helps: online players who find real boards unfamiliar. Lead with practice;
-  make clear that no account or headset is needed. Lichess login is only for playing games.
+- Say who it helps: headset owners who want chess without a store app, and online players who
+  find real boards unfamiliar. Make clear that practice needs no account and works without a
+  headset. Lichess login is only for playing games.
+- Don't claim to be the first browser or Lichess VR chess; other apps exist. Say what is true:
+  browser-based, no install, open source.
 - Describe exercises and intent, not proven improvements in OTB performance. No growth,
   subscription, premium or launch-hype language.
 - Voice: calm, precise, a good coach. Short sentences, chess vocabulary, no exclamation spam.
