@@ -5,6 +5,7 @@
 const [base, ...pages] = process.argv.slice(2)
 const port = process.env.CDP_PORT || 9333
 const timeout = (process.env.SMOKE_TIMEOUT || 360) * 1000
+if (!(timeout > 0 && Number.isFinite(timeout))) { console.error(`SMOKE_TIMEOUT must be positive seconds, got ${process.env.SMOKE_TIMEOUT}`); process.exit(2) }
 async function run(page) {
   const browser = await (await fetch(`http://127.0.0.1:${port}/json/version`)).json()
   const bws = new WebSocket(browser.webSocketDebuggerUrl)

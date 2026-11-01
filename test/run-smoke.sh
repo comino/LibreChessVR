@@ -6,6 +6,7 @@ cd "$(dirname "$0")/.."
 MAC_CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 [ -z "$CHROME" ] && for c in "$MAC_CHROME" google-chrome chromium chromium-browser; do
   command -v "$c" >/dev/null 2>&1 && { CHROME=$c; break; }; done
+[ -n "$CHROME" ] || { echo "run-smoke: no Chrome or Chromium found; set CHROME" >&2; exit 1; }
 PORT=${PORT:-8123}
 CDP_PORT=$((PORT + 1000)); export CDP_PORT
 PROFILE=$(mktemp -d)
