@@ -13,26 +13,30 @@ const list = suffix => readdirSync('test').filter(f => f.endsWith(suffix)).sort(
 const UNIT = ['test/test.js', ...list('-unit.js')]
 const SMOKE = ['test/smoke.html', ...list('-smoke.html')]
 const OK = /^[A-Z-]+-OK(\s|$)/
+const BUFFER = 256 * 1024 * 1024
 // A suite that could not load or run is a junit <error>, not a <failure>: bx red must not count it as red.
 // Matched on the first error line only: an assertion may name the error it expected.
+// A load error a suite caught and logged itself (hunt-unit's check helper) counts too.
 const LOAD = /^(SyntaxError|Error \[ERR_MODULE_NOT_FOUND\]|Error: Cannot find module)/
-const files = process.argv.length > 2 ? process.argv.slice(2).map(normalize) : [...UNIT, ...SMOKE]
+const CAUGHT_LOAD = /ERR_MODULE_NOT_FOUND|Cannot find module|does not provide an export named/
+const files = process.argv.length > 2 ? [...new Set(process.argv.slice(2).map(normalize))] : [...UNIT, ...SMOKE]
 const results = []
 
 function runUnit(file) {
   const t0 = Date.now()
-  const r = spawnSync('node', [file], { encoding: 'utf8' })
-  process.stdout.write(r.stdout); process.stderr.write(r.stderr)
-  const why = r.stderr.match(/^\w*Error\b.*$/m)?.[0] ?? (r.stdout + r.stderr).trim().split('\n').at(-1) ?? ''
-  const kind = r.status === 0 ? null : LOAD.test(why) ? 'error' : 'failure'
+  const r = spawnSync('node', [file], { encoding: 'utf8', maxBuffer: BUFFER })
+  const out = (r.stdout ?? '') + (r.stderr ?? '')
+  process.stdout.write(r.stdout ?? ''); process.stderr.write(r.stderr ?? '')
+  const why = r.error?.message ?? (r.stderr ?? '').match(/^\w*Error\b.*$/m)?.[0] ?? out.trim().split('\n').at(-1) ?? ''
+  const kind = r.status === 0 ? null : r.error || LOAD.test(why) || CAUGHT_LOAD.test(out) ? 'error' : 'failure'
   results.push({ file, kind, message: `${why} (exit ${r.status})`, secs: (Date.now() - t0) / 1000 })
 }
 
 function runSmoke(pages) {
   const t0 = Date.now()
-  const r = spawnSync('test/run-smoke.sh', pages, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] })
-  process.stdout.write(r.stdout)
-  const lines = new Map(r.stdout.split('\n').map(l => l.match(/^(test\/\S+\.html): (.*)$/)).filter(Boolean).map(m => [m[1], m[2]]))
+  const r = spawnSync('test/run-smoke.sh', pages, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'], maxBuffer: BUFFER })
+  process.stdout.write(r.stdout ?? '')
+  const lines = new Map((r.stdout ?? '').split('\n').map(l => l.match(/^(test\/\S+\.html): (.*)$/)).filter(Boolean).map(m => [m[1], m[2]]))
   const secs = (Date.now() - t0) / 1000 / pages.length
   for (const file of pages) {
     const out = lines.get(file)
@@ -41,7 +45,7 @@ function runSmoke(pages) {
   }
 }
 
-const esc = s => s.replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[c])
+const esc = s => s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '').replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[c])
 function writeJunit() {
   const cases = results.map(({ file, kind, message, secs }) =>
     `  <testcase classname="${esc(file)}" name="${esc(file)}" file="${esc(file)}" time="${secs.toFixed(1)}">` +
