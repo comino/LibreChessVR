@@ -99,8 +99,9 @@ contents; no build step is needed. See [installation instructions](INSTALL.md).
 
 ## Development
 
-Static ES modules (Three.js 0.170 + chess.js 1.0 from a CDN import map). Architecture,
-invariants and gotchas: [`CLAUDE.md`](CLAUDE.md). Brand & design system: [`BRAND.md`](BRAND.md);
+Static ES modules (Three.js 0.170 + chess.js 1.0 from a CDN import map). Architecture
+and invariants: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md); hosting and packaging:
+[`docs/OPERATIONS.md`](docs/OPERATIONS.md). Brand & design system: [`BRAND.md`](BRAND.md);
 tokens in [`src/theme.js`](src/theme.js).
 
 Tests need Node.js 22 or newer and Chrome/Chromium. If Chrome is not in the default macOS

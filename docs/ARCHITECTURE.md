@@ -1,0 +1,190 @@
+# LibreChessVR architecture
+
+Module map and the invariants behind them. Read the module's row and the invariants it touches before changing it.
+
+## Stack
+
+- Three.js 0.170 + native WebXR via CDN import map (`index.html`)
+- chess.js v1 (CDN) for rules/FEN
+- Lichess **Board API**, fully client-side (lichess supports CORS); token in localStorage
+
+## Architecture
+
+| File | Role |
+|------|------|
+| `src/coords.js` | Pure: square↔XZ mapping, FEN parsing, `captured(fen)`. Unit-tested. |
+| `src/board3d.js` | Dumb 3D view. Takes FEN via `setPosition`, emits `onMove(from,to,promo?)`. Selection, promotion picker, controller/mouse/hand input, `cue(kind)` sounds. |
+| `src/panel.js` | `StatusPanel` (names, clocks, text), `ButtonBar` (activity actions + Menu footer), `MenuPanel` (persistent navigation frame; shared ray/click/poke bounds) and `MoveList` (SAN rows left of the board, mirrors the bar; `board.setMoves(verbose, cur)`, `bindBoard`/`startActivity` clear it; games pass the replay index). |
+| `src/desktop.js` | Desktop controls toggle, screen-space player clocks, activity status and actions. Remembers sidebar visibility; uses the existing `ButtonBar` callbacks and confirmation. Hidden during headset launch and immersive XR. |
+| `src/clock.js` | Pure timestamp-based clock calculation and formatting shared by desktop and in-scene clocks. |
+| `src/feedback.js` | Synthesized WebAudio cues + controller haptics. No audio files. |
+| `src/bind.js` | `bindBoard(board, session)`: shared `onMove/getTargets/canPick` wiring for both sessions. |
+| `src/lichess.js` | Board API client: NDJSON streams, seek (connection must stay open!), moves, draw/takeback/abort/resign. |
+| `src/game.js` | `GameSession`: one game stream ↔ chess.js ↔ board. Optimistic local moves, rollback on server reject, offers → button bar. |
+| `src/puzzle.js` | `PuzzleSession`: fetches `/api/puzzle/next`, replays game PGN, validates solution moves, auto-plays replies, auto-advances. |
+| `src/rush.js` | `RushSession extends PuzzleSession`: 3 min, 3 lives, wrong move = life lost + next puzzle, difficulty rises every 5 solved; best in `localStorage.rushBest`. Overrides the puzzle hooks only. |
+| `src/free.js` | `FreeBoard`: idle-screen board, both sides move by the rules (no account). `attach()` (explicit free-board start + startup; preserves history for the same FEN) continues from `board.fen`; menu shows Undo / Reset board when possible. |
+| `src/speech.js` | `moveToSpeech(verboseMove)` (pure, unit-tested: "Knight takes F 3, check") + `speak()` via speechSynthesis. `board.announce(move, mine)` filters by `board.voice` (off/opponent/all). |
+| `src/trainer.js` | `TrainerSession`: coordinate drill — big target square on the panel, point at it; 30 s rounds alternating white/black view; best in `localStorage.coordBest`. |
+| `src/environments.js` | Scene registry (`buildEnvironment`, `disposeGroup`) + minimal. |
+| `src/scenes/` | One file per scene (`study`, `sunset`, `night`) + `common.js` helpers (seeded `rng`, canvas textures, `glow` sprites, `instanced`, `points`, `fire` (flames + sparks), `pineGeometry`/`cypressGeometry`, `mergeStatic`, `props`). Builders may return `update(t, dt, {lamp})` — called every frame by the board for scene life. |
+| `src/settings.js` | Pure shared lists of setting values and the unit-tested `cycle()` helper. |
+| `src/navigation.js` | `Navigation`: route stack and page models independent of the activity; visible choices, Back, Return, and confirmation when replacing unfinished work. Play/Practice own their setup; Settings has Appearance, Comfort, Input & audio, Advanced. |
+| `src/main.js` | 2D page + activity lifecycle, navigation adapters, settings persistence, event stream and resume. `view` only holds a game/training activity; opening a menu never stops or rebinds it. `window.parallax` exposes `board` and `navigation` for debugging. |
+| `src/theme.js` | Design tokens: `COLOR`, `TINT` (+`TINT_MIX`), `BOARD`, `PIECES`, `FONT`. |
+| `assets/brand/` | Logo mark + wordmark SVGs, app icons and sharing preview. `docs/img/` = README screenshots. |
+| `assets/props/` | Scanned CC0 scene furniture (Poly Haven), one GLB per model, built by `tools/build-props.mjs <id[@256]>…` (joins meshes per material, 512 px WebP). Watch the real triangle count it prints: the site's listed polycount can be wrong (`wooden_candlestick` = 213k). |
+| `assets/pieces.glb` | Scanned piece set (Poly Haven `chess_set`, CC0, Riley Queen): nodes `piece_<type>_<white|black>`, PBR textures as 512 px webp. Rebuild with `tools/build-pieces.mjs` (usage in its header). |
+
+## Key invariants & gotchas
+
+- Board frame is ALWAYS white's perspective (a1 = −x,+z local). Black view = rotate
+  `boardGroup` 180°; never remap coordinates (an earlier prototype died on this).
+- GLB piece nodes carry ancestor transforms → templates bake `matrixWorld` via
+  decompose at load; recentering must SUBTRACT the bbox offset, not set it.
+- Piece scale is derived from the king's bbox (king = 1.7 × square size), not hardcoded.
+- Pieces are rebuilt on every `setPosition`: materials (`pieceMat.w/b`, with the RoomEnvironment
+  envMap — pieces only, it washes out the tiles) and proxy geometries are shared, never per piece.
+- Captured pieces live in `capturedGroup` (not pickable), at each capturer's right hand.
+- Ray picking/hover never touches the GLB meshes: each piece has an invisible cylinder
+  `userData.proxy` (too many triangles for per-frame raycasts on the Quest). `_cast()` is
+  the single ray resolver for click, trigger and hover, so hover and pick always agree.
+  Proxies are much wider than the pieces, so `_touches()` re-checks a proxy hit against the
+  piece's silhouette (`board.profile[type]`: widest radius per height band, measured at load,
+  + ~5 mm margin); a ray only through the empty part goes on to what is behind (pawn behind a
+  queen). Legal targets of the selected piece keep their full proxy.
+- Hover state lives in `board.hover[key]` (`mouse`, `c0`, `c1`, `grab`); tints are
+  recomputed in `_applyTints` (last move < check < selection < hover brighten).
+- XR controller groups have `matrixAutoUpdate = false` — tests must `updateMatrix()`.
+- Orientation = `setOrientation(color)` (session's side) XOR `setFlipped(bool)` (sticky setting)
+  XOR `peek` (in-game "Flip board", cleared by the next `setOrientation`). `viewSide()` = side
+  shown at the player's end. Never remap coordinates for any of them.
+- `setScale(s)` scales `boardGroup` (all logic is in board-local units, so input needs no
+  changes), grows the table for s>1 and moves the bar out (`BAR_X`).
+- Proxy cylinders use `thetaStart = π/12`: a ray exactly along a cap-triangle edge (e.g. aiming
+  straight at a piece's axis) can miss both triangles.
+- Maia = lichess bots `maia1/5/9`, challenged via `POST /api/challenge/{bot}`; they accept
+  on their own and the normal `gameStart` path attaches the game.
+- Environments: `board.setEnvironment(name)` disposes the old group (leak-tested via
+  `renderer.info.memory`), sets background/fog/exposure and re-tunes the persistent `hemi` +
+  `sun` lights (sun targets the board so its shadow frustum stays on it). ACES tone mapping
+  is global; panel/bar/label materials are `toneMapped: false` to keep text colors exact.
+  Light count is fixed (hemi, sun in `stage`, `lamp` at intensity 0 when unused) so switching
+  never recompiles shaders; the sun's shadow box scales with the board.
+  Scenes animate via `env.update` (fire flicker drives the lamp light, clock with real time,
+  dust, clouds, birds, aurora, shooting stars, fireflies). Quest budget: ≤ 45 env draw calls
+  (ui-smoke checks it) — use `instanced` for repeats and `mergeStatic(group)` to fuse plain
+  static meshes (flag animated ones `userData.dynamic`); seeded `rng` for stable layouts.
+  The env list lives in settings.js (pure, Node-testable); names must match `BUILDERS`.
+  Scanned props: `props(group, items)` loads them *after* the scene shows and resolves `env.ready`;
+  the board then recaptures reflections (only if that env is still current). `disposeGroup` sets
+  `userData.disposed`, so props of a scene switched away mid-load are freed, never added. Draw
+  budget counts props: tests `await board.env.ready` before counting.
+- `board.stage` holds table + board + panel + bar; `setHeight(offset)` (±0.45 m) moves it.
+  Thumbstick Y on either controller adjusts it; `onHeightChange` fires once on release and
+  main.js persists `localStorage.tableHeight`. The table box reaches below the floor.
+- `_applyState` applies only moves beyond `this.applied`; our own moves are applied
+  optimistically so the stream echo is a no-op (no re-render, keeps animation).
+- Lichess seek (`POST /api/board/seek`) is only active while the HTTP request is open.
+- Board API: no bullet; **seeks** must be rapid+ (`isRapid`: limit + 40×inc ≥ 480 s),
+  blitz only for direct/AI challenges.
+- Takebacks shrink the `moves` list → `_applyState` rebuilds chess.js from `initialFen`.
+- Any exception while handling a stream message → `_fail()`: session finished, stream
+  aborted, error on the panel, menu shown. Never let it throw (reconnect replays the same
+  messages → endless loop). Variants other than standard/fromPosition are refused.
+- Castling may arrive king-takes-rook (`e1h1`); `_applyUci` maps it to `e1g1`.
+- Finished games offer **Rematch** (needs `gameFull.clock`, hidden after `_fail`): AI → `challengeAi`
+  with colors swapped; human → `POST /api/challenge/{user}`. `challengeDeclined` events → `view.say()`.
+- Post-game replay (`_step`): builds a chess.js instance for move i and sets `session.shown`;
+  bindBoard's `checkSquare` uses `shown ?? chess`. `replayIdx == null` = final position.
+  No rematch/replay buttons after `_fail` (state untrustworthy).
+- Puzzles: `options()` (difficulty + lichess `angle` theme) is read on every fetch, so settings
+  apply to the next puzzle. Streak/best/solved in `localStorage.puzzleStats`; any wrong move or
+  hint sets `clean = false` and resets the streak immediately.
+- PuzzleSession hooks for subclasses: `_wrong()`, `_solved()`, `_actions()`, `_sub()`, `_miss()`;
+  `next()` uses `_halt()` (ends the puzzle) so a subclass's own timers survive; `stop()` is the
+  public full stop. Rush keeps its clock in `stop()`-cleared `this.clock`.
+- Coordinates are printed on the frame (`_coordinates()`: one canvas texture on a plane just
+  above the frame, `BORDER` = 3.6 cm); near/left edges face white, far/right edges face black.
+- Themes: `BOARD_THEMES` / `PIECE_THEMES` in theme.js (names mirrored in settings.js). Pieces are
+  one template per color (`templates.w/b`); every set keeps the scan's normal + AO maps, only
+  `textured` sets (antique, the default) also use its color/roughness/metal maps.
+  `setBoardTheme` sets `tile.userData.base` (tints lerp from it) + a per-square offset of one
+  shared grain texture (wood/marble/fine); `setPieceTheme` recolors `pieceMat`+`solidMat` in place.
+  Settings → Appearance (scene, board, piece set, knight facing); Comfort (table, size, orientation); Input & audio; Advanced (FPS, resolution). Practice → Puzzles includes piece visibility for blindfold training.
+- Knight facing is relative to each player: right (side profile, default), forward, left,
+  backward. The scanned white and black knights already face opposite directions, toward
+  their own players; rotate both instances by the same quarter-turn offset. `setKnightFacing`
+  updates existing pieces, captures and promotion previews without rebuilding game state.
+- Reflections: `_captureEnv()` renders the scene once into a PMREM env map at each scene switch
+  (board/UI hidden during capture) — never per frame.
+- Piece surface detail: `PIECE_DETAIL` shader chunks via `onBeforeCompile` on the 4 piece
+  materials (`uDetail` per set: lathe/wood/brushed/glow, from `PIECE_THEMES[].detail`). Keep
+  pattern frequencies low: fine stripes alias and shimmer in VR.
+- Grounding: `board.contacts` = one InstancedMesh of soft blobs under every piece (+captured),
+  rebuilt when `contactsDirty` / each frame while animating or grabbing; hidden in blindfold.
+  Table floor shadow lives in the scene. Scene decals share a material → `mergeInto()` (one draw).
+- Motion: move = arc + settle (380 ms), capture = 8 pooled spark sprites, legal targets pulse
+  (emissive, skipped under hover). `setShowFps` = panel corner readout (Settings → Advanced).
+- Piece styles (`setPieceStyle`: solid/ghost/hidden) only change the shared `pieceMat`s; proxies
+  keep pieces pickable. `showPieces(ms)` reveals temporarily. The promotion picker swaps in
+  `solidMat` so it is always visible. Sessions add "Show pieces" via `showPiecesAction(board)`.
+- Navigation is independent of activities. `board.showMenu(page)` pins a `MenuPanel` in the scene,
+  hides the action bar and blocks board picking/grabbing. `hideMenu()` restores the existing
+  activity controls without stopping, restarting or rebinding it. Game/trainer/rush updates still
+  reach the status panel and board; `board.onStatus` refreshes menu context without changing routes.
+- `ButtonBar` holds nine activity actions plus a separate Menu footer in the app. Response slots,
+  board tools, and destructive actions remain stable. Legacy standalone session tests omit the footer.
+  `MenuPanel` owns fixed Back/Return bounds and up to six rows or a 3×3 choice grid. Drawing and all
+  input paths share the same rectangular bounds (`buttonUV` is available for interaction tests).
+- Navigation never pauses clocks or ends activities. Replacing unfinished training/free-board work
+  is explicit; starting a different activity is blocked during a live game, including if one starts
+  while a replacement confirmation is open. Settings remain accessible. Returning preserves Undo,
+  puzzle progress, drill targets and review position. The free board has its own explicit mode label.
+- Puzzle **Hint** = `setMarks` on the from-square of the next solution move; any move,
+  `stop()` and `bindBoard` clear marks.
+- Premoves (game.js): during the opponent's turn `canPick` allows own pieces and targets come
+  from `flipTurn(fen)`; `tryMove` then queues `this.premove` (violet marks, "Premove Nf3").
+  `_applyState` plays it via `_playPremove()` *after* `_render()` (so "Premove cancelled"
+  isn't overwritten). `tryMove` returns true only when a move was made.
+- `opponentGone` → countdown text, then a "Claim win" button (`claim-victory`).
+- Sessions talk to the in-VR UI only via `board.setStatus({..., actions})`; actions are
+  `{label, run, confirm?, disabled?, slot?}` rendered by `ButtonBar` (nine actions + optional Menu footer). `ts` in the status keeps
+  clocks from jumping when a transient message (`_say`) is shown.
+- Promotion: board detects pawn→last rank from `userData.type` and opens the picker;
+  sessions just receive the promo letter. `setPosition` always closes the picker.
+- `board.onSquarePick` (trainer) takes over every square pick incl. grab-mode pinches;
+  `bindBoard` and `TrainerSession.stop()` clear it. `board.setMarks({sq: hex})` = session tints.
+- main.js: puzzles/rush/trainer are activities started via `startActivity(kind, make)` (stops the
+  previous activity only on an explicit switch). The navigation route stack is separate from `view`.
+- `PuzzleSession.stop()` bumps `run`, so an in-flight fetch can't take over the board
+  after a game starts.
+- Hand tracking: hand meshes via `XRHandModelFactory`; two modes, persisted as
+  `localStorage.handMode` and set via `board.setHandMode`. `ray` (default): pinch
+  fires `selectstart` on the controller groups → normal ray select — except a pinch right at
+  one of your pieces (`_handGrabs`/`_reachable`), which grabs it instead. Piece grabs confirm
+  in `_tick` (`pendingGrab` → `_confirmGrab`): held `GRAB_HOLD` ms with thumb–index gap ≤
+  `GRAB_GAP`; the piece is chosen then, a pinch released earlier grabs nothing (tests shift
+  `pendingGrab.t0`). `_reachHover` lights up the piece a pinch would grab (hover `h0`/`h1`).
+  `grab`: rays target UI only (pieces still use direct grab); three's
+  `pinchstart/pinchend` hand events grab the nearest pickable piece within 0.7
+  squares of the pinch point (thumb+index tip midpoint); the piece follows the hand
+  (`_tick`), release snaps to the nearest square and emits `onMove` if legal, else
+  returns home. Tracking loss mid-grab cancels safely. All in `board3d.js` —
+  worldToLocal handles the black 180° rotation; sessions are unaware of input mode.
+- Puzzles: `/api/puzzle/next` works without auth (results are NOT recorded to the
+  lichess account). Any mating move is accepted, matching lichess rules; wrong moves
+  roll back with free retry. Panel uses the `puzzle: true` status branch (no clocks).
+- Event/game streams have a 20 s stall watchdog (`STALL_MS`): half-open TCP after headset
+  sleep never errors on its own; lichess keepalives arrive every few seconds.
+- `attach()` never replaces a running game; lichess re-sends `gameStart` for all ongoing games
+  on reconnect. Correspondence / non-board-compatible games are never auto-attached.
+- Game takebacks are detected by the *server* move count shrinking (`serverMoves`), not by
+  `moves < applied` — a state sent before our optimistic move is merely stale.
+- Clocks count from `stateTs` (server snapshot time), so re-renders don't make them jump.
+  Desktop clocks use the same status snapshot and timestamp; hiding controls, changing the
+  camera or opening menus must never reset them. Player rows follow `myColor`, not board flipping.
+- Puzzles always use an anonymous client (a board:play token lacks `puzzle:read` → 403).
+- Streams die on headset sleep/network blips → both the event stream (`main.js runEvents`)
+  and the game stream (`game.js start`) auto-reconnect in a loop; a game-stream
+  reconnect replays `gameFull`, which fully resets session state.
