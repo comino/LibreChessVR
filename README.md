@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/brand/wordmark.svg" width="420" alt="LibreChessVR — chess in VR, in your browser"></p>
+<p align="center"><img src="assets/brand/wordmark.svg" width="420" alt="LibreChessVR — read a real chessboard"></p>
 
 **Chess in VR, straight from your headset's browser. Nothing to install.**
 
@@ -113,7 +113,7 @@ location, set `CHROME` to your browser executable when running the smoke script.
 
 ```sh
 node test/test.js && node test/hunt-unit.js && node test/navigation-unit.js && node test/clock-unit.js
-test/run-smoke.sh                              # 15 headless-Chrome suites, all must print *-OK
+test/run-smoke.sh                              # 16 headless-Chrome suites, all must print *-OK
 ```
 
 The smoke suites drive the real modules against a fake lichess (streams, reconnects, offers,
