@@ -334,7 +334,8 @@ try {
   let mem1, programs1
   const lights = () => { let n = 0; board.scene.traverse(o => { if (o.isLight) n++ }); return n }
   const lightCount = lights()
-  // Each switch costs ~15 s under SwiftShader, so the per-scene checks ride along in round 0.
+  // Each switch costs ~15 s under SwiftShader, so the per-scene checks ride along in both rounds
+  // (the second round re-enters each scene: re-entry must recapture and stay bounded too).
   const scanned = g => { let n = 0; g.traverse(o => { if (o.isMesh && o.material.normalMap) n++ }); return n }
   const minProps = { study: 9, sunset: 12, night: 9 }
   for (let round = 0; round < 2; round++) {
@@ -348,7 +349,6 @@ try {
       check(board.environment === name && board.scene.children.length === childCount, 'env swap keeps scene size: ' + name)
       backgrounds.add(board.scene.background.getHex())
       check(lights() === lightCount, 'constant light count (no shader recompiles): ' + name)
-      if (round) continue
       let draws = 0
       board.envGroup.traverse(o => { if (o.isMesh || o.isPoints || o.isSprite) draws++ })
       check(draws <= 45, `${name}: draw calls bounded for Quest (${draws})`)
