@@ -16,9 +16,9 @@ const OK = /^[A-Z-]+-OK(\s|$)/
 const BUFFER = 256 * 1024 * 1024
 // A suite that could not load or run is a junit <error>, not a <failure>: bx red must not count it as red.
 // Matched on the first error line only: an assertion may name the error it expected.
-// A load error a suite caught and logged itself (hunt-unit's check helper) counts too.
+// A load error a suite or page caught and reported itself (hunt-unit's check, app-smoke's catch) counts too.
 const LOAD = /^(SyntaxError|Error \[ERR_MODULE_NOT_FOUND\]|Error: Cannot find module)/
-const CAUGHT_LOAD = /ERR_MODULE_NOT_FOUND|Cannot find module|does not provide an export named/
+const CAUGHT_LOAD = /ERR_MODULE_NOT_FOUND|Cannot find module|does not provide an export named|Failed to fetch dynamically imported module|Importing a module script failed/
 const files = process.argv.length > 2 ? [...new Set(process.argv.slice(2).map(normalize))] : [...UNIT, ...SMOKE]
 const results = []
 
@@ -40,7 +40,7 @@ function runSmoke(pages) {
   const secs = (Date.now() - t0) / 1000 / pages.length
   for (const file of pages) {
     const out = lines.get(file)
-    const kind = out === undefined || out === 'NO RESULT' ? 'error' : OK.test(out) ? null : 'failure'  // the page never ran its checks
+    const kind = out === undefined || out === 'NO RESULT' || CAUGHT_LOAD.test(out) ? 'error' : OK.test(out) ? null : 'failure'
     results.push({ file, kind, message: out ?? `no result (run-smoke exit ${r.status})`, secs })
   }
 }
