@@ -28,6 +28,19 @@ r = run('./test/fixtures/pass.js')
 assert.equal(r.status, 0, './ path runs')
 assert.equal(kindOf(r.junit, 'test/fixtures/pass.js'), 'pass', './ path reported in canonical form')
 
+r = run('test/fixtures/caught-missing-import.js')
+assert.equal(kindOf(r.junit, 'test/fixtures/caught-missing-import.js'), 'error', 'a load error the suite caught itself → error')
+
+r = run('test/fixtures/pass.js', './test/fixtures/pass.js')
+assert.equal(r.junit.match(/<testcase /g)?.length, 1, 'a file named twice runs once (a repeated case reads as a retry)')
+
+r = run('test/fixtures/big-output.js')
+assert.equal(kindOf(r.junit, 'test/fixtures/big-output.js'), 'pass', 'output beyond 1 MiB is no failure')
+
+r = run('test/fixtures/ansi-fail.js')
+assert.equal(kindOf(r.junit, 'test/fixtures/ansi-fail.js'), 'failure')
+assert.doesNotMatch(r.junit, /[\x00-\x08\x0B\x0C\x0E-\x1F]/, 'junit has no XML-invalid control characters')
+
 mkdirSync('test-results', { recursive: true }); writeFileSync(JUNIT, 'stale')
 r = run('README.md')
 assert.equal(r.status, 2, 'a non-test file is a usage error')
