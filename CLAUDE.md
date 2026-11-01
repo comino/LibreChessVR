@@ -16,8 +16,8 @@ user-visible change so installed apps refresh. Tags, GitHub releases and the Que
 ## What is live
 
 `curl -s https://librechessvr.com/sw.js | grep CACHE`, then diff served files against `main`
-(`curl -s https://librechessvr.com/src/main.js | diff - src/main.js`). `main` may run ahead of
-the last tag (`VERSION`, CHANGELOG "Unreleased").
+(`curl -s https://librechessvr.com/src/main.js | diff - src/main.js`). Live is checked against `main`,
+not the last tag (`VERSION`; CHANGELOG "Unreleased" = on `main`, untagged).
 
 ## Required gates
 
@@ -32,8 +32,8 @@ Real games need Sven's Lichess token: never in bx or the repo.
 
 ## Error signature
 
-No backend or telemetry. Failure shows as a non-200 from librechessvr.com, a `CACHE` that does not
-match `main` after a deploy, or a smoke page printing anything but `*-OK`.
+No backend or telemetry. Failure shows as a non-200 from librechessvr.com, served files that differ
+from `main` after a deploy, or a smoke page printing anything but `*-OK`.
 
 ## Design system (read before touching any UI)
 
@@ -236,7 +236,7 @@ handle `window.parallax`) remain unchanged; they are not the public name.
     node test/test.js && node test/hunt-unit.js && node test/navigation-unit.js && node test/clock-unit.js
     test/run-smoke.sh                               # every test/*-smoke.html headless; all must print *-OK
 
-On Linux set `CHROME` and `CHROME_FLAGS` (bx: `/usr/bin/chromium`, `--no-sandbox`).
+On Linux set `CHROME` and `CHROME_FLAGS` (bx profile: `/usr/bin/chromium`, `--no-sandbox --disable-dev-shm-usage`).
 
 `PORT=… test/run-smoke.sh page…` runs a subset on another port (parallel agents). Suites:
 `smoke` (render), `ui` (bar/poke/picker/hover/scale/envs/styles), `grab`, `game` (fake lichess
@@ -250,7 +250,7 @@ frame (`board._tick()`); XR controllers need `updateMatrix()`; tints are `tile.u
 (hover is emissive). The runner (`test/cdp-run.mjs`) drives Chrome over DevTools in real time, one
 page at a time with storage wiped in between — `--virtual-time-budget` stalls image decoding of
 the textured GLB. Visual changes: screenshot headless Chrome (`--use-angle=swiftshader
---enable-unsafe-swiftshader`, `Page.captureScreenshot`) and look at it. Real games need a token.
+--enable-unsafe-swiftshader`, `Page.captureScreenshot`) and look at it.
 
 ## App packaging & deploy
 
@@ -258,7 +258,7 @@ the textured GLB. Visual changes: screenshot headless Chrome (`--use-angle=swift
   uploads a complete release under `/var/www/librechessvr/releases` and atomically switches
   the `current` symlink, retaining earlier releases for rollback. nginx serves `current` via
   `/etc/nginx/snippets/librechessvr-static.conf`; the site is `/etc/nginx/sites-available/librechessvr`.
-  Bump `CACHE` in `sw.js` on each ship. Verify the public URL after deploying.
+  `CACHE` bump: see Release path. Verify the public URL after deploying.
 - Public address **https://librechessvr.com**: nginx serves the app and redirects `www` to
   the apex. Fred's Caddy proxies old-IP requests and the sslip origin to Janasven for existing
   Quest wrappers. `/opt/parallax/web` on fred is no longer the public document root.

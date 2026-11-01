@@ -32,4 +32,4 @@ for (const p of pages) {
   results.push([p, await run(p)])
   console.log(`${p}: ${results.at(-1)[1]}`)
 }
-process.exit(results.every(([, r]) => /-OK/.test(r)) ? 0 : 1)
+process.exit(results.every(([, r]) => /^[A-Z-]+-OK(\s|$)/.test(r)) ? 0 : 1)
