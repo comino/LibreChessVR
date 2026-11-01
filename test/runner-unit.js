@@ -5,8 +5,9 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 
 const JUNIT = 'test-results/junit.xml'
+const env = { ...process.env, SMOKE_RUNNER: 'test/fixtures/fake-smoke.mjs' }  // pages without Chrome
 const run = (...files) => {
-  const r = spawnSync('node', ['test/run-tests.mjs', ...files], { encoding: 'utf8' })
+  const r = spawnSync('node', ['test/run-tests.mjs', ...files], { encoding: 'utf8', env })
   return { status: r.status, junit: existsSync(JUNIT) ? readFileSync(JUNIT, 'utf8') : '' }
 }
 const kindOf = (junit, file) => junit.match(new RegExp(`name="${file}"[^>]*>(?:<(failure|error) )?`))?.[1] ?? 'pass'
@@ -40,6 +41,13 @@ assert.equal(kindOf(r.junit, 'test/fixtures/big-output.js'), 'pass', 'output bey
 r = run('test/fixtures/ansi-fail.js')
 assert.equal(kindOf(r.junit, 'test/fixtures/ansi-fail.js'), 'failure')
 assert.doesNotMatch(r.junit, /[\x00-\x08\x0B\x0C\x0E-\x1F]/, 'junit has no XML-invalid control characters')
+
+r = run('test/fixtures/page-ok.html', 'test/fixtures/page-fail.html', 'test/fixtures/page-noresult.html', 'test/fixtures/page-caught-load.html')
+assert.equal(r.status, 1)
+assert.equal(kindOf(r.junit, 'test/fixtures/page-ok.html'), 'pass')
+assert.equal(kindOf(r.junit, 'test/fixtures/page-fail.html'), 'failure', 'a failed page check → failure')
+assert.equal(kindOf(r.junit, 'test/fixtures/page-noresult.html'), 'error', 'a page that never finished → error')
+assert.equal(kindOf(r.junit, 'test/fixtures/page-caught-load.html'), 'error', 'a page that caught its own failed import → error')
 
 mkdirSync('test-results', { recursive: true }); writeFileSync(JUNIT, 'stale')
 r = run('README.md')

@@ -34,7 +34,7 @@ function runUnit(file) {
 
 function runSmoke(pages) {
   const t0 = Date.now()
-  const r = spawnSync('test/run-smoke.sh', pages, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'], maxBuffer: BUFFER })
+  const r = spawnSync(process.env.SMOKE_RUNNER || 'test/run-smoke.sh', pages, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'], maxBuffer: BUFFER })
   process.stdout.write(r.stdout ?? '')
   const lines = new Map((r.stdout ?? '').split('\n').map(l => l.match(/^(test\/\S+\.html): (.*)$/)).filter(Boolean).map(m => [m[1], m[2]]))
   const secs = (Date.now() - t0) / 1000 / pages.length
