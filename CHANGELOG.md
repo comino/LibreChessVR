@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The page, README, app description and brand guide lead with chess in VR straight from the
+  browser, nothing to install. Desktop board vision practice stays the second audience.
 - Knights show their side profile by default. Choose Right, Forward, Left or Backward
   under Appearance or in the desktop sidebar; the preference is saved. Directions follow
   each player's side, including captured pieces and promoted knights. Fixes #2.

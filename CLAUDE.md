@@ -41,7 +41,7 @@ from `main` after a deploy, or a smoke page printing anything but `*-OK`.
 `BRAND.md` is the design guide (name, voice, colors, type, shapes, scenes). All colors and
 fonts come from `src/theme.js` (3D + canvas UI) and its mirror of CSS variables in `index.html`.
 Never hardcode a color: add a token. Button labels: 1–2 words, sentence case; values as
-"Name value". The visible name is LibreChessVR. Lead with practice, not account creation.
+"Name value". The visible name is LibreChessVR. Lead with "no install"; practice needs no account or headset.
 Compatibility identifiers (OAuth client, Android package, storage/cache keys and the debug
 handle `window.parallax`) remain unchanged; they are not the public name.
 
