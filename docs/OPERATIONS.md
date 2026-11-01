@@ -8,7 +8,7 @@ Hosting, caching, packaging and headset testing. Deploys and the APK are Sven's 
   uploads a complete release under `/var/www/librechessvr/releases` and atomically switches
   the `current` symlink, retaining earlier releases for rollback. nginx serves `current` via
   `/etc/nginx/snippets/librechessvr-static.conf`; the site is `/etc/nginx/sites-available/librechessvr`.
-  `CACHE` bump: see Release path. Verify the public URL after deploying.
+  `CACHE` bump: see `CLAUDE.md` § Release path. Verify the public URL after deploying.
 - Public address **https://librechessvr.com**: nginx serves the app and redirects `www` to
   the apex. Fred's Caddy proxies old-IP requests and the sslip origin to Janasven for existing
   Quest wrappers. `/opt/parallax/web` on fred is no longer the public document root.

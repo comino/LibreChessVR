@@ -46,24 +46,27 @@ handle `window.parallax`) remain unchanged; they are not the public name.
 
 ## Where things are
 
-- Before changing a module, read its row and the invariants it touches in `docs/ARCHITECTURE.md`
-  (stack, module map, every input/rendering/session/lichess invariant).
-- Hosting, caching, PWA, Quest APK, OAuth and headset testing: `docs/OPERATIONS.md`.
+- Editing anything in `src/` (board3d, game, lichess, puzzle/rush, trainer, main, panel, scenes) →
+  first read the module's row and all of § Key invariants in `docs/ARCHITECTURE.md`.
+- Editing `sw.js`, `deploy/`, `android/`, `src/auth.js` or testing on a headset → `docs/OPERATIONS.md`.
 
 ## Gotchas that have caused real bugs
 
 - Board frame is always White's perspective (a1 = −x,+z local). Black view or flipping = rotate
   `boardGroup` 180°; never remap coordinates (an earlier prototype died on this).
 - Picking never raycasts the GLB meshes: invisible proxy cylinders + `_touches()` silhouette
-  check, all through `_cast()`, so hover and pick always agree.
+  check (legal targets keep their full proxy), all through `_cast()`, so hover and pick agree.
 - Stream message handlers must never throw: any exception → `_fail()`. A throw makes the
   reconnect replay the same messages forever.
-- Lichess: a seek lives only while its HTTP request is open; seeks must be rapid or slower;
+- Game streams: `_applyState` applies only moves beyond `applied` (own moves are optimistic);
+  takebacks are detected by the server move count; a reconnect replays `gameFull` and resets state.
+- Lichess: a seek lives only while its HTTP request is open; seeks must be rapid+ (`isRapid`:
+  limit + 40×inc ≥ 480 s), blitz only for direct/AI challenges;
   puzzles always use an anonymous client (a board:play token gets 403).
 - Clocks count from the server snapshot (`stateTs`); hiding controls, moving the camera or opening
   menus must never reset them. Navigation never pauses clocks or ends activities.
 - Scenes: fixed light count (no shader recompiles), ≤ 45 env draw calls on the Quest (ui-smoke
-  checks it), `disposeGroup` on every switch.
+  checks it; props count, so `await board.env.ready`); `setEnvironment` disposes the old group.
 - `sw.js` is network-first for app files. Never stale-while-revalidate: it mixed old and new
   ES modules after a deploy.
 
