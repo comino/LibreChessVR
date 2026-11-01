@@ -2,18 +2,21 @@
 // test-results/junit.xml with one case per file for bx. Exit 1 unless every file passed.
 // Usage: node test/run-tests.mjs [test/x-unit.js | test/x-smoke.html ...]
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, readdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 process.chdir(fileURLToPath(new URL('..', import.meta.url)))
+rmSync('test-results/junit.xml', { force: true })  // a crashed run must not leave the last run's report
 
 const list = suffix => readdirSync('test').filter(f => f.endsWith(suffix)).sort().map(f => 'test/' + f)
 const UNIT = ['test/test.js', ...list('-unit.js')]
 const SMOKE = ['test/smoke.html', ...list('-smoke.html')]
 const OK = /^[A-Z-]+-OK(\s|$)/
-// A suite that could not load is a junit <error>, not a <failure>: bx red must not count it as red.
-const LOAD = /ERR_MODULE_NOT_FOUND|SyntaxError|does not provide an export named/
-const files = process.argv.length > 2 ? process.argv.slice(2) : [...UNIT, ...SMOKE]
+// A suite that could not load or run is a junit <error>, not a <failure>: bx red must not count it as red.
+// Matched on the first error line only: an assertion may name the error it expected.
+const LOAD = /^(SyntaxError|Error \[ERR_MODULE_NOT_FOUND\]|Error: Cannot find module)/
+const files = process.argv.length > 2 ? process.argv.slice(2).map(normalize) : [...UNIT, ...SMOKE]
 const results = []
 
 function runUnit(file) {
@@ -21,7 +24,7 @@ function runUnit(file) {
   const r = spawnSync('node', [file], { encoding: 'utf8' })
   process.stdout.write(r.stdout); process.stderr.write(r.stderr)
   const why = r.stderr.match(/^\w*Error\b.*$/m)?.[0] ?? (r.stdout + r.stderr).trim().split('\n').at(-1) ?? ''
-  const kind = r.status === 0 ? null : LOAD.test(r.stderr) ? 'error' : 'failure'
+  const kind = r.status === 0 ? null : LOAD.test(why) ? 'error' : 'failure'
   results.push({ file, kind, message: `${why} (exit ${r.status})`, secs: (Date.now() - t0) / 1000 })
 }
 
@@ -33,7 +36,7 @@ function runSmoke(pages) {
   const secs = (Date.now() - t0) / 1000 / pages.length
   for (const file of pages) {
     const out = lines.get(file)
-    const kind = out === undefined ? 'error' : OK.test(out) ? null : 'failure'  // no result: the page never ran its checks
+    const kind = out === undefined || out === 'NO RESULT' ? 'error' : OK.test(out) ? null : 'failure'  // the page never ran its checks
     results.push({ file, kind, message: out ?? `no result (run-smoke exit ${r.status})`, secs })
   }
 }
