@@ -18,8 +18,8 @@ function runUnit(file) {
   const t0 = Date.now()
   const r = spawnSync('node', [file], { encoding: 'utf8' })
   process.stdout.write(r.stdout); process.stderr.write(r.stderr)
-  const last = (r.stdout + r.stderr).trim().split('\n').at(-1) || ''
-  results.push({ file, ok: r.status === 0, message: r.status === 0 ? '' : `exit ${r.status}: ${last}`, secs: (Date.now() - t0) / 1000 })
+  const why = r.stderr.match(/^\w*Error\b.*$/m)?.[0] ?? (r.stdout + r.stderr).trim().split('\n').at(-1) ?? ''
+  results.push({ file, ok: r.status === 0, message: r.status === 0 ? '' : `exit ${r.status}: ${why}`, secs: (Date.now() - t0) / 1000 })
 }
 
 function runSmoke(pages) {
