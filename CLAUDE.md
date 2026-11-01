@@ -10,7 +10,8 @@ Project code is MIT licensed; retain the asset and dependency credits in `THIRD_
 ## Release path
 
 No test or staging environment. A change is done when merged to `main` with the bx gate green
-and proven in headless Chrome. `deploy/deploy.sh` ships straight to production
+and proven in headless Chrome. Merge with `tools/merge.sh <sha>` (bx merge-check, then a fast-forward
+push of that exact sha). `deploy/deploy.sh` ships straight to production
 (librechessvr.com): Sven runs it, never an agent. Bump `CACHE` in `sw.js` with every
 user-visible change so installed apps refresh. Tags, GitHub releases and the Quest APK are Sven's.
 
@@ -22,8 +23,10 @@ not the last tag (`VERSION`; CHANGELOG "Unreleased" = on `main`, untagged).
 
 ## Required gates
 
-`bx test` (profile `LibreChessVR`, `boat: never`): 4 unit suites + 16 smoke pages, each one result
-line (expect 20; the profile's `min_tests`). Smoke pages load three.js/chess.js from CDNs.
+`bx --record gate test` (profile `LibreChessVR`, `boat: never`) runs `test/run-tests.mjs`: 4 unit suites +
+16 smoke pages, each one result line and one junit case (expect 20; the profile's `min_tests`). Runtime
+changes also need `bx red` (a changed test file fails on main) or `bx red --none "<reason>"`.
+Smoke pages load three.js/chess.js from CDNs.
 
 ## Exercise path
 
@@ -73,8 +76,8 @@ handle `window.parallax`) remain unchanged; they are not the public name.
 
 ## Testing (do this after changes)
 
-    node test/test.js && node test/hunt-unit.js && node test/navigation-unit.js && node test/clock-unit.js
-    test/run-smoke.sh                               # every test/*-smoke.html headless; all must print *-OK
+    node test/run-tests.mjs                         # test.js + test/*-unit.js, then every smoke page headless
+    node test/run-tests.mjs test/game-smoke.html    # only the named files; junit in test-results/
 
 `PORT=… test/run-smoke.sh page…` runs a subset on another port (parallel agents). The runner finds Chrome
 (macOS) or Chromium (Linux) itself, or takes `CHROME=…`; `CHROME_FLAGS` adds flags (bx profile:

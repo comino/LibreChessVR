@@ -108,12 +108,11 @@ and invariants: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md); hosting and pack
 [`docs/OPERATIONS.md`](docs/OPERATIONS.md). Brand & design system: [`BRAND.md`](BRAND.md);
 tokens in [`src/theme.js`](src/theme.js).
 
-Tests need Node.js 22 or newer and Chrome/Chromium. If Chrome is not in the default macOS
-location, set `CHROME` to your browser executable when running the smoke script.
+Tests need Node.js 22 or newer and Chrome/Chromium. The smoke script finds Chrome or Chromium
+itself; otherwise set `CHROME` to your browser executable.
 
 ```sh
-node test/test.js && node test/hunt-unit.js && node test/navigation-unit.js && node test/clock-unit.js
-test/run-smoke.sh                              # 16 headless-Chrome suites, all must print *-OK
+node test/run-tests.mjs                        # 4 unit suites + 16 headless-Chrome suites, all must pass
 ```
 
 The smoke suites drive the real modules against a fake lichess (streams, reconnects, offers,

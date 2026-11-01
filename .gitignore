@@ -13,3 +13,4 @@ android/*
 !android/build.sh
 tools/node_modules
 tools/package*.json
+test-results/
