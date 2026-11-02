@@ -466,5 +466,13 @@ await check('a failed late withdrawal does not hide that game for good', async (
   late.resolve({ id: 'gL' })
   await start; await tick(); await tick()
   assert.ok(!p.wasCancelled('gL'), 'its gameStart can still attach the live game')
+  const revived = []
+  const q = new PendingChallenge({ cancel: async () => { throw new TypeError('network') }, revive: id => revived.push(id),
+    setTimer: fn => { timers.push(fn); return timers.length }, clearTimer: () => {} })
+  const late2 = deferred(), start2 = q.start('Stockfish', () => late2.promise)
+  await q.cancel(); timers.at(-1)()
+  late2.resolve({ id: 'gM' })
+  await start2; await tick(); await tick()
+  assert.deepEqual(revived, ['gM'], 'a gameStart dropped meanwhile is made up for: the game is attached')
 })
 console.log(`ACTIONS-OK ${checks} checks`)
