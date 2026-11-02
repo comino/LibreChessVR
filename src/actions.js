@@ -88,8 +88,10 @@ export class PendingChallenge {
     this.clearTimer(request.timer)
     this.changed()
     if (!request.id) {
-      request.cancelling = false
-      this._message(request, 'Cannot confirm cancellation — wait for reconnection or check Lichess')
+      // Creation failed without an id: nothing to cancel on Lichess. Release the lock here;
+      // if the challenge did exist and is accepted, its gameStart still attaches the game.
+      this._clear(request)
+      this._message(request, 'Challenge cleared — if Lichess still shows it, it expires on its own')
       return
     }
     try {

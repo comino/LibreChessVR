@@ -96,7 +96,7 @@ function compactMenu() {
 
 const canCancelChallenge = () => {
   const p = pendingChallenge.current
-  return !!p && !p.cancelling && (p.creating || !!p.id)
+  return !!p && !p.cancelling
 }
 
 function startFree() {
@@ -225,7 +225,7 @@ async function runEvents() {
 // Real-time board-compatible games only; correspondence games would hijack the board.
 // nowPlaying entries lack compat.board, so speeds/variants are checked explicitly.
 const UNPLAYABLE = ['ultraBullet', 'bullet', 'correspondence']
-const playable = g => !UNPLAYABLE.includes(g.speed) && g.compat?.board !== false &&
+const playable = g => !!g && !UNPLAYABLE.includes(g.speed) && g.compat?.board !== false &&
   ['standard', 'fromPosition', undefined].includes(g.variant?.key)
 
 // lichess re-sends gameStart for every ongoing game when the stream (re)opens.

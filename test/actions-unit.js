@@ -143,13 +143,13 @@ await check('other cancellation errors cannot masquerade as a terminal challenge
     assert.equal(await pending.start('Stockfish', async () => ({ id: 'duplicate' })), false)
   }
 })
-await check('missing response ID cannot be mistaken for a confirmed cancellation', async () => {
+await check('missing response ID: cancel releases the lock locally, never as a confirmed cancellation', async () => {
   const { pending, cancelled, messages } = fixture()
   await pending.start('Maia 5', async () => ({}))
   await pending.cancel()
-  assert.ok(pending.current)
-  assert.deepEqual(cancelled, [])
-  assert.match(messages.at(-1), /Cannot confirm cancellation/)
+  assert.equal(pending.current, null, 'no permanent lock (PRJ-54 story bughunter)')
+  assert.deepEqual(cancelled, [], 'nothing to cancel on Lichess without an id')
+  assert.match(messages.at(-1), /Challenge cleared/)
 })
 await check('game event before POST resolution suppresses late failure and timeout notices', async () => {
   const { pending, messages, timers } = fixture(), creation = deferred()
