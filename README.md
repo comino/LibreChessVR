@@ -36,6 +36,7 @@ https://github.com/user-attachments/assets/50765291-0f96-4ddf-828c-3ca078cba171
    point and pinch with your hands, or pick pieces up directly.
 
 On desktop, **Hide controls** recenters the board and keeps activity actions within reach.
+**Lock view** freezes the camera so a slightly imprecise click still moves a piece.
 **Show controls** restores the sidebar; your choice is remembered. During games, player clocks
 stay visible beside the play area as you rotate or zoom the board.
 

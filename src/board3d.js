@@ -78,6 +78,7 @@ export class Board3D {
   shadowsDirty = true
   pieceStyle = 'solid'
   knightFacing = 'right'
+  viewLocked = false         // desktop: orbit camera frozen, picking unchanged
   voice = 'off'              // 'off' | 'opponent' | 'all': spoken moves
   flipped = false
   onHeightChange = null      // (offset) => after a thumbstick height adjustment ends
@@ -321,6 +322,11 @@ export class Board3D {
     for (const group of [this.piecesGroup, this.capturedGroup, this.picker?.group])
       group?.traverse(piece => this._faceKnight(piece))
     this.shadowsDirty = true
+  }
+
+  setViewLock(on) {
+    this.viewLocked = !!on
+    this.controls.enabled = !on
   }
 
   // Captured pieces stand beside the board at the capturer's right hand, 8 per column.
@@ -926,7 +932,7 @@ export class Board3D {
       this.hands.push(hand)
     }
 
-    // A click that ends an orbit drag is not a pick.
+    // A click that ends an orbit drag is not a pick; a locked view cannot orbit.
     const dom = this.renderer.domElement
     let down = null
     dom.addEventListener('pointerdown', e => { down = [e.clientX, e.clientY] })
@@ -934,7 +940,7 @@ export class Board3D {
       (e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1), this.camera)
     this.renderer.xr.addEventListener('sessionstart', () => this._clearHover('mouse'))
     dom.addEventListener('click', e => {
-      if (down && Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return
+      if (!this.viewLocked && down && Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return
       this.source = null
       mouseRay(e)
       this._pick()

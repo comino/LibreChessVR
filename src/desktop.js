@@ -6,11 +6,18 @@ const setText = (element, text) => { if (element.textContent !== text) element.t
 export class DesktopView {
   constructor(board, navigation, sidebar) {
     Object.assign(this, { board, navigation, sidebar, collapsed: false, launching: false, immersive: false })
-    try { this.collapsed = localStorage.getItem('controlsHidden') === '1' } catch { /* optional preference */ }
+    let locked = false
+    try {
+      this.collapsed = localStorage.getItem('controlsHidden') === '1'
+      locked = localStorage.getItem('viewLocked') === '1'
+    } catch { /* optional preferences */ }
     this.root = document.createElement('div')
     this.root.id = 'desktop'
     this.root.innerHTML = `
-      <button id="controlsToggle" type="button" aria-controls="ui" aria-expanded="true">Hide controls</button>
+      <div id="desktopTools">
+        <button id="controlsToggle" type="button" aria-controls="ui" aria-expanded="true">Hide controls</button>
+        <button id="viewLock" type="button" aria-pressed="false">Lock view</button>
+      </div>
       <section id="desktopStatus" aria-label="Activity status" hidden>
         <div id="desktopClocks" hidden>
           <div class="desktop-clock" data-player="opponent"><span class="clock-name"></span><span class="clock-value" role="timer"></span></div>
@@ -23,6 +30,9 @@ export class DesktopView {
       <nav id="desktopActions" aria-label="Activity actions" hidden></nav>`
     sidebar.before(this.root)
     this.toggle = this.root.querySelector('#controlsToggle')
+    this.lock = this.root.querySelector('#viewLock')
+    this.lock.onclick = () => this.setViewLock(!board.viewLocked, true)
+    this.setViewLock(locked)
     this.status = this.root.querySelector('#desktopStatus')
     this.clocks = this.root.querySelector('#desktopClocks')
     this.title = this.root.querySelector('#desktopTitle')
@@ -39,6 +49,13 @@ export class DesktopView {
     this.layout()
     // Derive time from timestamps, including after a background tab wakes up.
     this.timer = setInterval(() => this.update(), 100)
+  }
+
+  setViewLock(on, save) {
+    this.board.setViewLock(on)
+    this.lock.textContent = on ? 'Unlock view' : 'Lock view'
+    this.lock.setAttribute('aria-pressed', String(on))
+    if (save) try { localStorage.setItem('viewLocked', on ? '1' : '') } catch { /* optional preference */ }
   }
 
   setLaunch(on) { this.launching = on; this.layout() }

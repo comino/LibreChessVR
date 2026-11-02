@@ -89,8 +89,9 @@
   #launch .link { background: none; color: var(--mist) }
   #launch .link:hover { color: var(--ivory) }
   details summary { cursor: pointer; color: var(--mist); font-size: 12px; margin-top: 8px }
-  #controlsToggle { position: fixed; top: 16px; left: 16px; z-index: 12; min-height: 40px;
-    border-color: var(--steel-hi); box-shadow: 0 4px 20px rgba(0,0,0,.2) }
+  #desktopTools { position: fixed; top: 16px; left: 16px; z-index: 12; display: flex; gap: 8px }
+  #desktopTools button { min-height: 40px; border-color: var(--steel-hi); box-shadow: 0 4px 20px rgba(0,0,0,.2) }
+  #viewLock[aria-pressed=true] { border-color: var(--brass) }
   #desktopStatus { position: fixed; top: 16px; right: 16px; z-index: 11; width: 240px;
     padding: 16px; border: 1px solid var(--steel); border-radius: var(--r-card);
     background: rgba(26,31,40,.94); box-shadow: 0 8px 32px rgba(0,0,0,.2) }
