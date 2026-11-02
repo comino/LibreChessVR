@@ -161,7 +161,9 @@ try {
     faces(board.pieceAt[to], 0, -sign, `${color}: promoted knight inherits facing`)
   }
   board.setKnightFacing('outward')
-  for (const [fen, from, to, x] of [['7k/1P6/8/8/8/8/8/7K w - - 0 1', 'b7', 'b8', -1], ['k7/6P1/8/8/8/8/8/K7 w - - 0 1', 'g7', 'g8', 1]]) {
+  // The preview's own slot (c8 → e8) and the pawn's file (d7×e8) differ from the promotion square's side.
+  for (const [fen, from, to, x] of [['7k/1P6/8/8/8/8/8/7K w - - 0 1', 'b7', 'b8', -1], ['k7/6P1/8/8/8/8/8/K7 w - - 0 1', 'g7', 'g8', 1],
+    ['7k/2P5/8/8/8/8/8/7K w - - 0 1', 'c7', 'c8', -1], ['k3r3/3P4/8/8/8/8/8/K7 w - - 0 1', 'd7', 'e8', 1]]) {
     const chess = new Chess(fen)
     board.setPosition(chess.fen())
     bindBoard(board, { chess, color: 'white', active: () => true, tryMove: () => true })
@@ -173,7 +175,14 @@ try {
   board.capturedGroup.clear(); board._showCaptured('4k3/8/8/8/8/8/8/4K3 w - - 0 1')
   const lost = board.capturedGroup.children.filter(p => p.userData.type === 'n')
   check(lost.length === 4, 'captured knights shown')
-  for (const piece of lost) faces(piece, piece.userData.color === 'w' ? 1 : -1, 0, 'outward: captured knight faces its player’s right')
+  for (const choice of ['forward', 'inward', 'outward']) { // switched in place, no rebuild
+    board.setKnightFacing(choice)
+    const [x, z] = choice === 'forward' ? [0, -1] : [1, 0]
+    for (const piece of lost) {
+      const own = piece.userData.color === 'w' ? 1 : -1
+      faces(piece, own * x, own * z, `${choice}: existing captured knight faces its player’s ${choice === 'forward' ? 'forward' : 'right'}`)
+    }
+  }
   board.setKnightFacing('invalid')
   check(board.knightFacing === 'right', 'invalid saved setting falls back to sideways')
   document.getElementById('result').textContent = 'KNIGHT-OK'
