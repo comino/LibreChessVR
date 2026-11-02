@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { Navigation } from '../src/navigation.js'
 
-let page, hidden = 0, starts = []
+let page, hidden = 0, starts = [], cancelled = 0
 let context = { kind: 'puzzles', label: 'Puzzle', progress: true, username: 'me' }
 let settings = { height: 0, scale: 1, environment: 'study', level: 3, time: 10, increment: 5,
   color: 'random', rated: false, maia: 5, pdiff: 'normal', ptheme: 'mix', hands: 'grab',
@@ -9,7 +9,7 @@ let settings = { height: 0, scale: 1, environment: 'study', level: 3, time: 10, 
 const nav = new Navigation({
   show: p => { page = p }, hide: () => hidden++, context: () => context,
   get: () => settings, set: p => { Object.assign(settings, p); nav.refresh() },
-  start: kind => starts.push(kind), login() {}, cancelSeek() {}
+  start: kind => starts.push(kind), login() {}, cancelSeek() {}, cancelChallenge: () => cancelled++
 })
 const press = label => {
   const action = page.actions.find(a => a.label === label)
@@ -53,4 +53,20 @@ nav.open(); press('Play'); press('Stockfish'); press('Level'); press('2')
 assert.equal(settings.level, 2, 'difficulty is selected directly, including decreasing it')
 page.back.run()
 assert.equal(page.title, 'Stockfish')
+
+context = { kind: 'free', label: 'Free board', username: 'me', pendingChallenge: { label: 'Maia 5', cancellable: true } }
+nav.refresh()
+assert.ok(page.actions.find(a => a.label === 'Start game').disabled, 'pending challenge disables another game')
+const before = starts.length
+nav.requestStart('stockfish'); nav.launch('human')
+assert.equal(starts.length, before, 'stale start handlers cannot bypass the pending guard')
+press('Cancel challenge')
+assert.equal(cancelled, 1)
+context.pendingChallenge.cancellable = false
+nav.refresh()
+assert.ok(page.actions.find(a => a.label === 'Cancel challenge').disabled, 'cancellation in progress cannot be repeated')
+nav.open()
+assert.ok(page.actions.find(a => a.label === 'Cancel challenge'), 'home keeps cancellation reachable')
+press('Practice'); press('Coordinates')
+assert.equal(starts.at(-1), 'coordinates', 'training stays available while a challenge is pending')
 console.log('NAVIGATION-UNIT-OK')

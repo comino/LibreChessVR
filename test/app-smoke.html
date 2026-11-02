@@ -28,7 +28,12 @@ async function until(cond, what, ms = 10000) {
 }
 
 // Controllable NDJSON streams keyed by path
-const streams = {}, requests = []
+const streams = {}, requests = [], routes = {}
+const deferred = () => {
+  let resolve, reject
+  const promise = new Promise((yes, no) => { resolve = yes; reject = no })
+  return { promise, resolve, reject }
+}
 function openStream(path, signal) {
   const enc = new TextEncoder()
   let ctl
@@ -48,6 +53,7 @@ window.fetch = async (url, opts = {}) => {
   if (typeof url !== 'string' || !url.startsWith('https://lichess.org')) return realFetch(url, opts)
   const path = url.replace('https://lichess.org', '')
   requests.push({ path, method: opts.method || 'GET', body: String(opts.body || ''), auth: !!opts.headers?.Authorization })
+  if (routes[path]) return routes[path](opts)
   if (path === '/api/account') return json({ username: 'me' })
   if (path === '/api/account/playing') return json({ nowPlaying: [] })
   if (path.startsWith('/api/puzzle/next')) return json(puzzle)
@@ -120,6 +126,30 @@ try {
   press('Reset board'); press('Reset board')
   check(board.pieceAt.e2 && !board.moveList.mesh.visible, 'explicit reset returns to start')
 
+  // A delayed creation must stay cancellable without ever sending a second challenge.
+  const maiaCreation = deferred()
+  routes['/api/challenge/maia5'] = () => maiaCreation.promise
+  routes['/api/challenge/pending-maia/cancel'] = () => new Response('{"error":"temporary failure"}', { status: 503 })
+  const challengesBefore = requests.filter(r => r.path.startsWith('/api/challenge/')).length
+  $('maiaBtn').click(); $('maiaBtn').onclick(); $('ai').onclick(); $('seek').onclick()
+  check(requests.filter(r => r.path.startsWith('/api/challenge/')).length === challengesBefore + 1, 'pending challenge blocks repeated and alternate starts')
+  check($('ai').disabled && $('maiaBtn').disabled && $('seek').disabled && !$('cancelChallenge').hidden,
+    'desktop exposes pending state and cancellation')
+  home(); press('Play'); press('Stockfish')
+  check(board.menuPanel.buttons.find(b => b.label === 'Start game').disabled, 'VR also disables duplicate starts')
+  press('Cancel challenge')
+  check($('cancelChallenge').disabled, 'cancel before creation waits for the response')
+  maiaCreation.resolve(json({ challenge: { id: 'pending-maia' } }))
+  await until(() => $('msg').textContent.includes('Cancellation failed'), 'cancellation error')
+  check($('ai').disabled && !$('cancelChallenge').disabled, 'failed cancellation retains the guard and permits retry')
+  routes['/api/challenge/pending-maia/cancel'] = () => json({ ok: true })
+  $('cancelChallenge').click()
+  await until(() => !$('ai').disabled && $('cancelChallenge').hidden, 'cancellation confirmed')
+  streams['/api/stream/event'].push({ type: 'gameStart', game: { gameId: 'pending-maia' } })
+  await sleep(50)
+  check(!streams['/api/board/game/stream/pending-maia'], 'late event from a cancelled challenge cannot take over the board')
+  delete routes['/api/challenge/maia5']
+
   home(); press('Play'); press('Stockfish')
   press('Level'); press('3'); check(board.menuPanel.buttons.find(b => b.label === '3').selected, 'selected value is marked')
   back(); press('Level'); press('2'); back()
@@ -128,11 +158,27 @@ try {
   press('Your side'); press('White'); back()
   check($('time').value === '10' && $('inc').value === '0' && $('color').value === 'white', 'game setup updates desktop form')
   check(JSON.parse(localStorage.getItem('settings')).ailevel === '2', 'settings persisted')
+  const initialAiCount = requests.filter(r => r.path === '/api/challenge/ai').length
   press('Start game')
+  $('ai').onclick(); $('maiaBtn').onclick()
+  check(requests.filter(r => r.path === '/api/challenge/ai').length === initialAiCount + 1, 'initial game start sends one POST')
   await until(() => labels().includes('Abort'), 'game attached')
   check(labels() === 'Offer draw,Flip board,Abort,Menu', 'menu available during live game')
   const ai = requests.find(r => r.path === '/api/challenge/ai')
   check(/level=2/.test(ai.body) && /clock.limit=600/.test(ai.body) && /color=white/.test(ai.body), 'game uses chosen settings')
+  // Exercise the actual desktop handler with a page clock below three seconds.
+  const nowDescriptor = Object.getOwnPropertyDescriptor(performance, 'now')
+  try {
+    Object.defineProperty(performance, 'now', { configurable: true, value: () => 1000 })
+    $('resign').click()
+    check(!requests.some(r => r.path === '/api/board/game/g1/resign') && $('resign').textContent === 'Confirm resign',
+      'early first desktop click only arms resignation')
+    $('resign').click()
+    check(requests.filter(r => r.path === '/api/board/game/g1/resign').length === 1, 'second desktop click confirms once')
+  } finally {
+    if (nowDescriptor) Object.defineProperty(performance, 'now', nowDescriptor)
+    else delete performance.now
+  }
   press('Menu')
   check(board.menuPanel.buttons.find(b => b.label === 'Practice').disabled, 'cannot replace live game')
   press('Settings'); press('Input & audio'); press('Spoken moves'); press('Opponent only'); back()
@@ -163,11 +209,23 @@ try {
   press('Done')
   check(board.moveList.cur === 3, 'Done returns to final position')
   const aiBefore = requests.filter(r => r.path === '/api/challenge/ai').length
+  const rematchCreation = deferred()
+  routes['/api/challenge/ai'] = () => rematchCreation.promise
   press('Rematch')
   await until(() => requests.filter(r => r.path === '/api/challenge/ai').length > aiBefore, 'rematch request')
+  $('ai').onclick(); $('maiaBtn').onclick()
+  check(requests.filter(r => r.path === '/api/challenge/ai').length === aiBefore + 1 && $('ai').disabled,
+    'rematch shares the pending guard with desktop game starts')
   check(/color=black/.test(requests.filter(r => r.path === '/api/challenge/ai').at(-1).body), 'rematch swaps side')
+  rematchCreation.resolve(json({ id: 'rematch1' }))
+  await sleep(20)
   streams['/api/stream/event'].push({ type: 'challengeDeclined', challenge: { id: 'x' } })
+  await sleep(20)
+  check($('ai').disabled, 'unrelated decline cannot release a pending challenge')
+  streams['/api/stream/event'].push({ type: 'challengeDeclined', challenge: { id: 'rematch1' } })
   await until(() => board.panel.status.text.includes('Challenge declined'), 'decline visible')
+  check(!$('ai').disabled, 'matching decline permits another game')
+  delete routes['/api/challenge/ai']
 
   home(); press('Practice'); press('Puzzles'); press('Difficulty'); press('Harder'); back()
   press('Theme'); press('Mate in 2'); back(); press('Start puzzles')
@@ -232,6 +290,19 @@ try {
   check(board.menuPanel.page.id === beforeMatchPage && streams['/api/board/seek'].closed, 'match preserves route and closes seek')
   check(board.menuPanel.page.returnAction.label === 'Return to game', 'return identifies new activity')
   resume(); check(labels().includes('Abort') && !board.onSquarePick, 'matched game controls restored')
+
+  // Finishing one game cannot carry an armed desktop action into the next game.
+  $('resign').click()
+  check($('resign').textContent === 'Confirm resign', 'first game confirmation armed')
+  streams['/api/board/game/stream/g2'].push({ type: 'gameState', moves: '', status: 'aborted', wtime: 6e5, btime: 6e5 })
+  await until(() => $('resign').disabled, 'finished game resets desktop resignation')
+  check($('resign').textContent === 'Resign', 'finished game clears confirmation label')
+  streams['/api/stream/event'].push({ type: 'gameStart', game: { gameId: 'g3' } })
+  await until(() => streams['/api/board/game/stream/g3'] && !$('resign').disabled, 'next game attached')
+  $('resign').click()
+  check(!requests.some(r => r.path === '/api/board/game/g3/resign'), 'new game requires its own confirmation')
+  $('resign').click()
+  check(requests.filter(r => r.path === '/api/board/game/g3/resign').length === 1, 'new game confirms independently')
 
   out.textContent = 'APP-OK'
 } catch (e) {
