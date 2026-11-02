@@ -387,4 +387,38 @@ await check('a challenge restored without an id locks until expiry and clears lo
   assert.deepEqual(cancelled, [], 'nothing to cancel on Lichess')
   assert.match(messages.at(-1), /Challenge cleared/)
 })
+// PRJ-102 (prj-quality LC-3, red test from 6d8202a): Cancel during a creation that never answers.
+await check('cancel during a creation that never settles cannot lock challenges for good (sibling of the unknown-status fix)', async () => {
+  const live = new Set()
+  const p = new PendingChallenge({ cancel: async () => {}, setTimer: fn => { live.add(fn); return fn }, clearTimer: fn => live.delete(fn) })
+  void p.start('Stockfish', () => new Promise(() => {})) // POST lost on a half-open connection (headset sleep): never settles
+  await p.cancel() // what the 20 s notice asks for: "cancel the challenge before trying again"
+  for (const fn of [...live]) fn() // any amount of time passes
+  await tick()
+  assert.ok(!p.current?.cancelling, 'after the wait the lock is gone or Cancel challenge is usable again: no permanent lock (PRJ-54)')
+})
+await check('a creation answered after Cancel gave up is cancelled on Lichess and its game ignored', async () => {
+  const timers = [], cancelled = [], messages = []
+  const p = new PendingChallenge({ cancel: async id => { cancelled.push(id) }, message: t => messages.push(t),
+    setTimer: (fn, ms) => { timers.push({ fn, ms }); return timers.length }, clearTimer: () => {} })
+  const created = deferred()
+  const start = p.start('Maia 5', () => created.promise)
+  await p.cancel()
+  assert.ok(p.current?.cancelling, 'waits for the response first')
+  timers.at(-1).fn()
+  assert.equal(timers.at(-1).ms, 20000)
+  assert.equal(p.current, null, 'released after 20 s without an answer')
+  assert.match(messages.at(-1), /Challenge cleared/)
+  created.resolve({ challenge: { id: 'late' } })
+  await start; await tick()
+  assert.deepEqual(cancelled, ['late'], 'the late challenge is withdrawn')
+  assert.ok(p.wasCancelled('late'), 'its gameStart is ignored')
+  const answered = deferred(), q = new PendingChallenge({ cancel: async id => { cancelled.push(id) }, setTimer: () => 0, clearTimer: () => {} })
+  const second = q.start('Ann', () => answered.promise)
+  await q.cancel()
+  answered.resolve({ challenge: { id: 'prompt' } })
+  await second; await tick()
+  assert.equal(q.current, null, 'an answer within the wait still cancels normally')
+  assert.deepEqual(cancelled, ['late', 'prompt'])
+})
 console.log(`ACTIONS-OK ${checks} checks`)
