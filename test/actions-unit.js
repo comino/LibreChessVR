@@ -274,4 +274,24 @@ await check('Lichess cancellation uses the challenge endpoint and preserves erro
     await assert.rejects(li.challengeAi({ level: 1, time: 10, increment: 0 }), e => e.status === 503)
   } finally { globalThis.fetch = original }
 })
+await check('an unknown-status challenge (failed creation) can still be released', async () => {
+  for (const fail of [Object.assign(new Error('bad gateway'), { status: 503 }), new TypeError('Failed to fetch')]) {
+    const p = new PendingChallenge({ cancel: async () => { throw new Error('no id to cancel') }, setTimer: () => 0, clearTimer: () => {} })
+    await p.start('Maia 5', async () => { throw fail })
+    assert.ok(p.current, 'unknown status keeps the lock at first: ' + fail.message)
+    await p.cancel()
+    assert.equal(p.current, null, 'cancel releases an unknown-status lock: ' + fail.message)
+  }
+})
+await check('cancel pressed during creation, creation then fails on the network', async () => {
+  const d = deferred()
+  const p = new PendingChallenge({ cancel: async () => {}, setTimer: () => 0, clearTimer: () => {} })
+  const started = p.start('Maia 5', () => d.promise)
+  await p.cancel()
+  d.reject(new TypeError('Failed to fetch'))
+  await started
+  assert.ok(p.current && !p.current.cancelling, 'a retry is allowed')
+  await p.cancel()
+  assert.equal(p.current, null, 'the retry releases the lock')
+})
 console.log(`ACTIONS-OK ${checks} checks`)

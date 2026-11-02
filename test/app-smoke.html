@@ -149,6 +149,17 @@ try {
   await sleep(50)
   check(!streams['/api/board/game/stream/pending-maia'], 'late event from a cancelled challenge cannot take over the board')
   delete routes['/api/challenge/maia5']
+  // An unknown-status challenge (creation failed with 503) must not lock all game starts forever.
+  routes['/api/challenge/maia5'] = () => new Response('{"error":"bad gateway"}', { status: 503 })
+  $('maiaBtn').click()
+  await until(() => $('msg').textContent.includes('status unknown'), 'unknown challenge status')
+  check(!$('cancelChallenge').disabled, 'an unknown-status challenge can be cancelled')
+  $('cancelChallenge').click()
+  await until(() => !$('ai').disabled && $('cancelChallenge').hidden, 'unknown-status lock released')
+  delete routes['/api/challenge/maia5']
+  streams['/api/stream/event'].push({ type: 'gameStart' })
+  await sleep(50)
+  check(!$('msg').textContent.includes('Event stream lost'), 'a gameStart without a game never breaks the event stream')
 
   home(); press('Play'); press('Stockfish')
   press('Level'); press('3'); check(board.menuPanel.buttons.find(b => b.label === '3').selected, 'selected value is marked')
