@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Pieces reflect the room around the board again. Reflections were captured from the
+  middle of the room floor because three.js r170 ignored the capture position.
+- Disabled buttons look disabled, and keyboard focus is visible on every button and link.
+- The offline cache cleans up only LibreChessVR's own caches, survives a full storage quota,
+  and never stores signed-in requests or Lichess login callbacks.
 - The page, README, app description and brand guide lead with chess in VR straight from the
   browser, nothing to install. Desktop board vision practice stays the second audience.
 - Knights show their side profile by default. Choose Right, Forward, Left or Backward
