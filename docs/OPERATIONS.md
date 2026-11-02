@@ -12,8 +12,8 @@ Hosting, caching, packaging and headset testing. Deploys and the APK are Sven's 
 - Public address **https://librechessvr.com**: nginx serves the app and redirects `www` to
   the apex. Fred's Caddy proxies old-IP requests and the sslip origin to Janasven for existing
   Quest wrappers. `/opt/parallax/web` on fred is no longer the public document root.
-  `deploy/nginx-site.conf` and `deploy/nginx-static.conf` are byte-identical to Janasven's live
-  files (checked read-only 2026-11-02, PRJ-54); `deploy/Caddyfile.parallax` is the proxy from fred's
+  `deploy/nginx-site.conf`, `deploy/nginx-static.conf` and `deploy/nginx-chess.conf` (sites-available/chess)
+  are byte-identical to Janasven's live files (checked read-only 2026-11-02, PRJ-54 and PRJ-74); `deploy/Caddyfile.parallax` is the proxy from fred's
   working tree (not checked against `/etc/caddy`). Inspect the active configuration before changing hosting. Storage is origin-specific: users moving from an
   earlier address sign in to Lichess again, with separate local settings and practice records.
 - `chess.janasven.de` serves the same release directory on Janasven. `index.html`
