@@ -23,19 +23,18 @@ let resignTimer = null
 const pendingChallenge = new PendingChallenge({
   cancel: id => lichess.cancelChallenge(id), changed: () => { saveChallenge(); refresh() }, message: notify
 })
-// An open challenge survives a reload (Lichess may still accept it), per account.
+// An open challenge survives a reload (Lichess may still accept it), one record per account.
+const challengeKey = () => 'pendingChallenge.' + username
 function saveChallenge() {
   const saved = pendingChallenge.saved()
   try {
-    if (saved) localStorage.setItem('pendingChallenge', JSON.stringify({ ...saved, username }))
-    else localStorage.removeItem('pendingChallenge')
-  } catch { /* optional: storage full or blocked */ }
+    if (saved) localStorage.setItem(challengeKey(), JSON.stringify(saved))
+    else localStorage.removeItem(challengeKey())
+  } catch { /* storage full or blocked: this page still holds the lock */ }
 }
 function restoreChallenge() {
-  try {
-    const saved = JSON.parse(localStorage.getItem('pendingChallenge'))
-    if (saved?.username === username) pendingChallenge.restore(saved)
-  } catch { /* nothing to restore */ }
+  try { pendingChallenge.restore(JSON.parse(localStorage.getItem(challengeKey()))) } catch { /* corrupt record */ }
+  saveChallenge() // drops an expired or corrupt record
 }
 
 const board = new Board3D()

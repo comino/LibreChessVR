@@ -33,7 +33,7 @@ export class PendingChallenge {
   async start(label, create, { message = this.message, failure = `${label} challenge failed: `,
     started = `Challenging ${label}…` } = {}) {
     if (this.current) return false
-    const request = this.current = { label, message, id: null, creating: true, cancelling: false, ended: new Map() }
+    const request = this.current = { label, message, id: null, at: this.now(), creating: true, cancelling: false, ended: new Map() }
     this._message(request, started)
     request.timer = this.setTimer(() => {
       if (this.current === request && !request.gameId)
@@ -134,19 +134,21 @@ export class PendingChallenge {
 
   wasCancelled(id) { return this.cancelled.has(id) }
 
-  // What a reload needs to restore: an open challenge Lichess may still turn into a game.
+  // What a reload needs to restore: a challenge Lichess may still turn into a game, even one
+  // whose id never arrived. Its own game ends it.
   saved() {
     const r = this.current
-    return r?.id && r.gameId !== r.id ? { id: r.id, label: r.label, at: r.at } : null // its own game ends it
+    return r && r.gameId !== r.id ? { id: r.id, label: r.label, at: r.at } : null
   }
 
   // After a reload. Realtime challenges without keepAliveStream expire 20 s after creation
   // (Lichess API); expiryMs adds a margin for clock skew. Events still end it earlier.
   restore(saved) {
-    const { id, label, at } = saved || {}, left = at + this.expiryMs - this.now()
-    if (this.current || !id || !(left > 0)) return false
+    const { id = null, label, at } = saved || {}
+    const left = Math.min(at + this.expiryMs - this.now(), this.expiryMs) // a clock rollback can't stretch it
+    if (this.current || !label || !Number.isFinite(at) || !(left > 0)) return false
     const request = this.current = { label, message: this.message, id, at, creating: false, cancelling: false, ended: new Map() }
-    request.timer = this.setTimer(() => {
+    request.expiry = this.setTimer(() => { // kept through a failed cancel: the challenge is gone by then
       this._clear(request)
       this._message(request, `${label} challenge expired`)
     }, left)
@@ -179,6 +181,7 @@ export class PendingChallenge {
       if (this.cancelled.size > 32) this.cancelled.delete(this.cancelled.values().next().value)
     }
     this.clearTimer(request.timer)
+    this.clearTimer(request.expiry)
     this.current = null
     this.changed()
   }
