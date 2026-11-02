@@ -1,0 +1,21 @@
+name: Feature or improvement
+description: Suggest an improvement to board vision practice or interaction.
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the practice or interaction difficulty and who encounters it.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe how it would work on desktop and, if relevant, in VR.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives or examples

@@ -1,0 +1,44 @@
+name: Bug report
+description: Report a reproducible problem with practice, games or interaction.
+body:
+  - type: markdown
+    attributes:
+      value: "For security issues, follow [SECURITY.md](https://github.com/comino/LibreChessVR/blob/main/SECURITY.md). Do not include tokens or personal data."
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Browser/version, operating system, headset/model if applicable, and app URL or commit.
+    validations:
+      required: true
+  - type: dropdown
+    id: input
+    attributes:
+      label: Input mode
+      options:
+        - Mouse or touch
+        - VR controllers
+        - Hands — point and pinch
+        - Hands — grab pieces
+        - Multiple modes or not applicable
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include the activity, relevant settings and whether a game or drill was already running.
+      placeholder: "1. Open…\n2. Choose…\n3. …"
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Screenshots and diagnostics
+      description: Add screenshots, console errors or relevant test artifacts. Remove tokens and personal data first.
