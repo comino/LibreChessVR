@@ -43,8 +43,8 @@ Module map and the invariants behind them. Read the module's row and the invaria
 - GLB piece nodes carry ancestor transforms → templates bake `matrixWorld` via
   decompose at load; recentering must SUBTRACT the bbox offset, not set it.
 - Piece scale is derived from the king's bbox (king = 1.7 × square size), not hardcoded.
-- Pieces are rebuilt on every `setPosition`: materials (`pieceMat.w/b`, with the RoomEnvironment
-  envMap — pieces only, it washes out the tiles) and proxy geometries are shared, never per piece.
+- Pieces are rebuilt on every `setPosition`: materials (`pieceMat.w/b`, with the scene's
+  reflection map captured above the board by `_captureEnv` — pieces only, it washes out the tiles) and proxy geometries are shared, never per piece.
 - Captured pieces live in `capturedGroup` (not pickable), at each capturer's right hand.
 - Ray picking/hover never touches the GLB meshes: each piece has an invisible cylinder
   `userData.proxy` (too many triangles for per-frame raycasts on the Quest). `_cast()` is
