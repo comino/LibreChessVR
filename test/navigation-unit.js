@@ -42,7 +42,7 @@ context = { ...context, live: false, progress: false, label: 'Game review' }
 nav.refresh()
 assert.equal(page.title, 'Scene', 'activity updates do not replace the menu route')
 page.back.run(); press('Knight facing')
-assert.deepEqual(page.actions.map(a => a.label), ['Right', 'Forward', 'Left', 'Backward'])
+assert.deepEqual(page.actions.map(a => a.label), ['Right', 'Forward', 'Left', 'Backward', 'Outward', 'Inward'])
 assert.ok(page.actions.find(a => a.label === 'Right').selected)
 press('Forward')
 assert.equal(settings.knightFacing, 'forward')

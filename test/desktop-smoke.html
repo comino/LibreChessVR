@@ -68,6 +68,8 @@ try {
   ;({ board } = win.parallax)
   const { navigation } = win.parallax
   check(board.knightFacing === 'left' && $('knightFacing').value === 'left', 'saved knight preference restored in scene and desktop')
+  check([...$('knightFacing').options].map(o => o.value).join() === 'right,forward,left,backward,outward,inward',
+    'desktop offers every knight facing, including outward and inward')
   await until(() => board.renderer.info.render.frame > 0, 'first rendered frame')
   board.renderer.setAnimationLoop(null)
   const action = label => [...$('desktopActions').children].find(b => b.dataset.action === label)

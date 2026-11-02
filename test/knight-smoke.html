@@ -68,6 +68,26 @@ try {
       }
     }
   }
+  // Outward/inward (GH #4): by file, a–d face the a-file (outward), e–h the h-file; same in world x for both colours.
+  for (const [choice, out] of [['outward', 1], ['inward', -1]]) {
+    board.setKnightFacing(choice)
+    for (const side of ['white', 'black']) for (const flipped of [false, true]) {
+      board.setOrientation(side); board.setFlipped(flipped)
+      const sign = board.viewSide() === 'white' ? 1 : -1
+      for (const square of ['b1', 'g1', 'b8', 'g8'])
+        faces(board.pieceAt[square], sign * out * (square[0] === 'b' ? -1 : 1), 0, `${choice}: ${square} from ${side}, flip ${flipped}`)
+    }
+    board.setOrientation('white'); board.setFlipped(false)
+    board.setPosition('4k3/8/8/3nn3/3NN3/8/8/4K3 w - - 0 1')
+    for (const square of ['d4', 'd5', 'e4', 'e5'])
+      faces(board.pieceAt[square], out * (square[0] === 'd' ? -1 : 1), 0, `${choice}: ${square} faces by its file`)
+    board.setPosition('4k3/8/8/8/8/8/8/3NK3 w - - 0 1', null)
+    const chess = new Chess('4k3/8/8/8/8/8/8/3NK3 w - - 0 1'), move = chess.move('Nf2')
+    board.setPosition(chess.fen(), move)
+    faces(board.pieceAt.f2, out, 0, `${choice}: knight crossing to the kingside turns`)
+    board.setPosition(new Chess().fen())
+  }
+  free.attach()
   board.setOrientation('white'); board.setFlipped(false)
   board.setKnightFacing('right')
   board._select('g1')
@@ -140,6 +160,20 @@ try {
     check(!board.picker && chess.get(to)?.type === 'n', `${color}: ray chooses knight underpromotion`)
     faces(board.pieceAt[to], 0, -sign, `${color}: promoted knight inherits facing`)
   }
+  board.setKnightFacing('outward')
+  for (const [fen, from, to, x] of [['7k/1P6/8/8/8/8/8/7K w - - 0 1', 'b7', 'b8', -1], ['k7/6P1/8/8/8/8/8/K7 w - - 0 1', 'g7', 'g8', 1]]) {
+    const chess = new Chess(fen)
+    board.setPosition(chess.fen())
+    bindBoard(board, { chess, color: 'white', active: () => true, tryMove: () => true })
+    board._select(from); board._select(to)
+    faces(board.picker.group.children.find(p => p.userData.promo === 'n').children[1], x, 0, `outward: promotion preview on ${to}`)
+    board._closePicker(null)
+  }
+  board.setPosition('4k3/8/8/8/8/8/8/4K3 w - - 0 1')
+  board.capturedGroup.clear(); board._showCaptured('4k3/8/8/8/8/8/8/4K3 w - - 0 1')
+  const lost = board.capturedGroup.children.filter(p => p.userData.type === 'n')
+  check(lost.length === 4, 'captured knights shown')
+  for (const piece of lost) faces(piece, piece.userData.color === 'w' ? 1 : -1, 0, 'outward: captured knight faces its player’s right')
   board.setKnightFacing('invalid')
   check(board.knightFacing === 'right', 'invalid saved setting falls back to sideways')
   document.getElementById('result').textContent = 'KNIGHT-OK'
