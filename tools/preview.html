@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<base href="/">
+<title>LibreChessVR sharing image</title>
+<!-- Source of assets/brand/preview.png (1200×630). Serve the repo root, open /tools/preview.html in a
+     1200×630 window, wait for #result READY, screenshot (Page.captureScreenshot), save as preview.png. -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600&family=Space+Grotesk:wght@700&display=swap" rel="stylesheet">
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/","chess.js":"https://cdn.jsdelivr.net/npm/chess.js@1.0.0/+esm"}}
+</script>
+<style>
+  :root { --ink: #0F1218; --ivory: #ECE6D6; --mist: #9AA3B2; --brass: #D9A441 }
+  html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; background: var(--ink) }
+  #copy { position: fixed; inset: 0 auto 0 0; width: 520px; padding: 56px 52px; box-sizing: border-box; z-index: 1;
+    display: flex; flex-direction: column; font: 500 22px/1.4 Inter, sans-serif; color: var(--mist);
+    background: linear-gradient(90deg, var(--ink) 62%, transparent) }
+  .brand { display: flex; align-items: center; gap: 14px; font: 700 26px 'Space Grotesk', sans-serif; color: var(--ivory) }
+  h1 { margin: 64px 0 20px; font: 700 50px/1.08 'Space Grotesk', sans-serif; color: var(--ivory) }
+  .uses { margin-top: 22px; font-size: 17px; color: var(--brass) }
+  .foot { margin-top: auto; font-size: 17px }
+  #result { position: fixed; left: -100px }
+</style>
+</head>
+<body>
+<div id="copy">
+  <div class="brand"><img src="assets/brand/mark.svg" width="40" height="40" alt="">LibreChessVR</div>
+  <h1>Chess in VR, straight from your browser.</h1>
+  <div>No install, just chess in VR.<br>Desktop practice works too.</div>
+  <div class="uses">Lichess games · Puzzles · Square drills</div>
+  <div class="foot">Free &amp; open source · librechessvr.com</div>
+</div>
+<pre id="result"></pre>
+<script type="module">
+import { Board3D } from './src/board3d.js'
+const board = new Board3D()
+await board.init()
+board.renderer.setAnimationLoop(null)
+board.setEnvironment('study')
+await board.env.ready
+for (const ui of [board.panel, board.bar, board.moveList, board.menuPanel]) ui.mesh.visible = false
+board.setPosition('r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 1 5')
+board.camera.position.set(0.45, 1.3, 0.2)
+board.camera.lookAt(0.1, 0.86, -0.55)
+board.camera.setViewOffset(1200, 630, -250, 0, 1200, 630) // board to the right of the copy
+await document.fonts.ready
+await new Promise(r => setTimeout(r, 1500)) // textures and reflections
+for (let i = 0; i < 3; i++) { board._tick(); board.renderer.render(board.scene, board.camera) }
+document.getElementById('result').textContent = 'READY'
+</script>
+</body>
+</html>

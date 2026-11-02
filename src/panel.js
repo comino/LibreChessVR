@@ -93,7 +93,7 @@ export class StatusPanel {
       drawMark(ctx, 56, 34, 64)
       ctx.textAlign = 'left'
       this._text('LibreChessVR', COLOR.ivory, `700 32px ${FONT.display}`, 140, 68)
-      this._text('Read a real chessboard', COLOR.mist, `500 18px ${FONT.ui}`, 142, 94)
+      this._text('No install, just chess in VR', COLOR.mist, `500 18px ${FONT.ui}`, 142, 94)
       ctx.letterSpacing = '0px'
       ctx.textAlign = 'center'
       this._text(s?.text, COLOR.ivory, `600 26px ${FONT.ui}`, 256, 170)

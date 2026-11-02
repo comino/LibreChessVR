@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The VR panel, VR menu, wordmark and sharing image use the new line, "No install, just chess
+  in VR", instead of "Read a real chessboard". The sharing image now names librechessvr.com.
 - Reloading the page while a challenge is open keeps it pending, so a second game can't start
   until Lichess accepts, declines or expires it (at most 20 s); "Cancel challenge" still works.
 - **Lock view** on desktop freezes camera rotation, panning and zoom, so an imprecise

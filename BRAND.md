@@ -34,7 +34,8 @@ live in one place: `src/theme.js` (3D + canvas UI) mirrored as CSS variables in 
 `assets/brand/mark.svg` — a 2×2 board square with a brass frame offset up-right: the same square
 seen from a second viewpoint. `assets/brand/wordmark.svg` — mark + name + short explanation.
 Keep the mark on Ink; minimum size 16 px; don't recolor the frame.
-`assets/brand/preview.png` is the 1200×630 sharing image, made from the practice board.
+`assets/brand/preview.png` is the 1200×630 sharing image, rendered from the practice board by
+`tools/preview.html` (steps in its header).
 
 ## Color
 

@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/brand/wordmark.svg" width="420" alt="LibreChessVR — read a real chessboard"></p>
+<p align="center"><img src="assets/brand/wordmark.svg" width="420" alt="LibreChessVR — no install, just chess in VR"></p>
 
 **Chess in VR, straight from your headset's browser. Nothing to install.**
 

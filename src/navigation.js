@@ -63,7 +63,7 @@ export class Navigation {
     let actions = [], sub = '', columns = 1
     switch (route.id) {
       case 'home':
-        sub = c.notice || (c.username ? `Connected as ${c.username}` : 'Practice reading a real chessboard. No account needed.')
+        sub = c.notice || (c.username ? `Connected as ${c.username}` : 'No install, just chess in VR. Practice needs no account.')
         actions = [link('Practice', 'train', c.live ? 'Finish the current game first' : 'Puzzles, rush and square drills', !!c.live),
           action('Free board', () => this.requestStart('free'), 'Move both sides, undo and explore', { disabled: !!c.live }),
           link('Play', 'play', c.live ? 'Finish the current game first' : 'Stockfish, Maia or another player', !!c.live),
