@@ -145,9 +145,14 @@ try {
   routes['/api/challenge/pending-maia/cancel'] = () => json({ ok: true })
   $('cancelChallenge').click()
   await until(() => !$('ai').disabled && $('cancelChallenge').hidden, 'cancellation confirmed')
+  home(); press('Play'); press('Online player'); press('Time control'); press('10+5'); back(); press('Find opponent')
+  await until(() => streams['/api/board/seek'] && !streams['/api/board/seek'].closed, 'seek open before the late event')
   streams['/api/stream/event'].push({ type: 'gameStart', game: { gameId: 'pending-maia' } })
   await sleep(50)
   check(!streams['/api/board/game/stream/pending-maia'], 'late event from a cancelled challenge cannot take over the board')
+  check(!streams['/api/board/seek'].closed, 'an ignored late start keeps the new seek running (Codex)')
+  $('seek').onclick()
+  await until(() => streams['/api/board/seek'].closed, 'seek cancelled')
   delete routes['/api/challenge/maia5']
   // An unknown-status challenge (creation failed with 503) must not lock all game starts forever.
   routes['/api/challenge/maia5'] = () => new Response('{"error":"bad gateway"}', { status: 503 })
@@ -237,10 +242,17 @@ try {
   await until(() => board.panel.status.text.includes('Challenge declined'), 'decline visible')
   check(!$('ai').disabled, 'matching decline permits another game')
   delete routes['/api/challenge/ai']
+  const lateFailure = deferred()
+  routes['/api/challenge/ai'] = () => lateFailure.promise
+  $('ai').onclick()
 
   home(); press('Practice'); press('Puzzles'); press('Difficulty'); press('Harder'); back()
   press('Theme'); press('Mate in 2'); back(); press('Start puzzles')
   await until(() => labels().includes('Hint'), 'puzzle ready')
+  lateFailure.resolve(new Response('{"error":"rejected"}', { status: 400 }))
+  await until(() => $('msg').textContent.includes('Stockfish challenge failed'), 'late challenge failure logged')
+  check(!$('desktopStatus').textContent.includes('challenge failed'), "a late challenge failure never overwrites another activity's desktop status (Codex)")
+  delete routes['/api/challenge/ai']
   check(requests.some(r => r.path === '/api/puzzle/next?difficulty=harder&angle=mateIn2'), 'puzzle settings used in fetch')
   check(requests.filter(r => r.path.startsWith('/api/puzzle/next')).every(r => !r.auth), 'puzzle fetches anonymous')
   const puzzleFen = board.fen, fetched = requests.filter(r => r.path.startsWith('/api/puzzle/next')).length
