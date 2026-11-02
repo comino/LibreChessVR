@@ -47,7 +47,7 @@ export class PendingChallenge {
       request.id = result?.challenge?.id || result?.id || null
       request.at = this.now()
       if (this.current !== request) {
-        if (request.abandoned && request.id) { // Cancel gave up waiting: withdraw it now
+        if (request.abandoned && request.id && request.id !== request.gameId) { // Cancel gave up: withdraw it
           this._remember(request.id)
           this.cancelRequest(request.id).catch(() => {}) // a 404 or failure: it expires on its own
         }
@@ -89,7 +89,7 @@ export class PendingChallenge {
     this._message(request, 'Cancelling challenge…')
     if (!request.creating) return this._cancel(request)
     // The creation may never answer (half-open connection after headset sleep): give up after waitMs.
-    request.timer = this.setTimer(() => {
+    request.giveUp = this.setTimer(() => { // own timer: a gameStart meanwhile must not stop it
       if (this.current !== request || !request.creating) return
       request.abandoned = true
       this._clear(request)
@@ -197,6 +197,7 @@ export class PendingChallenge {
     if (cancelled && request.id) this._remember(request.id)
     this.clearTimer(request.timer)
     this.clearTimer(request.expiry)
+    this.clearTimer(request.giveUp)
     this.current = null
     this.changed()
   }
