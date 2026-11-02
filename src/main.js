@@ -21,7 +21,8 @@ let activityKind = 'free', note = null
 const resignConfirmation = new Confirmation()
 let resignTimer = null
 const pendingChallenge = new PendingChallenge({
-  cancel: id => lichess.cancelChallenge(id), changed: () => { saveChallenge(); refresh() }, message: notify
+  cancel: id => lichess.cancelChallenge(id), changed: () => { saveChallenge(); refresh() }, message: notify,
+  revive: id => attach(id)
 })
 // An open challenge survives a reload (Lichess may still accept it), one record per account.
 const challengeKey = () => 'pendingChallenge.' + username

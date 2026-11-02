@@ -24,8 +24,8 @@ export class Confirmation {
 export class PendingChallenge {
   constructor({ cancel, changed = () => {}, message = () => {},
     setTimer = (fn, ms) => setTimeout(fn, ms), clearTimer = id => clearTimeout(id), waitMs = 20000,
-    now = () => Date.now(), expiryMs = 25000 }) {
-    Object.assign(this, { cancelRequest: cancel, changed, message, setTimer, clearTimer, waitMs, now, expiryMs })
+    now = () => Date.now(), expiryMs = 25000, revive = () => {} }) {
+    Object.assign(this, { cancelRequest: cancel, changed, message, setTimer, clearTimer, waitMs, now, expiryMs, revive })
     this.current = null
     this.cancelled = new Set()
     this.games = new Set() // ids of games that started (attached) here
@@ -51,7 +51,10 @@ export class PendingChallenge {
         const id = request.id
         if (request.abandoned && id && !this.games.has(id)) { // Cancel gave up: withdraw it, unless it is being played
           this._remember(id)
-          this.cancelRequest(id).catch(() => this.cancelled.delete(id)) // still live: let its gameStart attach it
+          this.cancelRequest(id).catch(() => { // still live: its gameStart may already be dropped, attach it
+            this.cancelled.delete(id)
+            this.revive(id)
+          })
         }
         return true
       }
