@@ -238,7 +238,7 @@ function onEvent(ev) {
   }
   if (ev.type !== 'gameStart' || !playable(ev.game)) return
   const id = ev.game.gameId || ev.game.id
-  if (id === session?.gameId || gameRunning()) return
+  if (id === session?.gameId || gameRunning() || pendingChallenge.wasCancelled(id)) return // before aborting a seek
   seekAbort?.abort()
   attach(id)
 }
@@ -294,7 +294,7 @@ function requestChallenge(label, create, options = {}) {
   const owner = view, kind = activityKind
   void pendingChallenge.start(label, create, { ...options, message: text => {
     if (view === owner && activityKind === kind) notify(text)
-    else msg(text) // a delayed failure belongs to its originating activity
+    else $('msg').textContent = text // a delayed failure belongs to its originating activity: log only
   } })
   return true
 }
