@@ -436,4 +436,35 @@ await check('a game arriving during the 20 s wait neither stops the give-up nor 
   await start; await tick()
   assert.deepEqual(cancelled, [], 'the game being played is never aborted')
 })
+await check('after a give-up, a new challenge and the old game: the played game is never aborted', async () => {
+  const timers = new Map(), cancelled = []
+  let next = 0
+  const p = new PendingChallenge({ cancel: async id => { cancelled.push(id) },
+    setTimer: fn => { timers.set(++next, fn); return next }, clearTimer: id => timers.delete(id) })
+  const a = deferred(), b = deferred()
+  const startA = p.start('Stockfish', () => a.promise)
+  await p.cancel()
+  for (const fn of [...timers.values()]) fn() // A given up
+  const startB = p.start('Maia 5', () => b.promise)
+  p.gameStarted('gA') // A's game arrives and is attached
+  b.resolve({ challenge: { id: 'cB' } })
+  await startB; await tick()
+  assert.deepEqual(cancelled, ['cB'], 'B is withdrawn: one game at a time')
+  a.resolve({ id: 'gA' })
+  await startA; await tick()
+  assert.deepEqual(cancelled, ['cB'], 'A, now being played, is not aborted')
+  assert.equal(p.current, null)
+})
+await check('a failed late withdrawal does not hide that game for good', async () => {
+  const timers = []
+  const p = new PendingChallenge({ cancel: async () => { throw Object.assign(new Error('bad gateway'), { status: 503 }) },
+    setTimer: fn => { timers.push(fn); return timers.length }, clearTimer: () => {} })
+  const late = deferred()
+  const start = p.start('Stockfish', () => late.promise)
+  await p.cancel()
+  timers.at(-1)()
+  late.resolve({ id: 'gL' })
+  await start; await tick(); await tick()
+  assert.ok(!p.wasCancelled('gL'), 'its gameStart can still attach the live game')
+})
 console.log(`ACTIONS-OK ${checks} checks`)
