@@ -421,4 +421,19 @@ await check('a creation answered after Cancel gave up is cancelled on Lichess an
   assert.equal(q.current, null, 'an answer within the wait still cancels normally')
   assert.deepEqual(cancelled, ['late', 'prompt'])
 })
+await check('a game arriving during the 20 s wait neither stops the give-up nor gets aborted by the late answer', async () => {
+  const timers = new Map(), cancelled = []
+  let next = 0
+  const p = new PendingChallenge({ cancel: async id => { cancelled.push(id) },
+    setTimer: fn => { timers.set(++next, fn); return next }, clearTimer: id => timers.delete(id) })
+  const created = deferred()
+  const start = p.start('Stockfish', () => created.promise)
+  await p.cancel()
+  p.gameStarted('g1') // the stream reconnects: Lichess re-sends gameStart for the AI game
+  for (const fn of [...timers.values()]) fn()
+  assert.equal(p.current, null, 'the give-up still releases the lock')
+  created.resolve({ id: 'g1' })
+  await start; await tick()
+  assert.deepEqual(cancelled, [], 'the game being played is never aborted')
+})
 console.log(`ACTIONS-OK ${checks} checks`)
