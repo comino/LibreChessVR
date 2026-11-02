@@ -307,7 +307,7 @@ await check('a created challenge is saved with its creation time and dropped onc
   const now = { t: 1000 }, { p } = clocked(now)
   const created = deferred()
   const start = p.start('Maia 5', () => created.promise)
-  assert.equal(p.saved(), null, 'nothing to save before Lichess returns an id')
+  assert.deepEqual(p.saved(), { id: null, label: 'Maia 5', at: 1000 }, 'a reload during creation keeps the lock')
   now.t = 1500
   created.resolve({ challenge: { id: 'c2' } })
   await start
@@ -328,8 +328,10 @@ await check('a restored challenge locks until Lichess expires it', () => {
 await check('an expired, invalid or second restore is ignored', () => {
   const now = { t: 26000 }, { p } = clocked(now)
   assert.equal(p.restore({ id: 'c1', label: 'Maia 5', at: 1000 }), false, 'expired')
-  assert.equal(p.restore({ label: 'Maia 5', at: 25000 }), false, 'no id')
   assert.equal(p.restore({ id: 'c1', label: 'Maia 5', at: 'x' }), false, 'no time')
+  assert.equal(p.restore({ id: 'c1', label: 'Maia 5', at: '25000' }), false, 'a numeric string is no time')
+  assert.equal(p.restore({ id: 'c1', label: 'Maia 5', at: Infinity }), false, 'non-finite')
+  assert.equal(p.restore({ id: 'c1', at: 25000 }), false, 'no label')
   assert.equal(p.restore(null), false)
   assert.equal(p.current, null)
   assert.equal(p.restore({ id: 'c3', label: 'Ann', at: 25000 }), true)
@@ -359,5 +361,30 @@ await check('a challenge stays saved while its cancellation after another game f
   await tick()
   assert.ok(p.current && !p.current.cancelling, 'still locked after the failed cancel')
   assert.deepEqual(p.saved(), { id: 'c1', label: 'Ann', at: 1000 }, 'a reload must still know c1')
+})
+await check('a restored lock always expires: a failed cancel keeps the expiry, a future time is capped', async () => {
+  const now = { t: 5000 }, timers = new Map()
+  let next = 0
+  const p = new PendingChallenge({ cancel: async () => { throw Object.assign(new Error('bad gateway'), { status: 503 }) },
+    now: () => now.t, setTimer: (fn, ms) => { timers.set(++next, { fn, ms }); return next }, clearTimer: id => timers.delete(id) })
+  p.restore({ id: 'c1', label: 'Ann', at: 1000 })
+  await p.cancel()
+  assert.ok(p.current, 'the failed cancel keeps the lock')
+  const expiry = [...timers.values()].find(t => t.ms === 21000)
+  assert.ok(expiry, 'and its expiry timer')
+  expiry.fn()
+  assert.equal(p.current, null, 'expiry still releases it')
+  now.t = 1000
+  p.restore({ id: 'c2', label: 'Ann', at: 3600000 })
+  assert.ok([...timers.values()].every(t => t.ms <= 25000), 'a clock rollback never locks longer than 25 s')
+})
+await check('a challenge restored without an id locks until expiry and clears locally', async () => {
+  const now = { t: 5000 }, { p, cancelled, messages } = clocked(now)
+  assert.equal(p.restore({ id: null, label: 'Ann', at: 1000 }), true)
+  assert.ok(p.current)
+  await p.cancel()
+  assert.equal(p.current, null)
+  assert.deepEqual(cancelled, [], 'nothing to cancel on Lichess')
+  assert.match(messages.at(-1), /Challenge cleared/)
 })
 console.log(`ACTIONS-OK ${checks} checks`)

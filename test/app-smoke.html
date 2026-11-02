@@ -81,7 +81,7 @@ try {
   // assertions independent of software-renderer shader compilation and CDN latency.
   localStorage.setItem('environment', 'minimal')
   // PRJ-72: a challenge sent just before a reload still blocks new starts.
-  localStorage.setItem('pendingChallenge', JSON.stringify({ id: 'restored', label: 'Ann', at: Date.now(), username: 'me' }))
+  localStorage.setItem('pendingChallenge.me', JSON.stringify({ id: 'restored', label: 'Ann', at: Date.now() }))
   await import('/src/main.js')
   const { board, navigation } = window.parallax, $ = id => document.getElementById(id)
   check(board.knightFacing === 'right' && $('knightFacing').value === 'right', 'sideways knights are the default in the app and desktop control')
@@ -93,7 +93,7 @@ try {
   check(!requests.slice(restoredBefore).some(r => r.path.startsWith('/api/challenge/')), 'no second challenge while one is restored')
   $('cancelChallenge').click()
   await until(() => $('cancelChallenge').hidden && !$('ai').disabled, 'restored challenge cancelled')
-  check(requests.some(r => r.path === '/api/challenge/restored/cancel' && r.method === 'POST') && !localStorage.getItem('pendingChallenge'),
+  check(requests.some(r => r.path === '/api/challenge/restored/cancel' && r.method === 'POST') && !localStorage.getItem('pendingChallenge.me'),
     'cancel withdraws the restored challenge on Lichess and forgets it')
   const surface = () => board.menuOpen ? board.menuPanel : board.bar
   const labels = () => surface().buttons.map(b => b.label).join()
@@ -154,7 +154,7 @@ try {
   maiaCreation.resolve(json({ challenge: { id: 'pending-maia' } }))
   await until(() => $('msg').textContent.includes('Cancellation failed'), 'cancellation error')
   check($('ai').disabled && !$('cancelChallenge').disabled, 'failed cancellation retains the guard and permits retry')
-  check(JSON.parse(localStorage.getItem('pendingChallenge') || '{}').id === 'pending-maia', 'open challenge survives a reload')
+  check(JSON.parse(localStorage.getItem('pendingChallenge.me') || '{}').id === 'pending-maia', 'open challenge survives a reload')
   routes['/api/challenge/pending-maia/cancel'] = () => json({ ok: true })
   $('cancelChallenge').click()
   await until(() => !$('ai').disabled && $('cancelChallenge').hidden, 'cancellation confirmed')

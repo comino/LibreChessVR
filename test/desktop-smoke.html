@@ -30,7 +30,8 @@ function fixtures() {
   localStorage.setItem('environment', 'minimal')
   localStorage.setItem('knightFacing', 'left')
   localStorage.setItem('viewLocked', '1')
-  localStorage.setItem('pendingChallenge', JSON.stringify({ id: 'other-account', label: 'Ann', at: Date.now(), username: 'someone-else' }))
+  localStorage.setItem('pendingChallenge.someone-else', JSON.stringify({ id: 'other-account', label: 'Ann', at: Date.now() }))
+  localStorage.setItem('pendingChallenge.me', JSON.stringify({ id: 'expired', label: 'Bob', at: Date.now() - 60000 }))
   const streams = {}, requests = [], original = window.fetch
   const json = data => new Response(JSON.stringify(data), { headers: { 'content-type': 'application/json' } })
   const full = { type: 'gameFull', initialFen: 'startpos', white: { id: 'me', name: 'You' }, black: { aiLevel: 3 },
@@ -172,7 +173,9 @@ try {
   $('token').value = 'desktop-test'
   $('connect').click()
   await until(() => win.__desktopTest.streams['/api/stream/event'], 'fixture login')
-  check($('cancelChallenge').hidden && !$('ai').disabled, 'a challenge saved by another account is not restored (PRJ-72)')
+  check($('cancelChallenge').hidden && !$('ai').disabled, 'an expired challenge and another account\'s challenge are not restored (PRJ-72)')
+  check(!win.localStorage.getItem('pendingChallenge.me') && win.localStorage.getItem('pendingChallenge.someone-else'),
+    'the expired record is removed, the other account\'s record kept')
   win.__desktopTest.streams['/api/stream/event']({ type: 'gameStart', game: { gameId: 'desktop-game' } })
   await until(() => board.panel.status?.names && visible($('desktopClocks')), 'game clocks')
   const clockText = color => doc.querySelector(`.desktop-clock[data-color="${color}"] .clock-value`).textContent
