@@ -40,6 +40,17 @@ try {
   const pawn = board.pieceAt.a2
   const box = new (await import('three')).Box3().setFromObject(pawn)
   const info = ` scale=${board.pieceScale.toFixed(5)} kingMeshes=[${names}] pawnBox=${JSON.stringify(box.min)}..${JSON.stringify(box.max)}`
+  // PRJ-71: piece reflections are captured from just above the board, never from the world origin.
+  const THREE = await import('three'), eyes = [], render = board.renderer.render
+  board.renderer.render = function (scene, camera) {
+    if (scene === board.scene) eyes.push(camera.getWorldPosition(new THREE.Vector3()))
+    return render.call(this, scene, camera)
+  }
+  board._captureEnv()
+  board.renderer.render = render
+  const eye = board.boardGroup.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.35, 0))
+  const off = eyes.find(p => p.distanceTo(eye) > 0.01)
+  if (!eyes.length || off) throw new Error(`reflections captured at ${JSON.stringify(off ?? 'nothing')}, want ${JSON.stringify(eye)}`)
   if (location.hash === '#picker') {          // promotion picker on e8 (pawn e7 -> e8)
     board.setPosition('4k3/4P3/8/8/8/8/8/4K3 w - - 0 1')
     board._openPicker('e7', 'e8')
