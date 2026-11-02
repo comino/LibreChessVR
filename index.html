@@ -62,10 +62,14 @@
   input[type=password] { width: 100% }
   input[type=number] { width: 60px }
   button { cursor: pointer; transition: background .15s }
-  button:hover { background: var(--steel-hi) }
+  button:hover:not(:disabled) { background: var(--steel-hi) }
   button.primary { background: var(--brass); color: var(--ink); font-weight: 600 }
-  button.primary:hover { filter: brightness(1.08) }
+  button.primary:hover:not(:disabled) { filter: brightness(1.08) }
   button.danger { color: var(--ember) }
+  button:disabled { color: var(--mist); background: var(--steel); cursor: not-allowed }
+  button:focus-visible, a:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--brass); outline-offset: 3px;
+  }
   label { color: var(--mist); display: flex; gap: 6px; align-items: center }
   a { color: var(--brass); text-decoration: none }
   a:hover { text-decoration: underline }
