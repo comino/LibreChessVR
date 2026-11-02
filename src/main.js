@@ -9,15 +9,20 @@ import { startLogin, finishLogin } from './auth.js'
 import { FreeBoard } from './free.js'
 import { showPiecesAction } from './bind.js'
 import { DesktopView } from './desktop.js'
+import { Confirmation, PendingChallenge } from './actions.js'
 
 const $ = id => document.getElementById(id)
 let desktop = null
 const msg = t => { $('msg').textContent = t; desktop?.setMessage(t) }
 
 let lichess = null, session = null, username = null, seekAbort = null, connecting = false
-let maiaTimer = null
 let view = null // the activity only; browsing a menu never replaces or stops it
 let activityKind = 'free', note = null
+const resignConfirmation = new Confirmation()
+let resignTimer = null
+const pendingChallenge = new PendingChallenge({
+  cancel: id => lichess.cancelChallenge(id), changed: () => refresh(), message: notify
+})
 
 const board = new Board3D()
 try {
@@ -82,7 +87,16 @@ function setSettings(patch) {
 const seeking = () => seekAbort && !seekAbort.signal.aborted
 // Sessions supply their own actions; the board adds a persistent Menu footer to all of them.
 function compactMenu() {
-  return seeking() ? [{ label: 'Cancel seek', run: cancelSeek }] : []
+  return [
+    ...seeking() ? [{ label: 'Cancel seek', run: cancelSeek }] : [],
+    ...pendingChallenge.current ? [{ label: 'Cancel challenge', run: () => pendingChallenge.cancel(),
+      disabled: !canCancelChallenge() }] : []
+  ]
+}
+
+const canCancelChallenge = () => {
+  const p = pendingChallenge.current
+  return !!p && !p.cancelling && (p.creating || !!p.id)
 }
 
 function startFree() {
@@ -100,7 +114,8 @@ function activityContext() {
   const live = !!gameRunning()
   const label = { free: 'Free board', puzzles: 'Puzzle', rush: 'Rush', coordinates: 'Coordinates',
     game: session?.reviewing ? 'Game review' : 'Game' }[activityKind]
-  return { kind: activityKind, label, username, live, seeking: !!seeking(), notice: note,
+  return { kind: activityKind, label, username, live, seeking: !!seeking(), notice: pendingChallenge.current?.notice || note,
+    pendingChallenge: pendingChallenge.current && { label: pendingChallenge.current.label, cancellable: canCancelChallenge() },
     timed: live || activityKind === 'rush' && !view?.over || activityKind === 'coordinates' && !!view?.running,
     progress: activityKind === 'free' ? free.changed() : live || !!view?.running || activityKind === 'rush' && !view?.over }
 }
@@ -108,12 +123,14 @@ function activityContext() {
 const navigation = new Navigation({
   show: page => board.showMenu(page), hide: () => board.hideMenu(), context: activityContext,
   get: settings, set: setSettings, login: () => startLogin(), cancelSeek,
+  cancelChallenge: () => pendingChallenge.cancel(),
   start: kind => ({ free: startFree, puzzles: startPuzzles, rush: startRush, coordinates: startTrainer,
     stockfish: playAi, maia: playMaia, human: seek })[kind]()
 })
 window.parallax.navigation = navigation
 board.menuAction = { id: 'menu', label: 'Menu', run: () => navigation.open() }
 board.onStatus = () => {
+  syncActionControls()
   const title = activityContext().label
   if (board.activityTitle !== title) {
     board.activityTitle = board.bar.title = title
@@ -133,6 +150,7 @@ function notify(text) {
 }
 
 function refresh() {
+  syncActionControls()
   $('seek').textContent = seeking() ? 'Cancel seek' : 'Seek human'
   if (view) view.render()
   else board.setStatus({ puzzle: true, text: seeking() ? 'Seeking opponent…' : note || 'Free board',
@@ -141,6 +159,25 @@ function refresh() {
       { label: 'Reset board', disabled: !free.changed(), confirm: true, run: () => free.reset(), slot: 8 },
       { label: 'Flip board', run: () => board.togglePeek() }, ...showPiecesAction(board), ...compactMenu()
     ] })
+}
+
+function resetResign() {
+  resignConfirmation.reset()
+  clearTimeout(resignTimer)
+  resignTimer = null
+  $('resign').textContent = 'Resign'
+}
+
+function syncActionControls() {
+  const live = !!gameRunning(), pending = !!pendingChallenge.current
+  for (const id of ['ai', 'maiaBtn', 'seek']) $(id).disabled = live || pending
+  $('resign').disabled = !live
+  if (!live || resignConfirmation.armed && resignConfirmation.armed.key !== session.gameId) resetResign()
+  const cancel = $('cancelChallenge')
+  if (cancel) {
+    cancel.hidden = !pending
+    cancel.disabled = !canCancelChallenge()
+  }
 }
 
 // --- lichess connection & games ---
@@ -193,7 +230,12 @@ const playable = g => !UNPLAYABLE.includes(g.speed) && g.compat?.board !== false
 
 // lichess re-sends gameStart for every ongoing game when the stream (re)opens.
 function onEvent(ev) {
-  if (ev.type === 'challengeDeclined') return notify('Challenge declined — try another time control or color')
+  if (ev.type === 'challengeDeclined' || ev.type === 'challengeCanceled') {
+    const text = ev.type === 'challengeDeclined' ? 'Challenge declined — try another time control or color' : 'Challenge cancelled'
+    if (pendingChallenge.ended(ev.challenge?.id, text)) return
+    if (ev.type === 'challengeDeclined' && !pendingChallenge.current && !gameRunning()) notify(text)
+    return
+  }
   if (ev.type !== 'gameStart' || !playable(ev.game)) return
   const id = ev.game.gameId || ev.game.id
   if (id === session?.gameId || gameRunning()) return
@@ -202,12 +244,18 @@ function onEvent(ev) {
 }
 
 function attach(gameId) {
-  if (session?.gameId === gameId || gameRunning()) return // never drop a live game
+  if (session?.gameId === gameId || gameRunning() || pendingChallenge.wasCancelled(gameId)) return // never drop a live game
   note = null
-  clearTimeout(maiaTimer)
+  resetResign()
+  seekAbort?.abort()
   view?.stop()
   activityKind = 'game'
-  session = view = new GameSession({ lichess, board, username, gameId, onStatus: t => msg(t), menu: compactMenu })
+  session = view = new GameSession({ lichess, board, username, gameId, onStatus: t => msg(t), menu: compactMenu,
+    challengePending: () => !!pendingChallenge.current,
+    requestRematch: (opponent, params) => requestChallenge(opponent.aiLevel ? 'Stockfish' : opponent.name || opponent.id,
+      () => opponent.aiLevel ? lichess.challengeAi({ level: opponent.aiLevel, ...params }) : lichess.challenge(opponent.id, params),
+      { failure: 'Rematch failed: ', started: opponent.aiLevel ? 'Starting rematch…' : `Rematch offered to ${opponent.name || opponent.id}…` }) })
+  pendingChallenge.gameStarted(gameId)
   session.start().catch(e => { if (e.name !== 'AbortError') msg('Game stream lost: ' + e.message) })
 }
 
@@ -215,6 +263,7 @@ const gameRunning = () => session && !session.finished
 
 async function seek() {
   if (gameRunning()) return msg('Finish or resign the game first')
+  if (pendingChallenge.current) return notify('Cancel the pending challenge first')
   const { time, increment, rated, color } = settings()
   if (!isRapid(time, increment))
     return notify('Seeks need rapid or slower (10+0, 5+5). Blitz works vs Stockfish and Maia.')
@@ -239,15 +288,20 @@ function cancelSeek() {
   refresh()
 }
 
-async function playAi() {
-  if (gameRunning()) return
-  notify('Challenging Stockfish…')
+function requestChallenge(label, create, options = {}) {
+  if (gameRunning() || pendingChallenge.current) return false
+  seekAbort?.abort()
+  const owner = view, kind = activityKind
+  void pendingChallenge.start(label, create, { ...options, message: text => {
+    if (view === owner && activityKind === kind) notify(text)
+    else msg(text) // a delayed failure belongs to its originating activity
+  } })
+  return true
+}
+
+function playAi() {
   const { level, time, increment, color } = settings()
-  try {
-    await lichess.challengeAi({ level, time, increment, color })
-  } catch (e) {
-    notify('Stockfish challenge failed: ' + e.message)
-  }
+  return requestChallenge('Stockfish', () => lichess.challengeAi({ level, time, increment, color }))
 }
 
 // Puzzles and the trainer need no login; they replace whatever the board shows.
@@ -263,18 +317,9 @@ function startActivity(kind, make) {
 }
 
 // Maia: human-like lichess bots (maia1/5/9), challenged directly; they accept on their own.
-async function playMaia() {
-  if (gameRunning()) return
+function playMaia() {
   const { maia, time, increment, rated, color } = settings()
-  notify(`Challenging Maia ${maia}…`)
-  clearTimeout(maiaTimer)
-  maiaTimer = setTimeout(() => !gameRunning() && notify(`Maia ${maia} didn't answer — try again or another time control`), 20000)
-  try {
-    await lichess.challenge('maia' + maia, { time, increment, rated, color })
-  } catch (e) {
-    clearTimeout(maiaTimer)
-    notify('Maia challenge failed: ' + e.message)
-  }
+  return requestChallenge(`Maia ${maia}`, () => lichess.challenge('maia' + maia, { time, increment, rated, color }))
 }
 
 function startPuzzles() {
@@ -352,18 +397,25 @@ $('puzzle').onclick = () => navigation.requestStart('puzzles')
 $('coords').onclick = () => navigation.requestStart('coordinates')
 $('rush').onclick = () => navigation.requestStart('rush')
 $('freeBoard').onclick = () => navigation.requestStart('free')
+const cancelChallengeButton = document.createElement('button')
+cancelChallengeButton.id = 'cancelChallenge'
+cancelChallengeButton.textContent = 'Cancel challenge'
+cancelChallengeButton.hidden = true
+cancelChallengeButton.onclick = () => pendingChallenge.cancel()
+$('logout').before(cancelChallengeButton)
 // Resign asks twice here too (3 s window), like the in-VR button.
-let resignArmed = 0
 $('resign').onclick = () => {
   if (!gameRunning()) return
-  if (performance.now() - resignArmed > 3000) {
-    resignArmed = performance.now()
+  const gameId = session.gameId
+  if (!resignConfirmation.confirm(gameId)) {
+    const armed = resignConfirmation.armed
     $('resign').textContent = 'Confirm resign'
-    return setTimeout(() => { $('resign').textContent = 'Resign' }, 3000)
+    clearTimeout(resignTimer)
+    resignTimer = setTimeout(() => { if (resignConfirmation.armed === armed) resetResign() }, 3000)
+    return
   }
-  resignArmed = 0
-  $('resign').textContent = 'Resign'
-  lichess.resign(session.gameId).catch(e => msg(e.message))
+  resetResign()
+  lichess.resign(gameId).catch(e => { if (session?.gameId === gameId && gameRunning()) msg(e.message) })
 }
 
 $('login').onclick = () => startLogin()

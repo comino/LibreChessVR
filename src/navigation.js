@@ -31,6 +31,7 @@ export class Navigation {
     const c = this.context()
     if (kind === c.kind) return this.close()
     if (c.live) return // a menu must never abandon a live online game
+    if (c.pendingChallenge && ['stockfish', 'maia', 'human'].includes(kind)) return this.refresh()
     if (['stockfish', 'maia', 'human'].includes(kind) && !c.username) return this.go('account')
     if (c.progress && kind !== 'human') return this.go({ id: 'confirm', kind })
     this.launch(kind)
@@ -38,7 +39,8 @@ export class Navigation {
 
   launch(kind) {
     // Re-check after a confirmation: a seek may have matched while the page was open.
-    if (this.context().live) return this.refresh()
+    const c = this.context()
+    if (c.live || c.pendingChallenge && ['stockfish', 'maia', 'human'].includes(kind)) return this.refresh()
     this.close()
     this.start(kind)
   }
@@ -51,7 +53,9 @@ export class Navigation {
     const field = (label, key, values, format = name, sub) => action(label,
       () => this.choose(key, label, values, format, sub), format(s[key]), { navigation: true })
     const start = kind => action(START_LABELS[kind], () => this.requestStart(kind), null,
-      { primary: true, disabled: !!c.live })
+      { primary: true, disabled: !!c.live || !!c.pendingChallenge && ['stockfish', 'maia', 'human'].includes(kind) })
+    const cancelChallenge = () => action('Cancel challenge', this.cancelChallenge, c.pendingChallenge.label,
+      { disabled: !c.pendingChallenge.cancellable })
     const tc = `${s.time}+${s.increment}`
     const time = action('Time control', () => this.choose('timeControl', 'Time control',
       route.id === 'human' ? TIME_PRESETS.filter(t => isRapid(...t.split('+').map(Number))) : TIME_PRESETS,
@@ -66,6 +70,7 @@ export class Navigation {
           link('Settings', 'settings', 'Appearance, comfort and input'),
           link('Account', 'account', c.username || 'Connect to lichess')]
         if (c.seeking) actions.push(action('Cancel seek', this.cancelSeek, 'Stop looking for an opponent'))
+        if (c.pendingChallenge) actions.push(cancelChallenge())
         break
       case 'play':
         sub = 'Choose an opponent, then set up your game.'
@@ -83,6 +88,7 @@ export class Navigation {
           actions.at(-1).disabled = true
           actions.at(-1).detail = 'Choose rapid or slower in Time control'
         }
+        if (c.pendingChallenge) actions.push(cancelChallenge())
         break
       case 'train':
         sub = 'Get used to reading pieces and squares in 3D.'
@@ -145,7 +151,8 @@ export class Navigation {
       case 'confirm':
         sub = c.live ? 'A game has started. Return to it to keep playing.' : `This will leave your current ${c.label.toLowerCase()}.`
         actions = [action('Keep playing', () => this.close()),
-          action(START_LABELS[route.kind], () => this.launch(route.kind), 'Replace the current activity', { danger: true, disabled: !!c.live })]
+          action(START_LABELS[route.kind], () => this.launch(route.kind), 'Replace the current activity',
+            { danger: true, disabled: !!c.live || !!c.pendingChallenge && ['stockfish', 'maia', 'human'].includes(route.kind) })]
         break
     }
     this.show({ id: this.stack.map(r => r.key || r.id).join('/'), title: route.title || TITLES[route.id],

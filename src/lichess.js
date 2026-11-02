@@ -39,7 +39,7 @@ export class Lichess {
       const err = (await r.json()).error
       if (err) msg = typeof err === 'string' ? err : JSON.stringify(err) // form errors are objects
     } catch { /* not json */ }
-    throw new Error(msg)
+    throw Object.assign(new Error(msg), { status: r.status })
   }
 
   async _get(path) {
@@ -125,6 +125,8 @@ export class Lichess {
       rated, color, 'clock.limit': time * 60, 'clock.increment': increment
     })
   }
+
+  cancelChallenge(id) { return this._post(`/api/challenge/${id}/cancel`) }
 
   // angle: lichess puzzle theme (e.g. 'fork', 'mateIn2'); omitted = mixed
   puzzleNext(difficulty = 'normal', angle) {

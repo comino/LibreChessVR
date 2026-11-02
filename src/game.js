@@ -22,8 +22,8 @@ const VARIANTS = ['standard', 'fromPosition'] // what chess.js can follow
 
 export class GameSession {
   // menu: () => actions shown once the game is over (new game, puzzles)
-  constructor({ lichess, board, username, gameId, onStatus, menu }) {
-    Object.assign(this, { lichess, board, username, gameId, onStatus, menu })
+  constructor({ lichess, board, username, gameId, onStatus, menu, requestRematch, challengePending }) {
+    Object.assign(this, { lichess, board, username, gameId, onStatus, menu, requestRematch, challengePending })
     this.abort = new AbortController()
     this.chess = new Chess()
     this.applied = 0
@@ -228,7 +228,7 @@ export class GameSession {
 
   // Same clock, colors swapped: Stockfish starts at once, a human gets a challenge.
   _canRematch() {
-    return this.clock && !this.rematched && (this.opponent.aiLevel || this.opponent.id)
+    return this.clock && !this.rematched && !this.challengePending?.() && (this.opponent.aiLevel || this.opponent.id)
   }
 
   _rematch() {
@@ -238,6 +238,13 @@ export class GameSession {
     const params = {
       time: this.clock.initial / 60000, increment: this.clock.increment / 1000,
       color: this.color === 'white' ? 'black' : 'white'
+    }
+    if (this.requestRematch) {
+      if (!this.requestRematch(opp, { ...params, rated: this.rated })) {
+        this.rematched = false
+        this._render()
+      }
+      return
     }
     const req = opp.aiLevel
       ? this.lichess.challengeAi({ level: opp.aiLevel, ...params })
