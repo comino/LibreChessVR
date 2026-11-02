@@ -84,6 +84,13 @@ try {
   probe.disabled = true
   check(win.getComputedStyle(probe).cursor === 'not-allowed', 'disabled sidebar buttons look disabled')
   probe.remove()
+  // A hovered primary button keeps its brass background: no generic hover background may outrank it.
+  const primary = Object.assign(doc.createElement('button'), { className: 'primary' })
+  $('ui').append(primary)
+  const hoverBg = [...doc.styleSheets].flatMap(sheet => { try { return [...sheet.cssRules] } catch { return [] } }).filter(r => r.selectorText?.includes(':hover') &&
+    r.style.background && !r.selectorText.includes('.primary') && primary.matches(r.selectorText.replaceAll(':hover', '')))
+  check(!hoverBg.length, 'primary hover keeps brass: ' + hoverBg.map(r => r.selectorText).join(', '))
+  primary.remove()
   $('controlsToggle').focus()
   $('controlsToggle').click()
   check($('ui').hidden && board.viewShift === 0 && !board.menuOpen, 'hide controls recenters and returns to activity')
