@@ -111,7 +111,7 @@ export class Navigation {
         sub = 'Preview changes on the board.'
         actions = [field('Scene', 'environment', ENVIRONMENTS), field('Board theme', 'boardTheme', BOARD_THEME_NAMES),
           field('Piece set', 'pieceTheme', PIECE_THEME_NAMES),
-          field('Knight facing', 'knightFacing', KNIGHT_FACINGS, name, 'From each player’s side. Right is the default side profile.')]
+          field('Knight facing', 'knightFacing', KNIGHT_FACINGS, name, 'From each player’s side. Outward and inward mirror the two sides.')]
         break
       case 'comfort': {
         const cm = Math.round(s.height * 100)

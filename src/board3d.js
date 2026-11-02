@@ -20,6 +20,14 @@ const BOARD_POS = new THREE.Vector3(0, 0.73, -0.45)
 const NODE_TYPE = { pawn: 'p', knight: 'n', bishop: 'b', rook: 'r', queen: 'q', king: 'k' }
 // The scans face their own players (+Z white, -Z black); the black turn is baked in.
 const KNIGHT_YAW = { right: Math.PI / 2, forward: Math.PI, left: -Math.PI / 2, backward: 0 }
+// Outward/inward mirror the two sides by file: a–d is queenside. Captured knights (no square) face right.
+function knightYaw(facing, color, square) {
+  if (facing === 'outward' || facing === 'inward') {
+    const towardA = (square?.[0] <= 'd') === (facing === 'outward')
+    facing = square && towardA === (color === 'w') ? 'left' : 'right'
+  }
+  return KNIGHT_YAW[facing]
+}
 const _vA = new THREE.Vector3(), _vB = new THREE.Vector3(), _vC = new THREE.Vector3()
 const _m = new THREE.Matrix4(), _tint = new THREE.Color(), _dummy = new THREE.Object3D(), _ray = new THREE.Ray()
 const BANDS = 12                         // silhouette resolution for picking (height bands)
@@ -279,7 +287,7 @@ export class Board3D {
     this.proxyGeo = {}
   }
 
-  _makePiece(type, color) {
+  _makePiece(type, color, square) {
     const inner = this.templates[color][type].clone()
     inner.traverse(m => {
       if (!m.isMesh) return
@@ -294,7 +302,7 @@ export class Board3D {
     proxy.position.y = h / 2
     const group = new THREE.Group()
     group.add(inner, proxy)
-    Object.assign(group.userData, { proxy, type, color })
+    Object.assign(group.userData, { proxy, type, color, square })
     group.scale.setScalar(this.pieceScale)
     this._faceKnight(group)
     return group
@@ -303,7 +311,8 @@ export class Board3D {
   // --- public API ---
 
   _faceKnight(piece) {
-    if (piece.userData.type === 'n') piece.rotation.y = KNIGHT_YAW[this.knightFacing]
+    const { type, color, square } = piece.userData
+    if (type === 'n') piece.rotation.y = knightYaw(this.knightFacing, color, square)
   }
 
   setKnightFacing(facing) {
@@ -658,10 +667,9 @@ export class Board3D {
     this.grab = this.pendingGrab = null
     delete this.hover.grab
     for (const p of parseFen(fen)) {
-      const piece = this._makePiece(p.type, p.color)
+      const piece = this._makePiece(p.type, p.color, p.square)
       const { x, z } = squareToXZ(p.square, SQUARE)
       piece.position.set(x, 0.005, z)
-      piece.userData.square = p.square
       piece.userData.proxy.userData.square = p.square
       this.pieceAt[p.square] = piece
       this.piecesGroup.add(piece)
@@ -834,7 +842,7 @@ export class Board3D {
       const disc = new THREE.Mesh(DISC_GEO, DISC_MAT)
       disc.rotation.x = -Math.PI / 2
       const slot = new THREE.Group()
-      const piece = this._makePiece(type, color)
+      const piece = this._makePiece(type, color, to)
       piece.traverse(m => { if (m.material === this.pieceMat[color]) m.material = this.solidMat[color] })
       slot.add(disc, piece)
       const file = 'abcdefgh'[mirror(start + i)]

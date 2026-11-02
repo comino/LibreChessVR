@@ -64,7 +64,8 @@ In VR you can adjust table height and board size, switch between hand and contro
 and use the same settings without leaving a game. Scenes include Study, Sunset, Night and
 Minimal. Appearance changes are previews on the board, with visible setting choices.
 Knights show their side profile by default. **Settings → Appearance → Knight facing**
-offers Right, Forward, Left and Backward, from each player's side. The desktop sidebar
+offers Right, Forward, Left and Backward, from each player's side, plus Outward and
+Inward, which turn the queenside and kingside knights back to back or face to face. The desktop sidebar
 has the same setting, and your choice is remembered.
 
 On Quest, open [librechessvr.com](https://librechessvr.com/) in the browser. You can also use

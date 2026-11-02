@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Knight facing adds Outward and Inward: knights on files a–d and e–h face away from or
+  toward each other, so b1 and g1 are mirrored (#4). A knight that crosses the centre turns.
 - One challenge at a time: while Stockfish, Maia or a rematch is pending, other game starts
   wait, and "Cancel challenge" withdraws it on Lichess. Resign asks again for each new game.
 - Pieces reflect the room around the board again. Reflections were captured from the

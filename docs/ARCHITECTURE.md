@@ -117,6 +117,8 @@ Module map and the invariants behind them. Read the module's row and the invaria
   backward. The scanned white and black knights already face opposite directions, toward
   their own players; rotate both instances by the same quarter-turn offset. `setKnightFacing`
   updates existing pieces, captures and promotion previews without rebuilding game state.
+  Outward/inward resolve per piece from `userData.square` (a–d queenside; promotion previews use
+  the promotion square; captured knights have none and face right), see `knightYaw`.
 - Reflections: `_captureEnv()` renders the scene once into a PMREM env map at each scene switch
   (board/UI hidden during capture) — never per frame.
 - Piece surface detail: `PIECE_DETAIL` shader chunks via `onBeforeCompile` on the 4 piece
