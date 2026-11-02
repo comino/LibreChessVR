@@ -108,7 +108,7 @@ and invariants: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md); hosting and pack
 [`docs/OPERATIONS.md`](docs/OPERATIONS.md). Brand & design system: [`BRAND.md`](BRAND.md);
 tokens in [`src/theme.js`](src/theme.js).
 
-Tests need Node.js 22 or newer and Chrome/Chromium. The smoke script finds Chrome or Chromium
+Tests need Node.js 22.7 or newer and Chrome/Chromium. The smoke script finds Chrome or Chromium
 itself; otherwise set `CHROME` to your browser executable.
 
 ```sh

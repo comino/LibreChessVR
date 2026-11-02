@@ -48,8 +48,9 @@ Otherwise set `CHROME` to your browser executable; `CHROME_FLAGS` adds flags (co
 without user namespaces need `--no-sandbox`; normal development keeps the sandbox).
 It serves the tree on port 8123 with DevTools on 9123; `PORT=18423` picks another pair.
 
-A successful run exits zero and every suite prints its `*-OK` line. A JUnit report per file
-is written to `test-results/junit.xml` (ignored by Git). Slow machines can raise
+A successful run exits zero and every suite prints its success line (`*-OK`, or `All tests
+passed` for `test/test.js`). One JUnit report, with a case per file, is written to
+`test-results/junit.xml` (ignored by Git). Slow machines can raise
 `SMOKE_TIMEOUT` (seconds per page, default 360). CDN access is required for browser checks:
 proxy, DNS or certificate problems can prevent modules from loading. Do not bypass
 certificate validation to make a check pass. Avoid fixing flaky tests by adding arbitrary

@@ -8,9 +8,7 @@ Lichess checks remain separate manual work.
 
 - Run `node test/run-tests.mjs` from a clean checkout with the documented minimum Node version
   (agents: the bx gate, see `CLAUDE.md`). Investigate failures; keep `test-results/junit.xml`.
-- Confirm the release commit has passed CI. Maintainers should configure required checks
-  on the default branch once those checks have run successfully; a workflow file alone
-  does not enable branch protection.
+- Confirm the release commit passed the bx gate (`bx record gate <sha>` exits 0).
 - Review dependency/asset changes and `THIRD_PARTY_NOTICES.md`. Check staged files and
   history for accidentally committed credentials or private signing material.
 - Verify README/contributor commands, issue templates and the private reporting link in
