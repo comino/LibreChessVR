@@ -6,7 +6,6 @@ import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
 import { buildEnvironment, disposeGroup, woodTexture } from './environments.js'
 import { squareToXZ, xzToSquare, parseFen, captured } from './coords.js'
 import { StatusPanel, ButtonBar, MenuPanel, MoveList } from './panel.js'
@@ -106,8 +105,6 @@ export class Board3D {
     this.controls.target.set(0.1, 0.88, -0.55)
     this.controls.enableDamping = true
 
-    // Soft room reflections, used by the piece materials only (tiles stay matte).
-    this.envMap = new THREE.PMREMGenerator(this.renderer).fromScene(new RoomEnvironment(), 0.04).texture
     // Lights persist across environments (shadow map allocated once); setEnvironment tunes them.
     this.hemi = new THREE.HemisphereLight()
     this.sun = new THREE.DirectionalLight()
@@ -275,7 +272,7 @@ export class Board3D {
     }
     // Shared across all pieces: pieces are rebuilt on every position change.
     const mat = color => Object.assign(new THREE.MeshStandardMaterial({
-      color, roughness: 0.35, metalness: 0.05, envMap: this.envMap, envMapIntensity: 0.6
+      color, roughness: 0.35, metalness: 0.05, envMapIntensity: 0.9
     }), { onBeforeCompile: addDetail, customProgramCacheKey: () => 'piece-detail' })
     this.pieceMat = { w: mat(PIECES.white), b: mat(PIECES.black) }  // follows pieceStyle
     this.solidMat = { w: mat(PIECES.white), b: mat(PIECES.black) }  // promotion picker: always solid
@@ -484,16 +481,40 @@ export class Board3D {
     this.shadowsDirty = true
   }
 
-  // Pieces reflect the real scene: one cube capture per scene switch, never per frame.
+  // Capture on scene changes (and once its props load), never per frame. Three r170's
+  // PMREM.fromScene captures only at the origin, so position a cube camera at the board.
   _captureEnv() {
     if (!this.pieceMat) return
-    this.pmrem ??= new THREE.PMREMGenerator(this.renderer)
+    const renderer = this.renderer
+    this.pmrem ??= new THREE.PMREMGenerator(renderer)
+    const cube = new THREE.WebGLCubeRenderTarget(256, {
+      type: THREE.HalfFloatType, colorSpace: THREE.LinearSRGBColorSpace,
+      generateMipmaps: false
+    })
+    const camera = new THREE.CubeCamera(0.05, 60, cube)
+    this.boardGroup.getWorldPosition(camera.position)
+    camera.position.y += 0.35
     const hide = [this.boardGroup, this.panel?.mesh, this.bar?.mesh, this.menuPanel?.mesh].filter(Boolean)
     const was = hide.map(o => o.visible)
-    hide.forEach(o => { o.visible = false })
-    const pos = new THREE.Vector3(BOARD_POS.x, BOARD_POS.y + 0.35 + this.stage.position.y, BOARD_POS.z)
-    const rt = this.pmrem.fromScene(this.scene, 0.02, 0.05, 60, { position: pos })
-    hide.forEach((o, i) => { o.visible = was[i] })
+    const target = renderer.getRenderTarget(), face = renderer.getActiveCubeFace(), mip = renderer.getActiveMipmapLevel()
+    const xr = renderer.xr.enabled, autoClear = renderer.autoClear, toneMapping = renderer.toneMapping
+    let rt
+    try {
+      hide.forEach(o => { o.visible = false })
+      renderer.autoClear = true
+      renderer.toneMapping = THREE.NoToneMapping // retain scene radiance in the half-float cube
+      camera.update(renderer, this.scene)
+      rt = this.pmrem.fromCubemap(cube.texture)
+    } finally {
+      // CubeCamera/PMREM restore state only on success. A failed capture must not
+      // leave the board hidden, XR disabled, or rendering into a temporary target.
+      hide.forEach((o, i) => { o.visible = was[i] })
+      renderer.xr.enabled = xr
+      renderer.autoClear = autoClear
+      renderer.toneMapping = toneMapping
+      renderer.setRenderTarget(target, face, mip)
+      cube.dispose()
+    }
     this.envRT?.dispose()
     this.envRT = rt
     for (const m of [...Object.values(this.pieceMat), ...Object.values(this.solidMat)]) {
