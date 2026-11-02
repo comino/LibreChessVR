@@ -932,7 +932,8 @@ export class Board3D {
       this.hands.push(hand)
     }
 
-    // A click that ends an orbit drag is not a pick; a locked view cannot orbit.
+    // A click that ends an orbit drag is not a pick. A locked view cannot orbit, so it allows
+    // more drift (an imprecise click), but a long drag is still no pick.
     const dom = this.renderer.domElement
     let down = null
     dom.addEventListener('pointerdown', e => { down = [e.clientX, e.clientY] })
@@ -940,7 +941,7 @@ export class Board3D {
       (e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1), this.camera)
     this.renderer.xr.addEventListener('sessionstart', () => this._clearHover('mouse'))
     dom.addEventListener('click', e => {
-      if (!this.viewLocked && down && Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return
+      if (down && Math.hypot(e.clientX - down[0], e.clientY - down[1]) > (this.viewLocked ? 24 : 5)) return
       this.source = null
       mouseRay(e)
       this._pick()
@@ -1201,7 +1202,7 @@ export class Board3D {
     const now = performance.now(), dt = Math.min(0.1, (now - (this.lastTick ?? now)) / 1000)
     this.lastTick = now
     const xr = this.renderer.xr.isPresenting
-    if (!xr) this.controls.update()
+    if (!xr && !this.viewLocked) this.controls.update() // locked: no damping coast either
     if (xr) this._controllerHover()
     else if (this.hover.c0 || this.hover.c1) this._clearHover('c0', 'c1') // left VR
     this._thumbstick(dt)
