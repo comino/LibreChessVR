@@ -46,7 +46,13 @@ export class PendingChallenge {
       request.creating = false
       request.id = result?.challenge?.id || result?.id || null
       request.at = this.now()
-      if (this.current !== request) return true
+      if (this.current !== request) {
+        if (request.abandoned && request.id) { // Cancel gave up waiting: withdraw it now
+          this._remember(request.id)
+          this.cancelRequest(request.id).catch(() => {}) // a 404 or failure: it expires on its own
+        }
+        return true
+      }
       if (request.ended.has(request.id)) {
         this._clear(request, true)
         this._message(request, request.ended.get(request.id))
@@ -81,7 +87,14 @@ export class PendingChallenge {
     request.cancelling = true
     this.clearTimer(request.timer)
     this._message(request, 'Cancelling challenge…')
-    if (!request.creating) await this._cancel(request)
+    if (!request.creating) return this._cancel(request)
+    // The creation may never answer (half-open connection after headset sleep): give up after waitMs.
+    request.timer = this.setTimer(() => {
+      if (this.current !== request || !request.creating) return
+      request.abandoned = true
+      this._clear(request)
+      this._message(request, 'Challenge cleared — if Lichess still shows it, it expires on its own')
+    }, this.waitMs)
   }
 
   async _cancel(request) {
@@ -134,6 +147,11 @@ export class PendingChallenge {
 
   wasCancelled(id) { return this.cancelled.has(id) }
 
+  _remember(id) {
+    this.cancelled.add(id)
+    if (this.cancelled.size > 32) this.cancelled.delete(this.cancelled.values().next().value)
+  }
+
   // What a reload needs to restore: a challenge Lichess may still turn into a game, even one
   // whose id never arrived. Its own game ends it.
   saved() {
@@ -176,10 +194,7 @@ export class PendingChallenge {
 
   _clear(request, cancelled = false) {
     if (this.current !== request) return
-    if (cancelled && request.id) {
-      this.cancelled.add(request.id)
-      if (this.cancelled.size > 32) this.cancelled.delete(this.cancelled.values().next().value)
-    }
+    if (cancelled && request.id) this._remember(request.id)
     this.clearTimer(request.timer)
     this.clearTimer(request.expiry)
     this.current = null

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- "Cancel challenge" pressed while Lichess never answers the challenge request (for example
+  after the headset slept) releases the lock after 20 s; a late answer is withdrawn on Lichess.
 - The VR panel, VR menu, wordmark and sharing image use the new line, "No install, just chess
   in VR", instead of "Read a real chessboard". The sharing image now names librechessvr.com.
 - Reloading the page while a challenge is open keeps it pending, so a second game can't start
