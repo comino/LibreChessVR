@@ -23,8 +23,8 @@ not the last tag (`VERSION`; CHANGELOG "Unreleased" = on `main`, untagged).
 
 ## Required gates
 
-`bx --record gate test` (profile `LibreChessVR`, `boat: never`) runs `test/run-tests.mjs`: 6 unit suites +
-16 smoke pages, each one result line and one junit case (expect 22; the profile's `min_tests`). Runtime
+`bx --record gate test` (profile `LibreChessVR`, `boat: never`) runs `test/run-tests.mjs`: 7 unit suites +
+16 smoke pages, each one result line and one junit case (expect 23; the profile's `min_tests`). Runtime
 changes also need `bx red` (a changed test file fails on main) or `bx red --none "<reason>"`.
 Smoke pages load three.js/chess.js from CDNs.
 

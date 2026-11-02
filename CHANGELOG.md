@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- One challenge at a time: while Stockfish, Maia or a rematch is pending, other game starts
+  wait, and "Cancel challenge" withdraws it on Lichess. Resign asks again for each new game.
 - Pieces reflect the room around the board again. Reflections were captured from the
   middle of the room floor because three.js r170 ignored the capture position.
 - Disabled buttons look disabled, and keyboard focus is visible on every button and link.

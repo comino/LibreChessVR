@@ -2,7 +2,7 @@
 // the cached copy offline) — never mixes old and new modules. Versioned CDN modules and fonts:
 // cache-first (their URLs change when their content does). lichess API calls are never cached.
 const CACHE_PREFIX = 'parallax-v'
-const CACHE = CACHE_PREFIX + '27'
+const CACHE = CACHE_PREFIX + '28'
 const CDN = /(^|\.)(cdn\.jsdelivr\.net|fonts\.googleapis\.com|fonts\.gstatic\.com)$/
 
 self.addEventListener('install', e => e.waitUntil(self.skipWaiting()))

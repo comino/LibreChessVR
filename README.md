@@ -112,7 +112,7 @@ Tests need Node.js 22 or newer and Chrome/Chromium. The smoke script finds Chrom
 itself; otherwise set `CHROME` to your browser executable.
 
 ```sh
-node test/run-tests.mjs                        # 6 unit suites + 16 headless-Chrome suites, all must pass
+node test/run-tests.mjs                        # 7 unit suites + 16 headless-Chrome suites, all must pass
 ```
 
 The smoke suites drive the real modules against a fake lichess (streams, reconnects, offers,
