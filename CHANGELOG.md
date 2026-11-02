@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reloading the page while a challenge is open keeps it pending, so a second game can't start
+  until Lichess accepts, declines or expires it (at most 20 s); "Cancel challenge" still works.
 - **Lock view** on desktop freezes camera rotation, panning and zoom, so an imprecise
   click near a piece still plays it. Works with the sidebar hidden; the choice is saved. Fixes #3.
 - Knight facing adds Outward and Inward: knights on files a–d and e–h face away from or

@@ -23,8 +23,9 @@ export class Confirmation {
 // the response identifies it and the cancellation endpoint confirms the outcome.
 export class PendingChallenge {
   constructor({ cancel, changed = () => {}, message = () => {},
-    setTimer = (fn, ms) => setTimeout(fn, ms), clearTimer = id => clearTimeout(id), waitMs = 20000 }) {
-    Object.assign(this, { cancelRequest: cancel, changed, message, setTimer, clearTimer, waitMs })
+    setTimer = (fn, ms) => setTimeout(fn, ms), clearTimer = id => clearTimeout(id), waitMs = 20000,
+    now = () => Date.now(), expiryMs = 25000 }) {
+    Object.assign(this, { cancelRequest: cancel, changed, message, setTimer, clearTimer, waitMs, now, expiryMs })
     this.current = null
     this.cancelled = new Set()
   }
@@ -44,6 +45,7 @@ export class PendingChallenge {
       const result = await create()
       request.creating = false
       request.id = result?.challenge?.id || result?.id || null
+      request.at = this.now()
       if (this.current !== request) return true
       if (request.ended.has(request.id)) {
         this._clear(request, true)
@@ -131,6 +133,26 @@ export class PendingChallenge {
   }
 
   wasCancelled(id) { return this.cancelled.has(id) }
+
+  // What a reload needs to restore: an open challenge Lichess may still turn into a game.
+  saved() {
+    const r = this.current
+    return r?.id && !r.gameId ? { id: r.id, label: r.label, at: r.at } : null
+  }
+
+  // After a reload. Realtime challenges without keepAliveStream expire 20 s after creation
+  // (Lichess API); expiryMs adds a margin for clock skew. Events still end it earlier.
+  restore(saved) {
+    const { id, label, at } = saved || {}, left = at + this.expiryMs - this.now()
+    if (this.current || !id || !(left > 0)) return false
+    const request = this.current = { label, message: this.message, id, at, creating: false, cancelling: false, ended: new Map() }
+    request.timer = this.setTimer(() => {
+      this._clear(request)
+      this._message(request, `${label} challenge expired`)
+    }, left)
+    this._message(request, `Still waiting for ${label} — cancel the challenge before trying again`)
+    return true
+  }
 
   ended(id, text) {
     const request = this.current
