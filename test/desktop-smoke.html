@@ -75,6 +75,15 @@ try {
   check(visible($('ui')) && $('controlsToggle').getAttribute('aria-expanded') === 'true', 'controls open initially')
   check(board.viewShift === 336 && !visible($('desktopStatus')), 'sidebar offset and quiet free-board HUD')
 
+  // Sidebar buttons: a visible keyboard focus ring and a disabled look (not only #desktop's).
+  const probe = Object.assign(doc.createElement('button'), { textContent: 'Probe' })
+  $('ui').append(probe)
+  probe.focus()
+  const ring = win.getComputedStyle(probe)
+  check(ring.outlineStyle === 'solid' && ring.outlineWidth === '2px', `sidebar focus ring (${ring.outlineStyle} ${ring.outlineWidth})`)
+  probe.disabled = true
+  check(win.getComputedStyle(probe).cursor === 'not-allowed', 'disabled sidebar buttons look disabled')
+  probe.remove()
   $('controlsToggle').focus()
   $('controlsToggle').click()
   check($('ui').hidden && board.viewShift === 0 && !board.menuOpen, 'hide controls recenters and returns to activity')
