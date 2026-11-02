@@ -2,7 +2,9 @@
 // cannot run is an <error> (never red), and paths are reported as given in canonical form. PRJ-50.
 import assert from 'node:assert'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 const JUNIT = 'test-results/junit.xml'
 const env = { ...process.env, SMOKE_RUNNER: 'test/fixtures/fake-smoke.mjs' }  // pages without Chrome
@@ -53,4 +55,13 @@ mkdirSync('test-results', { recursive: true }); writeFileSync(JUNIT, 'stale')
 r = run('README.md')
 assert.equal(r.status, 2, 'a non-test file is a usage error')
 assert.equal(r.junit, '', 'no stale junit survives a run that wrote none')
+// run-smoke.sh leaves nothing behind: no Chrome profile, no Chrome temp dirs, no rm errors (PRJ-58).
+const tmp = mkdtempSync(join(tmpdir(), 'run-smoke-'))
+for (let i = 0; i < 3; i++) {
+  const smoke = spawnSync('test/run-smoke.sh', ['test/fixtures/page-chrome.html'], { encoding: 'utf8', env: { ...process.env, TMPDIR: tmp, PORT: '8461' } })
+  assert.match(smoke.stdout, /CHROME-OK/, 'real Chrome runs the fixture page')
+  assert.equal(smoke.stderr, '', 'run-smoke prints no errors')
+}
+assert.deepEqual(readdirSync(tmp), [], 'run-smoke leaves no files in TMPDIR')
+rmSync(tmp, { recursive: true })
 console.log('RUNNER-UNIT-OK')
