@@ -1,5 +1,6 @@
 // Node unit tests for the pure logic. Run: node test/test.js
 import { strict as assert } from 'assert'
+import { readFileSync } from 'fs'
 import { squareToXZ, xzToSquare, parseFen, captured } from '../src/coords.js'
 import { makeLineSplitter, isRapid, Lichess } from '../src/lichess.js'
 import { cycle, TIME_PRESETS } from '../src/settings.js'
@@ -154,5 +155,13 @@ await new Lichess().puzzleNext('harder', 'fork')
 await new Lichess().puzzleNext('normal')
 assert.equal(urls[0], 'https://lichess.org/api/puzzle/next?difficulty=harder&angle=fork')
 assert.equal(urls[1], 'https://lichess.org/api/puzzle/next?difficulty=normal')
+
+// --- brand copy (PRJ-55): in-app text and images use BRAND.md's short line, not the old tagline ---
+const SHORT = 'No install, just chess in VR'
+assert.ok(readFileSync('BRAND.md', 'utf8').includes(`Short version: *${SHORT}.*`), 'BRAND.md short line')
+for (const file of ['src/panel.js', 'src/navigation.js', 'assets/brand/wordmark.svg', 'index.html', 'README.md'])
+  assert.doesNotMatch(readFileSync(file, 'utf8'), /real chessboard/i, `${file} has the old tagline`)
+for (const file of ['src/panel.js', 'assets/brand/wordmark.svg', 'tools/preview.html'])
+  assert.ok(readFileSync(file, 'utf8').includes(SHORT), `${file} shows the short line`)
 
 console.log('All tests passed')
