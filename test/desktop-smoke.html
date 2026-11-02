@@ -29,6 +29,7 @@ function fixtures() {
   localStorage.clear()
   localStorage.setItem('environment', 'minimal')
   localStorage.setItem('knightFacing', 'left')
+  localStorage.setItem('viewLocked', '1')
   const streams = {}, requests = [], original = window.fetch
   const json = data => new Response(JSON.stringify(data), { headers: { 'content-type': 'application/json' } })
   const full = { type: 'gameFull', initialFen: 'startpos', white: { id: 'me', name: 'You' }, black: { aiLevel: 3 },
@@ -108,6 +109,50 @@ try {
   $('controlsToggle').click()
   check(board.fen === position && board.viewShift === 336, 'show controls preserves board and restores framing')
 
+  // View lock (GH #3): restored from storage, freezes the orbit camera, keeps picking.
+  const canvas = board.renderer.domElement, distance = () => board.camera.position.distanceTo(board.controls.target)
+  const wheel = () => {
+    const d = distance()
+    canvas.dispatchEvent(new win.WheelEvent('wheel', { deltaY: -400, clientX: 500, clientY: 400, bubbles: true, cancelable: true }))
+    board.controls.update()
+    return Math.abs(distance() - d)
+  }
+  const screenOf = square => {
+    const V = board.camera.position.constructor, p = board.pieceAt[square].getWorldPosition(new V())
+    p.y += 0.02
+    p.project(board.camera)
+    return [(p.x + 1) / 2 * win.innerWidth, (1 - p.y) / 2 * win.innerHeight]
+  }
+  const sloppyClick = square => {
+    const [x, y] = screenOf(square)
+    canvas.dispatchEvent(new win.PointerEvent('pointerdown', { clientX: x - 12, clientY: y, bubbles: true }))
+    canvas.dispatchEvent(new win.PointerEvent('pointerup', { clientX: x, clientY: y, bubbles: true }))
+    canvas.dispatchEvent(new win.MouseEvent('click', { clientX: x, clientY: y, bubbles: true }))
+  }
+  check(board.viewLocked && !board.controls.enabled, 'saved view lock restored')
+  check($('viewLock').textContent === 'Unlock view' && $('viewLock').getAttribute('aria-pressed') === 'true', 'lock state shown')
+  check(wheel() === 0, 'locked view ignores zoom')
+  board._tick()
+  sloppyClick('e7')
+  check(board.selected === 'e7', 'locked view: a click that drifted still picks the piece')
+  sloppyClick('e7')
+  check(board.selected === null, 'second click deselects')
+  $('viewLock').focus()
+  $('viewLock').click()
+  check(!board.viewLocked && board.controls.enabled && $('viewLock').textContent === 'Lock view', 'unlock')
+  check($('viewLock').getAttribute('aria-pressed') === 'false' && win.localStorage.getItem('viewLocked') === '', 'unlock saved')
+  check(doc.activeElement === $('viewLock'), 'lock toggle keeps keyboard focus')
+  check(wheel() > 0.001, 'unlocked view zooms')
+  board._tick()
+  sloppyClick('e7')
+  check(board.selected === null, 'unlocked view: a drag is not a pick')
+  $('viewLock').click()
+  check(board.viewLocked && win.localStorage.getItem('viewLocked') === '1', 'lock saved')
+  $('controlsToggle').click()
+  check(visible($('viewLock')) && board.viewLocked, 'lock reachable and kept with controls hidden')
+  $('controlsToggle').click()
+  check(board.viewLocked && board.fen === position, 'showing controls keeps lock and position')
+
   $('token').value = 'desktop-test'
   $('connect').click()
   await until(() => win.__desktopTest.streams['/api/stream/event'], 'fixture login')
@@ -156,11 +201,12 @@ try {
   frame.style.width = '390px'
   await until(() => win.innerWidth === 390, 'mobile resize')
   check(board.viewShift === 0 && visible($('desktopClocks')), 'mobile clocks remain visible when collapsed')
-  for (const id of ['controlsToggle', 'desktopStatus', 'desktopActions']) {
+  for (const id of ['controlsToggle', 'viewLock', 'desktopStatus', 'desktopActions']) {
     const rect = $(id).getBoundingClientRect()
     check(rect.left >= 0 && rect.right <= win.innerWidth && rect.bottom <= win.innerHeight, `${id} fits mobile viewport`)
   }
   check($('desktopStatus').getBoundingClientRect().top >= $('controlsToggle').getBoundingClientRect().bottom, 'mobile clocks clear toggle')
+  check($('viewLock').getBoundingClientRect().left >= $('controlsToggle').getBoundingClientRect().right, 'tool buttons do not overlap')
   $('controlsToggle').click()
   check(visible($('ui')) && !visible($('desktopStatus')), 'mobile setup has no overlapping clocks')
   $('controlsToggle').click()
@@ -171,6 +217,7 @@ try {
   board.renderer.xr.dispatchEvent({ type: 'sessionend' })
   await until(() => !$('desktop').hidden, 'XR return')
   check($('ui').hidden && $('controlsToggle').textContent === 'Show controls', 'XR preserves desktop preference')
+  check(board.viewLocked && !board.controls.enabled, 'XR preserves view lock')
 
   push({ type: 'gameState', moves: 'e2e4 e7e5 g1f3', wtime: 595000, btime: 12000, status: 'resign', winner: 'black' })
   await until(() => !board.panel.status.running && clockText('black') === '0:12', 'finished game clocks stop')
