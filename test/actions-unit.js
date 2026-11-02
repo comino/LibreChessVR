@@ -350,4 +350,14 @@ await check('a restored challenge can be cancelled or turn into its game', async
   assert.deepEqual(b.cancelled, [], 'its own game is never cancelled')
   assert.equal(b.p.saved(), null)
 })
+await check('a challenge stays saved while its cancellation after another game fails', async () => {
+  const now = { t: 1000 }
+  const p = new PendingChallenge({ cancel: async () => { throw Object.assign(new Error('bad gateway'), { status: 503 }) },
+    now: () => now.t, setTimer: () => 0, clearTimer: () => {} })
+  await p.start('Ann', async () => ({ challenge: { id: 'c1' } }))
+  p.gameStarted('g2')
+  await tick()
+  assert.ok(p.current && !p.current.cancelling, 'still locked after the failed cancel')
+  assert.deepEqual(p.saved(), { id: 'c1', label: 'Ann', at: 1000 }, 'a reload must still know c1')
+})
 console.log(`ACTIONS-OK ${checks} checks`)
