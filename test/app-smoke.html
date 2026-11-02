@@ -83,6 +83,7 @@ try {
   await import('/src/main.js')
   const { board, navigation } = window.parallax, $ = id => document.getElementById(id)
   check(board.knightFacing === 'right' && $('knightFacing').value === 'right', 'sideways knights are the default in the app and desktop control')
+  check(!board.viewLocked && board.controls.enabled && $('viewLock').textContent === 'Lock view', 'view starts unlocked without a saved preference')
   const surface = () => board.menuOpen ? board.menuPanel : board.bar
   const labels = () => surface().buttons.map(b => b.label).join()
   const press = label => {

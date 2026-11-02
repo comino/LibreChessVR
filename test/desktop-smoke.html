@@ -118,14 +118,16 @@ try {
     return Math.abs(distance() - d)
   }
   const screenOf = square => {
-    const V = board.camera.position.constructor, p = board.pieceAt[square].getWorldPosition(new V())
+    let tile
+    board.boardGroup.traverse(o => { if (o.userData.square === square && o.userData.base) tile = o })
+    const V = board.camera.position.constructor, p = (board.pieceAt[square] ?? tile).getWorldPosition(new V())
     p.y += 0.02
     p.project(board.camera)
     return [(p.x + 1) / 2 * win.innerWidth, (1 - p.y) / 2 * win.innerHeight]
   }
-  const sloppyClick = square => {
+  const sloppyClick = (square, drift = 12) => {
     const [x, y] = screenOf(square)
-    canvas.dispatchEvent(new win.PointerEvent('pointerdown', { clientX: x - 12, clientY: y, bubbles: true }))
+    canvas.dispatchEvent(new win.PointerEvent('pointerdown', { clientX: x - drift, clientY: y, bubbles: true }))
     canvas.dispatchEvent(new win.PointerEvent('pointerup', { clientX: x, clientY: y, bubbles: true }))
     canvas.dispatchEvent(new win.MouseEvent('click', { clientX: x, clientY: y, bubbles: true }))
   }
@@ -137,6 +139,8 @@ try {
   check(board.selected === 'e7', 'locked view: a click that drifted still picks the piece')
   sloppyClick('e7')
   check(board.selected === null, 'second click deselects')
+  sloppyClick('e7', 100)
+  check(board.selected === null, 'locked view: a long drag is not a pick')
   $('viewLock').focus()
   $('viewLock').click()
   check(!board.viewLocked && board.controls.enabled && $('viewLock').textContent === 'Lock view', 'unlock')
@@ -146,12 +150,23 @@ try {
   board._tick()
   sloppyClick('e7')
   check(board.selected === null, 'unlocked view: a drag is not a pick')
+  check(typeof board.controls._rotateLeft === 'function', 'three r170 OrbitControls internals')
+  board.controls._rotateLeft(0.3); board._tick()
   $('viewLock').click()
+  const camera = board.camera.position.clone()
+  for (let i = 0; i < 5; i++) board._tick()
+  check(board.camera.position.equals(camera), 'locking stops the camera coasting')
   check(board.viewLocked && win.localStorage.getItem('viewLocked') === '1', 'lock saved')
   $('controlsToggle').click()
   check(visible($('viewLock')) && board.viewLocked, 'lock reachable and kept with controls hidden')
+  const lockRect = $('viewLock').getBoundingClientRect()
+  check(doc.elementFromPoint(lockRect.left + lockRect.width / 2, lockRect.top + lockRect.height / 2) === $('viewLock'),
+    'lock button takes clicks with controls hidden')
   $('controlsToggle').click()
   check(board.viewLocked && board.fen === position, 'showing controls keeps lock and position')
+  board._tick()
+  sloppyClick('e7'); sloppyClick('e5')
+  check(board.fen !== position && board.pieceAt.e5?.userData.type === 'p' && !board.pieceAt.e7, 'locked view: drifted clicks play a legal move')
 
   $('token').value = 'desktop-test'
   $('connect').click()
