@@ -137,7 +137,7 @@ export class PendingChallenge {
   // What a reload needs to restore: an open challenge Lichess may still turn into a game.
   saved() {
     const r = this.current
-    return r?.id && !r.gameId ? { id: r.id, label: r.label, at: r.at } : null
+    return r?.id && r.gameId !== r.id ? { id: r.id, label: r.label, at: r.at } : null // its own game ends it
   }
 
   // After a reload. Realtime challenges without keepAliveStream expire 20 s after creation
