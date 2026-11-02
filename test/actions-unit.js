@@ -294,4 +294,60 @@ await check('cancel pressed during creation, creation then fails on the network'
   await p.cancel()
   assert.equal(p.current, null, 'the retry releases the lock')
 })
+// PRJ-72: a reload must not drop the lock while Lichess still holds the challenge. Realtime
+// challenges without keepAliveStream expire 20 s after creation (Lichess API), so the saved
+// request locks again for the rest of that time.
+const clocked = (now, extra = {}) => {
+  const timers = [], messages = [], cancelled = []
+  const p = new PendingChallenge({ cancel: async id => { cancelled.push(id) }, message: t => messages.push(t),
+    now: () => now.t, setTimer: (fn, ms) => { timers.push({ fn, ms }); return timers.length }, clearTimer: () => {}, ...extra })
+  return { p, timers, messages, cancelled }
+}
+await check('a created challenge is saved with its creation time and dropped once it ends', async () => {
+  const now = { t: 1000 }, { p } = clocked(now)
+  const created = deferred()
+  const start = p.start('Maia 5', () => created.promise)
+  assert.equal(p.saved(), null, 'nothing to save before Lichess returns an id')
+  now.t = 1500
+  created.resolve({ challenge: { id: 'c2' } })
+  await start
+  assert.deepEqual(p.saved(), { id: 'c2', label: 'Maia 5', at: 1500 })
+  p.ended('c2', 'Challenge declined')
+  assert.equal(p.saved(), null)
+})
+await check('a restored challenge locks until Lichess expires it', () => {
+  const now = { t: 10000 }, { p, timers, messages } = clocked(now)
+  assert.equal(p.restore({ id: 'c1', label: 'Maia 5', at: 1000 }), true)
+  assert.equal(p.current?.id, 'c1', 'starts are blocked again')
+  assert.deepEqual(p.saved(), { id: 'c1', label: 'Maia 5', at: 1000 }, 'a second reload keeps the original time')
+  assert.equal(timers.at(-1).ms, 16000, '25 s (20 s expiry + 5 s clock margin) after creation')
+  timers.at(-1).fn()
+  assert.equal(p.current, null)
+  assert.match(messages.at(-1), /Maia 5 challenge expired/)
+})
+await check('an expired, invalid or second restore is ignored', () => {
+  const now = { t: 26000 }, { p } = clocked(now)
+  assert.equal(p.restore({ id: 'c1', label: 'Maia 5', at: 1000 }), false, 'expired')
+  assert.equal(p.restore({ label: 'Maia 5', at: 25000 }), false, 'no id')
+  assert.equal(p.restore({ id: 'c1', label: 'Maia 5', at: 'x' }), false, 'no time')
+  assert.equal(p.restore(null), false)
+  assert.equal(p.current, null)
+  assert.equal(p.restore({ id: 'c3', label: 'Ann', at: 25000 }), true)
+  assert.equal(p.restore({ id: 'c4', label: 'Bob', at: 25000 }), false, 'one lock at a time')
+  assert.equal(p.current.id, 'c3')
+})
+await check('a restored challenge can be cancelled or turn into its game', async () => {
+  const now = { t: 5000 }, a = clocked(now)
+  a.p.restore({ id: 'c1', label: 'Ann', at: 1000 })
+  await a.p.cancel()
+  assert.deepEqual(a.cancelled, ['c1'])
+  assert.equal(a.p.current, null)
+  assert.ok(a.p.wasCancelled('c1'), 'a late gameStart for it is ignored')
+  const b = clocked(now)
+  b.p.restore({ id: 'c1', label: 'Ann', at: 1000 })
+  b.p.gameStarted('c1')
+  assert.equal(b.p.current, null)
+  assert.deepEqual(b.cancelled, [], 'its own game is never cancelled')
+  assert.equal(b.p.saved(), null)
+})
 console.log(`ACTIONS-OK ${checks} checks`)
