@@ -28,6 +28,7 @@ export class PendingChallenge {
     Object.assign(this, { cancelRequest: cancel, changed, message, setTimer, clearTimer, waitMs, now, expiryMs })
     this.current = null
     this.cancelled = new Set()
+    this.games = new Set() // ids of games that started (attached) here
   }
 
   async start(label, create, { message = this.message, failure = `${label} challenge failed: `,
@@ -47,9 +48,10 @@ export class PendingChallenge {
       request.id = result?.challenge?.id || result?.id || null
       request.at = this.now()
       if (this.current !== request) {
-        if (request.abandoned && request.id && request.id !== request.gameId) { // Cancel gave up: withdraw it
-          this._remember(request.id)
-          this.cancelRequest(request.id).catch(() => {}) // a 404 or failure: it expires on its own
+        const id = request.id
+        if (request.abandoned && id && !this.games.has(id)) { // Cancel gave up: withdraw it, unless it is being played
+          this._remember(id)
+          this.cancelRequest(id).catch(() => this.cancelled.delete(id)) // still live: let its gameStart attach it
         }
         return true
       }
@@ -136,6 +138,7 @@ export class PendingChallenge {
   }
 
   gameStarted(id) {
+    this._remember(id, this.games)
     const request = this.current
     if (!request) return
     request.gameId = id
@@ -147,9 +150,9 @@ export class PendingChallenge {
 
   wasCancelled(id) { return this.cancelled.has(id) }
 
-  _remember(id) {
-    this.cancelled.add(id)
-    if (this.cancelled.size > 32) this.cancelled.delete(this.cancelled.values().next().value)
+  _remember(id, set = this.cancelled) {
+    set.add(id)
+    if (set.size > 32) set.delete(set.values().next().value)
   }
 
   // What a reload needs to restore: a challenge Lichess may still turn into a game, even one
